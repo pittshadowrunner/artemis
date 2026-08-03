@@ -1,0 +1,6 @@
+sku,description,base_item_sku,uom,weight_kg,temp_zone,lot_tracked,expiry_tracked,serial_tracked,catch_weight,nominal_weight_kg,date_label,shelf_life_days,allergens,certifications,case_pack_qty,pallet_ti,pallet_hi,velocity_class
+CHKN-40,Chicken Breast 40lb Case,,CS,18.14,REFRIGERATED,yes,yes,no,yes,18.14,USE_BY,21,,HALAL,1,8,5,A
+CHDR-BLK,Cheddar Block 10lb,,CS,4.54,REFRIGERATED,yes,yes,no,yes,4.54,SELL_BY,90,MILK,ORGANIC,4,10,6,A
+FRIES-65,Fries 6/5lb Case,,CS,13.6,FROZEN,yes,yes,no,no,,BEST_BY,365,,,6,12,5,A
+SPRMX-4,Spring Mix 4lb,,CS,1.81,REFRIGERATED,yes,yes,no,no,,USE_BY,10,,ORGANIC;NON_GMO,6,14,7,B
+NAPK-12,Napkins 12ct,,CS,5.2,AMBIENT,no,no,no,no,,NONE,,,,12,10,8,C

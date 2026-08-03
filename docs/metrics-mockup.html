@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WMS — Pittsburgh DC · Metrics</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@500;600;700&family=Public+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --concrete:#F2F3F1;--ink:#1C2126;--ink-soft:#4A5158;--line:#D8DBD6;
+  --amber:#FFB100;--amber-ink:#5C3D00;--frozen:#4A90D9;--chill:#43A89B;
+  --card:#FFFFFF;--danger:#D9534A;--ok:#4E9A51;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Public Sans',sans-serif;background:var(--concrete);color:var(--ink);font-size:14px}
+.eyebrow{font-family:'Saira Condensed';text-transform:uppercase;letter-spacing:.14em;font-weight:600;font-size:12px;color:var(--ink-soft)}
+h1,h2,h3{font-family:'Saira Condensed';text-transform:uppercase;letter-spacing:.04em}
+.mono{font-family:'IBM Plex Mono',monospace}
+.topbar{background:var(--ink);color:#fff;display:flex;align-items:center;gap:24px;padding:0 24px;height:56px}
+.brand{font-family:'Saira Condensed';font-weight:700;font-size:20px;letter-spacing:.08em}
+.brand b{color:var(--amber)}
+.crumbs{display:flex;align-items:center;gap:8px;font-size:13px}
+.crumbs .lvl{padding:4px 10px;border:1px solid #3A424A;border-radius:3px;color:#C7CCD1}
+.crumbs .lvl.active{background:var(--amber);color:var(--amber-ink);border-color:var(--amber);font-weight:600}
+.crumbs .sep{color:#5A626B}
+.asof{margin-left:auto;font-size:12px;color:#AEB5BC}
+.asof b{font-family:'IBM Plex Mono';color:#fff}
+
+.page{padding:20px 24px}
+.pagehead{display:flex;align-items:baseline;gap:14px;margin-bottom:16px}
+.pagehead h1{font-size:24px}
+
+/* KPI strip */
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:20px}
+.kpi{background:var(--card);border:1px solid var(--line);border-top:3px solid var(--ink);padding:14px}
+.kpi .n{font-family:'Saira Condensed';font-weight:700;font-size:32px;line-height:1;margin:4px 0 2px}
+.kpi .d{font-size:12px;color:var(--ink-soft)}
+.kpi .d b{color:var(--ok)}
+.kpi.hot{border-top-color:var(--amber)}
+
+.grid2{display:grid;grid-template-columns:1.4fr 1fr;gap:20px;align-items:start}
+@media(max-width:980px){.grid2{grid-template-columns:1fr}}
+.panel{background:var(--card);border:1px solid var(--line);margin-bottom:20px}
+.panel-h{display:flex;align-items:baseline;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--line)}
+.panel-h h3{font-size:16px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{font-family:'Saira Condensed';text-transform:uppercase;letter-spacing:.1em;font-size:11px;color:var(--ink-soft);text-align:left;padding:10px 16px;border-bottom:1px solid var(--line)}
+td{padding:10px 16px;border-bottom:1px solid #ECEEEA}
+td.num{font-family:'IBM Plex Mono';text-align:right}
+th.num{text-align:right}
+
+.placard{display:inline-flex;border:1.5px solid var(--ink);border-radius:2px;overflow:hidden;font-family:'IBM Plex Mono';font-weight:600;font-size:12px;line-height:1}
+.placard .tag{background:var(--amber);color:var(--amber-ink);padding:5px 6px;font-size:10px;display:flex;align-items:center}
+.placard .code{background:#fff;padding:5px 8px}
+.placard.chill .tag{background:var(--chill);color:#fff}
+.placard.frozen .tag{background:var(--frozen);color:#fff}
+
+/* in-cell velocity bar */
+.vbar{display:flex;align-items:center;gap:8px}
+.vbar .track{flex:1;height:8px;background:#EEF0EC;border-radius:2px;overflow:hidden;min-width:60px}
+.vbar .track i{display:block;height:100%;background:var(--ink)}
+.vbar.hot .track i{background:var(--amber)}
+.vclass{font-family:'IBM Plex Mono';font-size:11px;padding:2px 6px;border:1px solid var(--line);border-radius:2px}
+.vclass.mism{border-color:var(--danger);color:var(--danger)}
+
+/* progress rows */
+.prog{padding:12px 16px;border-bottom:1px solid #ECEEEA}
+.prog .pl{display:flex;justify-content:space-between;font-size:13px;margin-bottom:6px}
+.prog .pl .mono{font-size:12px;color:var(--ink-soft)}
+.prog .pl b.pct{font-family:'IBM Plex Mono'}
+.bar{height:10px;background:#EEF0EC;border-radius:2px;overflow:hidden;position:relative}
+.bar i{display:block;height:100%;background:var(--ink)}
+.bar i.done{background:var(--ok)}
+.bar .cutoff{position:absolute;top:-3px;bottom:-3px;width:2px;background:var(--danger)}
+
+/* wave board */
+.wavetype{font-family:'Saira Condensed';text-transform:uppercase;letter-spacing:.08em;font-size:11px;font-weight:600;padding:3px 8px;border-radius:2px;background:#EEF0EC;color:var(--ink-soft)}
+.wavetype.rush{background:#FDEBE9;color:var(--danger)}
+.wavetype.prox{background:#FFF3D6;color:var(--amber-ink)}
+.wavetype.route{background:#E7F0EE;color:#2C6B60}
+footer{padding:0 24px 28px;font-size:12px;color:var(--ink-soft)}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand">SLOT<b>WISE</b></div>
+  <nav class="crumbs"><span class="lvl">ACME</span><span class="sep">›</span><span class="lvl">NORTHEAST</span><span class="sep">›</span><span class="lvl active">PIT1 · PITTSBURGH DC</span></nav>
+  <div class="asof">Snapshot <b>Aug 2 · 11:42</b></div>
+</div>
+
+<div class="page">
+  <div class="pagehead"><h1>Metrics</h1><span class="eyebrow">Today · All areas</span></div>
+
+  <div class="kpis">
+    <div class="kpi"><div class="eyebrow">Lines Picked</div><div class="n">1,847</div><div class="d"><b>▲ 6%</b> vs 7-day avg</div></div>
+    <div class="kpi"><div class="eyebrow">Cases Moved</div><div class="n">5,212</div><div class="d">all workstreams</div></div>
+    <div class="kpi hot"><div class="eyebrow">Orders Remaining</div><div class="n">38</div><div class="d">of 124 · next cutoff 14:30</div></div>
+    <div class="kpi"><div class="eyebrow">Receipts Complete</div><div class="n">68%</div><div class="d">3 of 5 manifests closed</div></div>
+    <div class="kpi"><div class="eyebrow">Faces Below Trigger</div><div class="n">6</div><div class="d">replen queue depth</div></div>
+  </div>
+
+  <div class="grid2">
+    <main>
+      <div class="panel">
+        <div class="panel-h"><h3>Pick-Face Velocity</h3><span class="eyebrow">Lines · Visits · Cases · Today</span></div>
+        <table>
+          <thead><tr><th>Face</th><th>SKU</th><th class="num">Lines</th><th class="num">Visits</th><th class="num">Cases</th><th style="width:26%">Velocity</th><th>Slot</th></tr></thead>
+          <tbody>
+            <tr><td><span class="placard chill"><span class="tag">CHL</span><span class="code">C-04-02-A</span></span></td><td>Chicken Breast 40#</td><td class="num">212</td><td class="num">96</td><td class="num">424</td><td><div class="vbar hot"><div class="track"><i style="width:100%"></i></div></div></td><td><span class="vclass mism">A → C zone</span></td></tr>
+            <tr><td><span class="placard"><span class="tag">AMB</span><span class="code">A-01-01-B</span></span></td><td>Fry Oil 35#</td><td class="num">168</td><td class="num">81</td><td class="num">336</td><td><div class="vbar"><div class="track"><i style="width:79%"></i></div></div></td><td><span class="vclass">A · ok</span></td></tr>
+            <tr><td><span class="placard frozen"><span class="tag">FRZ</span><span class="code">F-01-01-A</span></span></td><td>Fries 6/5#</td><td class="num">154</td><td class="num">77</td><td class="num">462</td><td><div class="vbar"><div class="track"><i style="width:73%"></i></div></div></td><td><span class="vclass">A · ok</span></td></tr>
+            <tr><td><span class="placard chill"><span class="tag">CHL</span><span class="code">C-06-03-B</span></span></td><td>Spring Mix 4#</td><td class="num">97</td><td class="num">88</td><td class="num">104</td><td><div class="vbar"><div class="track"><i style="width:46%"></i></div></div></td><td><span class="vclass mism">visits ≫ cases</span></td></tr>
+            <tr><td><span class="placard"><span class="tag">AMB</span><span class="code">A-22-04-C</span></span></td><td>Napkins 12ct</td><td class="num">41</td><td class="num">30</td><td class="num">58</td><td><div class="vbar"><div class="track"><i style="width:19%"></i></div></div></td><td><span class="vclass">C · ok</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="panel">
+        <div class="panel-h"><h3>Wave Board</h3><span class="eyebrow">Task completion</span></div>
+        <table>
+          <thead><tr><th>Wave</th><th>Type</th><th class="num">Orders</th><th class="num">Tasks</th><th style="width:30%">Progress</th></tr></thead>
+          <tbody>
+            <tr><td class="mono">26-0802-R1</td><td><span class="wavetype rush">Rush</span></td><td class="num">3</td><td class="num">21/21</td><td><div class="bar"><i class="done" style="width:100%"></i></div></td></tr>
+            <tr><td class="mono">26-0802-A</td><td><span class="wavetype prox">Proximity</span></td><td class="num">14</td><td class="num">212/268</td><td><div class="bar"><i style="width:79%"></i></div></td></tr>
+            <tr><td class="mono">26-0802-B</td><td><span class="wavetype">Cutoff 14:30</span></td><td class="num">11</td><td class="num">0/194</td><td><div class="bar"><i style="width:0%"></i><span class="cutoff" style="left:86%"></span></div></td></tr>
+            <tr><td class="mono">26-0802-RT7</td><td><span class="wavetype route">Route 7</span></td><td class="num">9</td><td class="num">planned</td><td><div class="bar"></div></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </main>
+
+    <aside>
+      <div class="panel">
+        <div class="panel-h"><h3>Receiving Today</h3><span class="eyebrow">Expected vs received</span></div>
+        <div class="prog"><div class="pl"><span>MAN-4471 <span class="mono">· Sysco</span></span><b class="pct">100%</b></div><div class="bar"><i class="done" style="width:100%"></i></div></div>
+        <div class="prog"><div class="pl"><span>MAN-4472 <span class="mono">· US Foods</span></span><b class="pct">100%</b></div><div class="bar"><i class="done" style="width:100%"></i></div></div>
+        <div class="prog"><div class="pl"><span>MAN-4473 <span class="mono">· PFG</span></span><b class="pct">64%</b></div><div class="bar"><i style="width:64%"></i></div></div>
+        <div class="prog"><div class="pl"><span>MAN-4474 <span class="mono">· FreshPoint</span></span><b class="pct">12%</b></div><div class="bar"><i style="width:12%"></i></div></div>
+        <div class="prog"><div class="pl"><span>MAN-4475 <span class="mono">· Local</span></span><b class="pct">at dock</b></div><div class="bar"></div></div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-h"><h3>Shipping Today</h3><span class="eyebrow">Order pipeline</span></div>
+        <table>
+          <tbody>
+            <tr><td>Shipped</td><td class="num">86</td></tr>
+            <tr><td>Dropped · awaiting load</td><td class="num">12</td></tr>
+            <tr><td>Picking</td><td class="num">14</td></tr>
+            <tr><td>Allocated · not released</td><td class="num">9</td></tr>
+            <tr><td>New</td><td class="num">3</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="panel">
+        <div class="panel-h"><h3>Labor · Selection</h3><span class="eyebrow">Cases today</span></div>
+        <table>
+          <tbody>
+            <tr><td>M. Alvarez</td><td class="num">918</td></tr>
+            <tr><td>D. Chen</td><td class="num">861</td></tr>
+            <tr><td>J. Okafor</td><td class="num">790</td></tr>
+            <tr><td>T. Rivas</td><td class="num">744</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </aside>
+  </div>
+</div>
+
+<footer>Snapshot on load — no auto-refresh. Backed by v_pick_face_velocity, v_receiving_progress, v_shipping_progress, v_wave_progress, v_replen_pressure, v_labor_productivity.</footer>
+
+</body>
+</html>

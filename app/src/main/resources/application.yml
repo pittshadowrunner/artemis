@@ -1,0 +1,26 @@
+spring:
+  application:
+    name: artemis-wms
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/wms}
+    username: ${DB_USER:wms}
+    password: ${DB_PASSWORD:wms}
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+  servlet:
+    multipart:
+      max-file-size: 50MB
+      max-request-size: 50MB
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: /api-docs/ui
+artemis:
+  mailgun:
+    api-key: ${MAILGUN_API_KEY:}
+    domain: ${MAILGUN_DOMAIN:}
+    from: ${MAILGUN_FROM:alerts@artemis-wms.local}
+  replen:
+    scan-fixed-delay-ms: 60000

@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WMS — Pittsburgh DC · Operations</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@500;600;700&family=Public+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --concrete:#F2F3F1;      /* floor */
+  --ink:#1C2126;           /* graphite */
+  --ink-soft:#4A5158;
+  --line:#D8DBD6;
+  --amber:#FFB100;         /* safety floor tape */
+  --amber-ink:#5C3D00;
+  --frozen:#4A90D9;
+  --chill:#43A89B;
+  --card:#FFFFFF;
+  --danger:#D9534A;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Public Sans',sans-serif;background:var(--concrete);color:var(--ink);font-size:14px}
+.eyebrow{font-family:'Saira Condensed';text-transform:uppercase;letter-spacing:.14em;font-weight:600;font-size:12px;color:var(--ink-soft)}
+h1,h2,h3{font-family:'Saira Condensed';text-transform:uppercase;letter-spacing:.04em}
+.mono{font-family:'IBM Plex Mono',monospace}
+
+/* top bar with org breadcrumb */
+.topbar{background:var(--ink);color:#fff;display:flex;align-items:center;gap:24px;padding:0 24px;height:56px}
+.brand{font-family:'Saira Condensed';font-weight:700;font-size:20px;letter-spacing:.08em}
+.brand b{color:var(--amber)}
+.crumbs{display:flex;align-items:center;gap:8px;font-size:13px}
+.crumbs .lvl{padding:4px 10px;border:1px solid #3A424A;border-radius:3px;color:#C7CCD1;cursor:pointer}
+.crumbs .lvl.active{background:var(--amber);color:var(--amber-ink);border-color:var(--amber);font-weight:600}
+.crumbs .sep{color:#5A626B}
+.user{margin-left:auto;display:flex;align-items:center;gap:10px;font-size:13px;color:#C7CCD1}
+.role-chip{background:#2A3138;border:1px solid #3A424A;border-radius:3px;padding:3px 8px;font-family:'IBM Plex Mono';font-size:11px;color:var(--amber)}
+
+/* hazard-stripe wave banner — the one loud element */
+.wave{background:repeating-linear-gradient(-45deg,var(--amber) 0 14px,var(--ink) 14px 28px);padding:3px;margin:20px 24px 0}
+.wave-inner{background:var(--ink);color:#fff;display:flex;align-items:center;gap:20px;padding:12px 18px;flex-wrap:wrap}
+.pulse{width:9px;height:9px;border-radius:50%;background:var(--amber);animation:pulse 1.6s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.25}}
+@media (prefers-reduced-motion: reduce){.pulse{animation:none}}
+.wave-inner h2{font-size:17px}
+.wave-stat{font-size:12px;color:#AEB5BC}
+.wave-stat b{color:#fff;font-family:'IBM Plex Mono';font-size:14px}
+
+/* layout */
+.grid{display:grid;grid-template-columns:1fr 320px;gap:20px;padding:20px 24px;align-items:start}
+@media(max-width:980px){.grid{grid-template-columns:1fr}}
+
+/* workstream lanes */
+.lanes{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:20px}
+.lane{background:var(--card);border:1px solid var(--line);border-top:3px solid var(--ink);padding:14px}
+.lane .eyebrow{margin-bottom:6px}
+.lane .count{font-family:'Saira Condensed';font-weight:700;font-size:34px;line-height:1}
+.lane .sub{font-size:12px;color:var(--ink-soft);margin-top:6px}
+.lane.hot{border-top-color:var(--amber)}
+.lane.hot .count{color:var(--amber-ink)}
+
+/* assignments table */
+.panel{background:var(--card);border:1px solid var(--line)}
+.panel-h{display:flex;align-items:baseline;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--line)}
+.panel-h h3{font-size:16px}
+.panel-h .eyebrow{font-size:11px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{font-family:'Saira Condensed';text-transform:uppercase;letter-spacing:.1em;font-size:11px;color:var(--ink-soft);text-align:left;padding:10px 16px;border-bottom:1px solid var(--line)}
+td{padding:11px 16px;border-bottom:1px solid #ECEEEA;vertical-align:middle}
+tr:hover td{background:#FAFAF8}
+
+/* the signature: rack placard location codes */
+.placard{display:inline-flex;align-items:stretch;border:1.5px solid var(--ink);border-radius:2px;overflow:hidden;font-family:'IBM Plex Mono';font-weight:600;font-size:12px;line-height:1}
+.placard .tag{background:var(--amber);color:var(--amber-ink);padding:5px 6px;font-size:10px;display:flex;align-items:center}
+.placard .code{background:#fff;padding:5px 8px;letter-spacing:.05em}
+.placard.frozen .tag{background:var(--frozen);color:#fff}
+.placard.chill .tag{background:var(--chill);color:#fff}
+
+.type-chip{font-family:'IBM Plex Mono';font-size:11px;padding:3px 7px;border-radius:2px;background:#EEF0EC;border:1px solid var(--line)}
+.status{font-family:'Saira Condensed';text-transform:uppercase;letter-spacing:.08em;font-size:11px;font-weight:600;padding:3px 8px;border-radius:2px}
+.status.progress{background:#FFF3D6;color:var(--amber-ink)}
+.status.open{background:#EEF0EC;color:var(--ink-soft)}
+.check{color:var(--ink-soft);font-size:11px}
+.check b{font-family:'IBM Plex Mono';color:var(--ink)}
+
+/* right rail */
+.rail .panel{margin-bottom:20px}
+.alert-row{display:flex;justify-content:space-between;gap:10px;padding:11px 16px;border-bottom:1px solid #ECEEEA;font-size:13px}
+.alert-row .lot{font-family:'IBM Plex Mono';font-size:12px;color:var(--ink-soft)}
+.days{font-family:'IBM Plex Mono';font-weight:600;font-size:12px;padding:3px 8px;border-radius:2px;background:#FDEBE9;color:var(--danger);white-space:nowrap}
+.days.warn{background:#FFF3D6;color:var(--amber-ink)}
+.zone-row{padding:11px 16px;border-bottom:1px solid #ECEEEA}
+.zone-row .zl{display:flex;justify-content:space-between;font-size:12px;margin-bottom:6px}
+.zone-row .zl b{font-family:'IBM Plex Mono'}
+.bar{height:8px;background:#EEF0EC;border-radius:2px;overflow:hidden}
+.bar i{display:block;height:100%}
+footer{padding:0 24px 28px;font-size:12px;color:var(--ink-soft)}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand">SLOT<b>WISE</b></div>
+  <nav class="crumbs" aria-label="Organization">
+    <span class="lvl">ACME</span><span class="sep">›</span>
+    <span class="lvl">NORTHEAST</span><span class="sep">›</span>
+    <span class="lvl active">PIT1 · PITTSBURGH DC</span><span class="sep">›</span>
+    <span class="lvl">ALL AREAS</span>
+  </nav>
+  <div class="user"><span class="role-chip">ADMIN · CORP</span> tom@acme.com</div>
+</div>
+
+<div class="wave">
+  <div class="wave-inner">
+    <span class="pulse" aria-hidden="true"></span>
+    <h2>Wave 26-0802-A · Selection in progress</h2>
+    <span class="wave-stat">Orders <b>14</b></span>
+    <span class="wave-stat">Lines picked <b>212 / 268</b></span>
+    <span class="wave-stat">Rotation <b>FEFO</b></span>
+    <span class="wave-stat">Est. complete <b>14:40</b></span>
+  </div>
+</div>
+
+<div class="grid">
+  <main>
+    <div class="lanes">
+      <div class="lane"><div class="eyebrow">Receiving</div><div class="count">3</div><div class="sub">manifests at dock</div></div>
+      <div class="lane"><div class="eyebrow">Put Away</div><div class="count">27</div><div class="sub">LPNs staged</div></div>
+      <div class="lane hot"><div class="eyebrow">Replenishment</div><div class="count">6</div><div class="sub">faces below trigger</div></div>
+      <div class="lane"><div class="eyebrow">Selection</div><div class="count">56</div><div class="sub">tasks remaining</div></div>
+      <div class="lane"><div class="eyebrow">Shipping</div><div class="count">2</div><div class="sub">trailers loading</div></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-h">
+        <h3>Open Assignments</h3>
+        <span class="eyebrow">Sequenced by pick path</span>
+      </div>
+      <table>
+        <thead><tr><th>Seq</th><th>Type</th><th>From</th><th>To</th><th>Item / LPN</th><th>Qty</th><th>Verify</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr>
+            <td class="mono">018</td>
+            <td><span class="type-chip">SELECTION</span></td>
+            <td><span class="placard chill"><span class="tag">CHL</span><span class="code">C-04-02-A</span></span></td>
+            <td><span class="placard"><span class="tag">DRP</span><span class="code">DROP-07</span></span></td>
+            <td>Chicken Breast 40# <span class="mono" style="color:var(--ink-soft)">· LOT 26114</span></td>
+            <td class="mono">4 CS</td>
+            <td class="check">say <b>82</b></td>
+            <td><span class="status progress">In Progress</span></td>
+          </tr>
+          <tr>
+            <td class="mono">019</td>
+            <td><span class="type-chip">SELECTION</span></td>
+            <td><span class="placard chill"><span class="tag">CHL</span><span class="code">C-04-05-B</span></span></td>
+            <td><span class="placard"><span class="tag">DRP</span><span class="code">DROP-07</span></span></td>
+            <td>Cheddar Block CW <span class="mono" style="color:var(--ink-soft)">· LOT 26098</span></td>
+            <td class="mono">2 CS</td>
+            <td class="check">say <b>17</b></td>
+            <td><span class="status open">Open</span></td>
+          </tr>
+          <tr>
+            <td class="mono">020</td>
+            <td><span class="type-chip">REPLEN</span></td>
+            <td><span class="placard frozen"><span class="tag">FRZ</span><span class="code">F-11-03-D</span></span></td>
+            <td><span class="placard frozen"><span class="tag">FRZ</span><span class="code">F-01-01-A</span></span></td>
+            <td>Fries 6/5# <span class="mono" style="color:var(--ink-soft)">· LPN 00042311</span></td>
+            <td class="mono">1 PL</td>
+            <td class="check">say <b>44</b></td>
+            <td><span class="status open">Open</span></td>
+          </tr>
+          <tr>
+            <td class="mono">021</td>
+            <td><span class="type-chip">PUTAWAY</span></td>
+            <td><span class="placard"><span class="tag">DCK</span><span class="code">RCV-02</span></span></td>
+            <td><span class="placard"><span class="tag">STO</span><span class="code">A-22-04-C</span></span></td>
+            <td>Napkins 12ct <span class="mono" style="color:var(--ink-soft)">· LPN 00042318</span></td>
+            <td class="mono">1 PL</td>
+            <td class="check">say <b>61</b></td>
+            <td><span class="status open">Open</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </main>
+
+  <aside class="rail">
+    <div class="panel">
+      <div class="panel-h"><h3>Expiring Lots</h3><span class="eyebrow">FEFO · 14 day horizon</span></div>
+      <div class="alert-row"><div>Milk 2% Gal<div class="lot">LOT 26120 · C-02-01-A</div></div><span class="days">3 days</span></div>
+      <div class="alert-row"><div>Spring Mix 4#<div class="lot">LOT 26119 · C-06-03-B</div></div><span class="days">5 days</span></div>
+      <div class="alert-row"><div>Yogurt Cups 24ct<div class="lot">LOT 26102 · C-01-04-A</div></div><span class="days warn">11 days</span></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-h"><h3>Zone Occupancy</h3><span class="eyebrow">By temp zone</span></div>
+      <div class="zone-row"><div class="zl"><span>Frozen (−18 °C)</span><b>91%</b></div><div class="bar"><i style="width:91%;background:var(--frozen)"></i></div></div>
+      <div class="zone-row"><div class="zl"><span>Refrigerated (2 °C)</span><b>74%</b></div><div class="bar"><i style="width:74%;background:var(--chill)"></i></div></div>
+      <div class="zone-row"><div class="zl"><span>Ambient</span><b>62%</b></div><div class="bar"><i style="width:62%;background:var(--ink-soft)"></i></div></div>
+    </div>
+  </aside>
+</div>
+
+<footer>Policy in effect: Cooler Area → FEFO (overrides Site FIFO) · Min receipt shelf life 30d (inherited from Site)</footer>
+
+</body>
+</html>

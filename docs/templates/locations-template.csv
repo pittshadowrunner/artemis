@@ -1,0 +1,8 @@
+code,loc_type,aisle,bay,tier,slot,pick_sequence,temp_zone,rack_type,velocity_zone,golden_zone,replen_sku,replen_min_qty,replen_max_qty,replen_trigger_qty
+C-04-02-A,PICK_FACE,C,04,02,A,1200,REFRIGERATED,CARTON_FLOW,A,yes,CHKN-40,4,24,8
+C-04-05-B,PICK_FACE,C,04,05,B,1230,REFRIGERATED,CARTON_FLOW,A,yes,CHDR-BLK,2,16,4
+F-01-01-A,PICK_FACE,F,01,01,A,2000,FROZEN,PALLET_FLOW,A,yes,FRIES-65,6,30,10
+F-11-03-D,STORAGE,F,11,03,D,2600,FROZEN,SELECTIVE,B,no,,,,
+A-22-04-C,STORAGE,A,22,04,C,800,AMBIENT,SELECTIVE,C,no,,,,
+DROP-07,DROP,,,,,9000,AMBIENT,,,no,,,,
+RCV-02,RECEIVING_DOCK,,,,,10,AMBIENT,,,no,,,,
