@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+<title>Artemis WMS · Operations</title>
+<th:block th:replace="~{fragments :: headcss}"/>
+<style>
+.wave{background:repeating-linear-gradient(-45deg,var(--amber) 0 14px,var(--ink) 14px 28px);padding:3px;margin:20px 24px 0}
+.wave-inner{background:var(--ink);color:#fff;display:flex;align-items:center;gap:20px;padding:12px 18px;flex-wrap:wrap}
+.pulse{width:9px;height:9px;border-radius:50%;background:var(--amber);animation:pulse 1.6s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.25}}
+@media (prefers-reduced-motion: reduce){.pulse{animation:none}}
+.wave-inner h2{font-size:17px}
+.wave-stat{font-size:12px;color:#AEB5BC}
+.wave-stat b{color:#fff;font-family:'IBM Plex Mono';font-size:14px}
+.grid{display:grid;grid-template-columns:1fr 320px;gap:20px;padding:20px 24px;align-items:start}
+@media(max-width:980px){.grid{grid-template-columns:1fr}}
+.lanes{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:20px}
+.lane{background:var(--card);border:1px solid var(--line);border-top:3px solid var(--ink);padding:14px}
+.lane .eyebrow{margin-bottom:6px}
+.lane .count{font-family:'Saira Condensed';font-weight:700;font-size:34px;line-height:1}
+.lane .sub{font-size:12px;color:var(--ink-soft);margin-top:6px}
+.lane.hot{border-top-color:var(--amber)}
+.lane.hot .count{color:var(--amber-ink)}
+.rail .panel{margin-bottom:20px}
+.alert-row{display:flex;justify-content:space-between;gap:10px;padding:11px 16px;border-bottom:1px solid #ECEEEA;font-size:13px}
+.alert-row .lot{font-family:'IBM Plex Mono';font-size:12px;color:var(--ink-soft)}
+.days{font-family:'IBM Plex Mono';font-weight:600;font-size:12px;padding:3px 8px;border-radius:2px;background:#FDEBE9;color:var(--danger);white-space:nowrap}
+.days.warn{background:#FFF3D6;color:var(--amber-ink)}
+.zone-row{padding:11px 16px;border-bottom:1px solid #ECEEEA}
+.zone-row .zl{display:flex;justify-content:space-between;font-size:12px;margin-bottom:6px}
+.zone-row .zl b{font-family:'IBM Plex Mono'}
+</style>
+</head>
+<body>
+
+<div th:replace="~{fragments :: topbar('ops')}"></div>
+
+<div class="wave" th:if="${wave != null}">
+  <div class="wave-inner">
+    <span class="pulse" aria-hidden="true"></span>
+    <h2 th:text="'Wave ' + ${wave.wave_number} + ' · Selection in progress'">Wave</h2>
+    <span class="wave-stat">Orders <b th:text="${wave.orders}">0</b></span>
+    <span class="wave-stat">Tasks done <b th:text="${wave.done_tasks} + ' / ' + ${wave.total_tasks}">0/0</b></span>
+    <span class="wave-stat">Type <b th:text="${wave.wave_type}">TYPE</b></span>
+  </div>
+</div>
+
+<div class="grid">
+  <main>
+    <div class="lanes">
+      <div class="lane"><div class="eyebrow">Receiving</div><div class="count" th:text="${lanes.receiving}">0</div><div class="sub">manifests at dock</div></div>
+      <div class="lane"><div class="eyebrow">Put Away</div><div class="count" th:text="${lanes.putaway}">0</div><div class="sub">open tasks</div></div>
+      <div class="lane" th:classappend="${lanes.replen > 0} ? 'hot'"><div class="eyebrow">Replenishment</div><div class="count" th:text="${lanes.replen}">0</div><div class="sub">faces below trigger</div></div>
+      <div class="lane"><div class="eyebrow">Selection</div><div class="count" th:text="${lanes.selection}">0</div><div class="sub">tasks remaining</div></div>
+      <div class="lane"><div class="eyebrow">Shipping</div><div class="count" th:text="${lanes.shipping}">0</div><div class="sub">orders awaiting load</div></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-h"><h3>Open Assignments</h3><span class="eyebrow">Sequenced by pick path</span></div>
+      <table>
+        <thead><tr><th>Seq</th><th>Type</th><th>From</th><th>To</th><th>Item / LPN</th><th>Qty</th><th>Verify</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr th:each="t : ${tasks}">
+            <td class="mono" th:text="${#numbers.formatInteger(t.seq, 3)}">001</td>
+            <td><span class="type-chip" th:text="${t.assignment_type == 'REPLENISHMENT'} ? 'REPLEN' : ${t.assignment_type}">TYPE</span></td>
+            <td><span class="placard" th:classappend="${t.from_css}"><span class="tag" th:text="${t.from_tag}">TAG</span><span class="code" th:text="${t.from_code}">LOC</span></span></td>
+            <td><span class="placard" th:classappend="${t.to_css}"><span class="tag" th:text="${t.to_tag}">TAG</span><span class="code" th:text="${t.to_code}">LOC</span></span></td>
+            <td th:utext="${t.item} + (${t.lot_number != null} ? ' <span class=&quot;mono&quot; style=&quot;color:var(--ink-soft)&quot;>· LOT ' + ${t.lot_number} + '</span>' : (${t.lpn != null} ? ' <span class=&quot;mono&quot; style=&quot;color:var(--ink-soft)&quot;>· LPN ' + ${t.lpn} + '</span>' : ''))">Item</td>
+            <td class="mono" th:text="${#numbers.formatDecimal(t.qty,1,0)} + ' CS'">0</td>
+            <td class="check">say <b th:text="${t.say_digits}">00</b></td>
+            <td><span class="status open">Open</span></td>
+          </tr>
+          <tr th:if="${#lists.isEmpty(tasks)}"><td colspan="8" style="color:var(--ink-soft)">No open tasks — the floor is caught up.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </main>
+
+  <aside class="rail">
+    <div class="panel">
+      <div class="panel-h"><h3>Expiring Lots</h3><span class="eyebrow">FEFO horizon</span></div>
+      <div class="alert-row" th:each="e : ${expiring}">
+        <div><span th:text="${e.description}">Item</span><div class="lot" th:text="'LOT ' + ${e.lot_number ?: '—'} + ' · ' + ${e.location_code}">LOT</div></div>
+        <span class="days" th:classappend="${e.days_remaining > 10} ? 'warn'" th:text="${e.days_remaining} + ' days'">0</span>
+      </div>
+      <div class="alert-row" th:if="${#lists.isEmpty(expiring)}"><div style="color:var(--ink-soft)">No dated stock on hand.</div></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-h"><h3>Zone Occupancy</h3><span class="eyebrow">By temp zone</span></div>
+      <div class="zone-row" th:each="z : ${zones}">
+        <div class="zl"><span th:text="${z.temp_zone}">ZONE</span><b th:text="${z.pct} + '%'">0%</b></div>
+        <div class="bar"><i th:style="'width:' + ${z.pct} + '%;background:' + (${z.css == 'frozen'} ? 'var(--frozen)' : (${z.css == 'chill'} ? 'var(--chill)' : 'var(--ink-soft)'))"></i></div>
+      </div>
+    </div>
+  </aside>
+</div>
+
+<footer>Snapshot on load · <span th:text="${asOf}">now</span> · Backed by the same views as /api/v1/metrics — the UI is just another client.</footer>
+</body>
+</html>

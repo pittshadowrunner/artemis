@@ -21,8 +21,10 @@ public class OrgController {
 
     @PostMapping
     public ResponseEntity<Map<String, Object>> create(@RequestBody Map<String, String> body) {
-        // Bootstrap case: creating the first corporation needs no prior grant
-        if (!"CORPORATION".equals(body.get("level")) && TenantContext.user() != null) {
+        if ("CORPORATION".equals(body.get("level"))) {
+            // Platform topology: sysadmin only. Tenants never mint tenants.
+            caps.requireSysadmin(TenantContext.user());
+        } else {
             caps.require(TenantContext.user(), null, Capabilities.ORG_MANAGE);
         }
         UUID id = org.create(body.get("level"),

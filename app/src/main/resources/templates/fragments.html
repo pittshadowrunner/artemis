@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+<th:block th:fragment="headcss">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@500;600;700&family=Public+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{--concrete:#F2F3F1;--ink:#1C2126;--ink-soft:#4A5158;--line:#D8DBD6;--amber:#FFB100;--amber-ink:#5C3D00;--frozen:#4A90D9;--chill:#43A89B;--card:#FFFFFF;--danger:#D9534A;--ok:#4E9A51}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Public Sans',sans-serif;background:var(--concrete);color:var(--ink);font-size:14px}
+.eyebrow{font-family:'Saira Condensed';text-transform:uppercase;letter-spacing:.14em;font-weight:600;font-size:12px;color:var(--ink-soft)}
+h1,h2,h3{font-family:'Saira Condensed';text-transform:uppercase;letter-spacing:.04em}
+.mono{font-family:'IBM Plex Mono',monospace}
+.topbar{background:var(--ink);color:#fff;display:flex;align-items:center;gap:24px;padding:0 24px;height:56px}
+.brand{font-family:'Saira Condensed';font-weight:700;font-size:20px;letter-spacing:.08em;color:#fff;text-decoration:none}
+.brand b{color:var(--amber)}
+.crumbs{display:flex;align-items:center;gap:8px;font-size:13px}
+.crumbs .lvl{padding:4px 10px;border:1px solid #3A424A;border-radius:3px;color:#C7CCD1}
+.crumbs .lvl.active{background:var(--amber);color:var(--amber-ink);border-color:var(--amber);font-weight:600}
+.crumbs .sep{color:#5A626B}
+.user{margin-left:auto;display:flex;align-items:center;gap:10px;font-size:13px;color:#C7CCD1}
+.role-chip{background:#2A3138;border:1px solid #3A424A;border-radius:3px;padding:3px 8px;font-family:'IBM Plex Mono';font-size:11px;color:var(--amber)}
+.navlink{color:#C7CCD1;text-decoration:none;font-size:13px;padding:4px 10px;border:1px solid #3A424A;border-radius:3px}
+.navlink:hover{color:#fff;border-color:#5A626B}
+.panel{background:var(--card);border:1px solid var(--line);margin-bottom:20px}
+.panel-h{display:flex;align-items:baseline;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--line)}
+.panel-h h3{font-size:16px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{font-family:'Saira Condensed';text-transform:uppercase;letter-spacing:.1em;font-size:11px;color:var(--ink-soft);text-align:left;padding:10px 16px;border-bottom:1px solid var(--line)}
+td{padding:11px 16px;border-bottom:1px solid #ECEEEA;vertical-align:middle}
+td.num,th.num{font-family:'IBM Plex Mono';text-align:right}
+tr:hover td{background:#FAFAF8}
+.placard{display:inline-flex;align-items:stretch;border:1.5px solid var(--ink);border-radius:2px;overflow:hidden;font-family:'IBM Plex Mono';font-weight:600;font-size:12px;line-height:1}
+.placard .tag{background:var(--amber);color:var(--amber-ink);padding:5px 6px;font-size:10px;display:flex;align-items:center}
+.placard .code{background:#fff;padding:5px 8px;letter-spacing:.05em}
+.placard.frozen .tag{background:var(--frozen);color:#fff}
+.placard.chill .tag{background:var(--chill);color:#fff}
+.type-chip{font-family:'IBM Plex Mono';font-size:11px;padding:3px 7px;border-radius:2px;background:#EEF0EC;border:1px solid var(--line)}
+.status{font-family:'Saira Condensed';text-transform:uppercase;letter-spacing:.08em;font-size:11px;font-weight:600;padding:3px 8px;border-radius:2px}
+.status.progress{background:#FFF3D6;color:var(--amber-ink)}
+.status.open{background:#EEF0EC;color:var(--ink-soft)}
+.check{color:var(--ink-soft);font-size:11px}
+.check b{font-family:'IBM Plex Mono';color:var(--ink)}
+.bar{height:8px;background:#EEF0EC;border-radius:2px;overflow:hidden;position:relative}
+.bar i{display:block;height:100%;background:var(--ink)}
+.bar i.done{background:var(--ok)}
+footer{padding:0 24px 28px;font-size:12px;color:var(--ink-soft)}
+</style>
+</th:block>
+<body>
+<div th:fragment="topbar(active)" class="topbar">
+  <a class="brand" th:href="@{/(siteId=${siteId})}">ARTE<b>MIS</b></a>
+  <nav class="crumbs" aria-label="Organization" th:if="${crumb != null}">
+    <span class="lvl" th:if="${crumb['CORPORATION']}" th:text="${crumb['CORPORATION'].code}">CORP</span>
+    <span class="sep" th:if="${crumb['DISTRICT_REGION']}">›</span>
+    <span class="lvl" th:if="${crumb['DISTRICT_REGION']}" th:text="${crumb['DISTRICT_REGION'].code}">REGION</span>
+    <span class="sep">›</span>
+    <span class="lvl active" th:text="${crumb['SITE_LOCATION'].code + ' · ' + #strings.toUpperCase(crumb['SITE_LOCATION'].name)}">SITE</span>
+  </nav>
+  <a class="navlink" th:href="@{/(siteId=${siteId})}" th:classappend="${active=='ops'} ? 'active'">Operations</a>
+  <a class="navlink" th:href="@{/metrics(siteId=${siteId})}" th:classappend="${active=='metrics'} ? 'active'">Metrics</a>
+  <a class="navlink" href="/api-docs/ui" target="_blank">API</a>
+  <div class="user">
+    <span class="role-chip" th:text="${sysadmin} ? 'SYSADMIN' : 'ADMIN'">ADMIN</span>
+    <span th:text="${userEmail}">user</span>
+  </div>
+</div>
+</body>
+</html>

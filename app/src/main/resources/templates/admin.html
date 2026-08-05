@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+<title>Artemis WMS · Platform Console</title>
+<th:block th:replace="~{fragments :: headcss}"/>
+<style>
+.page{padding:20px 24px;max-width:1100px}
+.pagehead{display:flex;align-items:baseline;gap:14px;margin-bottom:16px}
+.pagehead h1{font-size:24px}
+.pill{font-family:'IBM Plex Mono';font-size:11px;padding:2px 8px;border-radius:2px;border:1px solid var(--line)}
+.pill.on{background:#E7F0EE;color:#2C6B60;border-color:#BFD9D3}
+.pill.off{background:#FDEBE9;color:var(--danger);border-color:#F2C4C0}
+.note{background:#FFF8E8;border:1px solid #F0DFA8;padding:12px 16px;font-size:13px;color:var(--amber-ink);margin-bottom:20px}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <a class="brand" href="/">ARTE<b>MIS</b></a>
+  <span class="eyebrow" style="color:#C7CCD1">Platform Console</span>
+  <a class="navlink" href="/">Operations</a>
+  <a class="navlink" href="/api-docs/ui" target="_blank">API</a>
+  <div class="user"><span class="role-chip">SYSADMIN</span> <span th:text="${userEmail}">op</span></div>
+</div>
+
+<div class="page">
+  <div class="pagehead"><h1>Platform Console</h1><span class="eyebrow">Snapshot <span th:text="${asOf}">now</span></span></div>
+
+  <div class="note">Platform tier: tenants are listed here as summaries only. Sysadmin creates and
+  suspends corporations; it does not read tenant operational data. Corporation creation:
+  <span class="mono">POST /api/v1/org</span> with <span class="mono">level=CORPORATION</span> (sysadmin-gated).</div>
+
+  <div class="panel">
+    <div class="panel-h"><h3>Tenants</h3><span class="eyebrow" th:text="${#lists.size(tenants)} + ' corporations'">0</span></div>
+    <table>
+      <thead><tr><th>Code</th><th>Name</th><th class="num">Sites</th><th class="num">Users</th><th class="num">IdPs</th><th>Status</th><th>Created</th></tr></thead>
+      <tbody>
+        <tr th:each="t : ${tenants}">
+          <td class="mono" th:text="${t.code}">CODE</td>
+          <td th:text="${t.name}">Name</td>
+          <td class="num" th:text="${t.sites}">0</td>
+          <td class="num" th:text="${t.users}">0</td>
+          <td class="num" th:text="${t.idps}">0</td>
+          <td><span class="pill" th:classappend="${t.active} ? 'on' : 'off'" th:text="${t.active} ? 'ACTIVE' : 'SUSPENDED'">ACTIVE</span></td>
+          <td class="mono" th:text="${#dates.format(t.created_at, 'yyyy-MM-dd')}">date</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="panel">
+    <div class="panel-h"><h3>Identity Providers</h3><span class="eyebrow">IdP authenticates · app authorizes</span></div>
+    <table>
+      <thead><tr><th>Tenant</th><th>Registration</th><th>Display Name</th><th>Protocol</th><th>JIT</th><th>Status</th></tr></thead>
+      <tbody>
+        <tr th:each="i : ${idps}">
+          <td class="mono" th:text="${i.tenant}">T</td>
+          <td class="mono" th:text="${i.registration_id}">reg</td>
+          <td th:text="${i.display_name}">Name</td>
+          <td><span class="pill" th:text="${i.protocol}">OIDC</span></td>
+          <td><span class="pill" th:classappend="${i.jit_provisioning} ? 'on'" th:text="${i.jit_provisioning} ? 'JIT' : 'MANUAL'">JIT</span></td>
+          <td><span class="pill" th:classappend="${i.active} ? 'on' : 'off'" th:text="${i.active} ? 'ACTIVE' : 'DISABLED'">ACTIVE</span></td>
+        </tr>
+        <tr th:if="${#lists.isEmpty(idps)}"><td colspan="6" style="color:var(--ink-soft)">
+          No identity providers registered. Tenants authenticate via local-auth (dev) until an
+          OIDC provider is registered in <span class="mono">identity_provider</span> (V4).</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="panel">
+    <div class="panel-h"><h3>Platform Operators</h3><span class="eyebrow">app_user.sysadmin — never a tenant grant</span></div>
+    <table>
+      <thead><tr><th>Email</th><th>Name</th><th>Last Login</th><th>Status</th></tr></thead>
+      <tbody>
+        <tr th:each="o : ${operators}">
+          <td class="mono" th:text="${o.email}">email</td>
+          <td th:text="${o.display_name}">Name</td>
+          <td class="mono" th:text="${o.last_login_at != null} ? ${#dates.format(o.last_login_at, 'yyyy-MM-dd HH:mm')} : '—'">—</td>
+          <td><span class="pill" th:classappend="${o.active} ? 'on' : 'off'" th:text="${o.active} ? 'ACTIVE' : 'DISABLED'">ACTIVE</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<footer>Sysadmin sits above tenants: corporation creation and platform administration only. Tenant operations require tenant grants.</footer>
+</body>
+</html>

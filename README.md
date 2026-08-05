@@ -62,3 +62,16 @@ container, and pushes `ghcr.io/<owner>/artemis-wms`.
 | M3 | Inbound — manifests, dock-enforced capture, min-shelf-life rejection at receipt, directed putaway (`directed_putaway_slot`), check-digit verified completion |
 | M4 | Outbound — allocation (rotation cascade + freshness bypass with `ROTATION_BYPASS` alert), 8 wave types, cart batching, both-side verified selection, LPN split, packing list from picked reality |
 | M5 | Replenishment — trigger scan over `v_replen_pressure`, slot-to-slot assignments, `REPLEN_CRITICAL` → bell + email outbox escalation |
+| UI | Server-rendered operator UI (Thymeleaf): `/` operations board, `/metrics` dashboards — mockup-faithful, snapshot-on-load, DASHBOARD_VIEW-gated |
+| M6 (partial) | Equipment registry (`POST /equipment` — enables batch-cart release), labor dispatch (`POST /assignments/{id}/assign` feeds `v_labor_productivity`), platform console at `/admin` with sysadmin REST (`/api/v1/admin/*`) |
+| V9 | Platform SYSADMIN tier — corporation creation and platform admin locked to `app_user.sysadmin`; tenant admin roles propagate downward via grants as before |
+
+## Auth tiers
+
+- **SYSADMIN** (platform): flag on the user, not a grant. Creates corporations,
+  future home of IdP/platform administration. Never reachable from tenant roles.
+  local-auth seeds `sysadmin@artemis.local / sysadmin` (fresh installs) and
+  grandfathers `admin@artemis.local` on existing dev databases (V9).
+- **Tenant admins** (corporation → district → site → area): grants at org nodes,
+  highest-wins resolution walks ancestors — a corporation ADMIN grant covers
+  every site beneath it.

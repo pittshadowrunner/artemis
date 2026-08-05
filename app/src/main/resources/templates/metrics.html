@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+<title>Artemis WMS · Metrics</title>
+<th:block th:replace="~{fragments :: headcss}"/>
+<style>
+.page{padding:20px 24px}
+.pagehead{display:flex;align-items:baseline;gap:14px;margin-bottom:16px}
+.pagehead h1{font-size:24px}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:20px}
+.kpi{background:var(--card);border:1px solid var(--line);border-top:3px solid var(--ink);padding:14px}
+.kpi .n{font-family:'Saira Condensed';font-weight:700;font-size:32px;line-height:1;margin:4px 0 2px}
+.kpi .d{font-size:12px;color:var(--ink-soft)}
+.kpi.hot{border-top-color:var(--amber)}
+.grid2{display:grid;grid-template-columns:1.4fr 1fr;gap:20px;align-items:start}
+@media(max-width:980px){.grid2{grid-template-columns:1fr}}
+.vbar{display:flex;align-items:center;gap:8px}
+.vbar .track{flex:1;height:8px;background:#EEF0EC;border-radius:2px;overflow:hidden;min-width:60px}
+.vbar .track i{display:block;height:100%;background:var(--ink)}
+.vbar.hot .track i{background:var(--amber)}
+.vclass{font-family:'IBM Plex Mono';font-size:11px;padding:2px 6px;border:1px solid var(--line);border-radius:2px}
+.vclass.mism{border-color:var(--danger);color:var(--danger)}
+.prog{padding:12px 16px;border-bottom:1px solid #ECEEEA}
+.prog .pl{display:flex;justify-content:space-between;font-size:13px;margin-bottom:6px}
+.prog .pl .mono{font-size:12px;color:var(--ink-soft)}
+.prog .pl b.pct{font-family:'IBM Plex Mono'}
+.prog .bar{height:10px}
+.wavetype{font-family:'Saira Condensed';text-transform:uppercase;letter-spacing:.08em;font-size:11px;font-weight:600;padding:3px 8px;border-radius:2px;background:#EEF0EC;color:var(--ink-soft)}
+.wavetype.rush{background:#FDEBE9;color:var(--danger)}
+.wavetype.prox{background:#FFF3D6;color:var(--amber-ink)}
+.wavetype.route{background:#E7F0EE;color:#2C6B60}
+</style>
+</head>
+<body>
+
+<div th:replace="~{fragments :: topbar('metrics')}"></div>
+
+<div class="page">
+  <div class="pagehead"><h1>Metrics</h1><span class="eyebrow">Today · All areas · Snapshot <span th:text="${asOf}">now</span></span></div>
+
+  <div class="kpis">
+    <div class="kpi"><div class="eyebrow">Lines Picked</div><div class="n" th:text="${kpis.lines_picked}">0</div><div class="d">selection · today</div></div>
+    <div class="kpi"><div class="eyebrow">Cases Moved</div><div class="n" th:text="${#numbers.formatDecimal(kpis.cases_moved,1,0)}">0</div><div class="d">all workstreams</div></div>
+    <div class="kpi hot"><div class="eyebrow">Orders Remaining</div><div class="n" th:text="${kpis.orders_remaining}">0</div><div class="d" th:text="'of ' + ${kpis.orders_total} + ' total'">of 0</div></div>
+    <div class="kpi"><div class="eyebrow">Receipts Complete</div><div class="n" th:text="${#numbers.formatDecimal(kpis.receipts_pct,1,0)} + '%'">0%</div><div class="d">expected vs received</div></div>
+    <div class="kpi"><div class="eyebrow">Faces Below Trigger</div><div class="n" th:text="${kpis.faces_below}">0</div><div class="d">replen queue depth</div></div>
+  </div>
+
+  <div class="grid2">
+    <main>
+      <div class="panel">
+        <div class="panel-h"><h3>Pick-Face Velocity</h3><span class="eyebrow">Lines · Visits · Cases · Today</span></div>
+        <table>
+          <thead><tr><th>Face</th><th>SKU</th><th class="num">Lines</th><th class="num">Visits</th><th class="num">Cases</th><th style="width:26%">Velocity</th><th>Slot</th></tr></thead>
+          <tbody>
+            <tr th:each="v, i : ${velocity}">
+              <td><span class="placard" th:classappend="${v.css}"><span class="tag" th:text="${v.tag}">TAG</span><span class="code" th:text="${v.location_code}">LOC</span></span></td>
+              <td th:text="${v.description}">SKU</td>
+              <td class="num" th:text="${v.lines}">0</td>
+              <td class="num" th:text="${v.visits}">0</td>
+              <td class="num" th:text="${#numbers.formatDecimal(v.cases,1,0)}">0</td>
+              <td><div class="vbar" th:classappend="${i.index == 0} ? 'hot'"><div class="track"><i th:style="'width:' + ${v.pct} + '%'"></i></div></div></td>
+              <td><span class="vclass"
+                    th:classappend="${v.velocity_class != null and v.velocity_zone != null and v.velocity_class != v.velocity_zone} ? 'mism'"
+                    th:text="${v.velocity_class != null and v.velocity_zone != null and v.velocity_class != v.velocity_zone}
+                             ? ${v.velocity_class + ' → ' + v.velocity_zone + ' zone'}
+                             : ${(v.velocity_class ?: '·') + ' · ok'}">ok</span></td>
+            </tr>
+            <tr th:if="${#lists.isEmpty(velocity)}"><td colspan="7" style="color:var(--ink-soft)">No picks completed today yet.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="panel">
+        <div class="panel-h"><h3>Wave Board</h3><span class="eyebrow">Task completion</span></div>
+        <table>
+          <thead><tr><th>Wave</th><th>Type</th><th class="num">Orders</th><th class="num">Tasks</th><th style="width:30%">Progress</th></tr></thead>
+          <tbody>
+            <tr th:each="w : ${waves}">
+              <td class="mono" th:text="${w.wave_number}">W</td>
+              <td><span class="wavetype"
+                    th:classappend="${w.wave_type == 'RUSH'} ? 'rush' : (${w.wave_type == 'PROXIMITY'} ? 'prox' : (${w.wave_type == 'ROUTE'} ? 'route' : ''))"
+                    th:text="${w.wave_type}">TYPE</span></td>
+              <td class="num" th:text="${w.orders}">0</td>
+              <td class="num" th:text="${w.status == 'PLANNED'} ? 'planned' : ${w.done_tasks + '/' + w.total_tasks}">0/0</td>
+              <td><div class="bar"><i th:classappend="${w.pct == 100} ? 'done'" th:style="'width:' + ${w.pct} + '%'"></i></div></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </main>
+
+    <aside>
+      <div class="panel">
+        <div class="panel-h"><h3>Receiving Today</h3><span class="eyebrow">Expected vs received</span></div>
+        <div class="prog" th:each="r : ${receiving}">
+          <div class="pl">
+            <span th:utext="${r.manifest_number} + ' <span class=&quot;mono&quot;>· ' + ${r.carrier ?: ''} + '</span>'">MAN</span>
+            <b class="pct" th:text="${r.status == 'ARRIVED' and r.pct == 0} ? 'at dock' : ${#numbers.formatDecimal(r.pct,1,0) + '%'}">0%</b>
+          </div>
+          <div class="bar"><i th:classappend="${r.pct >= 100} ? 'done'" th:style="'width:' + ${r.pct} + '%'"></i></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-h"><h3>Shipping Today</h3><span class="eyebrow">Order pipeline</span></div>
+        <table><tbody>
+          <tr th:each="p : ${pipeline}">
+            <td th:text="${p.status == 'DROPPED'} ? 'Dropped · awaiting load' : ${#strings.capitalize(#strings.toLowerCase(p.status))}">Status</td>
+            <td class="num" th:text="${p.orders}">0</td>
+          </tr>
+        </tbody></table>
+      </div>
+
+      <div class="panel">
+        <div class="panel-h"><h3>Labor · Selection</h3><span class="eyebrow">Cases today</span></div>
+        <table><tbody>
+          <tr th:each="l : ${labor}">
+            <td th:text="${l.display_name}">Name</td>
+            <td class="num" th:text="${#numbers.formatDecimal(l.cases,1,0)}">0</td>
+          </tr>
+          <tr th:if="${#lists.isEmpty(labor)}"><td style="color:var(--ink-soft)">No assigned selection work yet.</td><td></td></tr>
+        </tbody></table>
+      </div>
+    </aside>
+  </div>
+</div>
+
+<footer>Snapshot on load — no auto-refresh · Backed by v_pick_face_velocity, v_receiving_progress, v_shipping_progress, v_wave_progress, v_replen_pressure, v_labor_productivity.</footer>
+</body>
+</html>

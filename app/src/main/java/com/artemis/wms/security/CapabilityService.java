@@ -33,6 +33,20 @@ public class CapabilityService {
         return n != null && n > 0;
     }
 
+    /** Platform tier: above all tenants. Never derived from grants. */
+    public boolean isSysadmin(UUID userId) {
+        if (userId == null) return false;
+        Boolean b = jdbc.queryForObject(
+            "SELECT sysadmin FROM app_user WHERE user_id = ?", Boolean.class, userId);
+        return Boolean.TRUE.equals(b);
+    }
+
+    public void requireSysadmin(UUID userId) {
+        if (!isSysadmin(userId))
+            throw new org.springframework.security.access.AccessDeniedException(
+                "Platform administration requires sysadmin.");
+    }
+
     public void require(UUID userId, UUID orgNodeId, String capability) {
         boolean ok = orgNodeId != null ? has(userId, orgNodeId, capability) : hasAnywhere(userId, capability);
         if (!ok) throw new org.springframework.security.access.AccessDeniedException(

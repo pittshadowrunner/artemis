@@ -98,8 +98,14 @@ public class AllocationService {
                 jdbc.update("""
                     INSERT INTO allocation (order_line_id, inventory_id, qty) VALUES (?, ?, ?)
                     """, line.get("order_line_id"), cand.get("inventory_id"), take);
-                jdbc.update("UPDATE inventory SET status = 'ALLOCATED', updated_at = now() WHERE inventory_id = ?",
-                    cand.get("inventory_id"));
+                // Flip status only when the LPN is FULLY allocated. Partially
+                // allocated records must stay AVAILABLE so v_available_inventory
+                // keeps offering the remainder (it nets out allocation rows).
+                jdbc.update("""
+                    UPDATE inventory SET status = 'ALLOCATED', updated_at = now()
+                    WHERE inventory_id = ? AND qty <= COALESCE(
+                        (SELECT sum(qty) FROM allocation WHERE inventory_id = ?), 0)
+                    """, cand.get("inventory_id"), cand.get("inventory_id"));
                 remaining = remaining.subtract(take);
             }
             jdbc.update("""

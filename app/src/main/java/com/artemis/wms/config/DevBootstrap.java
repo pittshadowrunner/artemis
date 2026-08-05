@@ -35,6 +35,13 @@ public class DevBootstrap {
                 INSERT INTO user_org_grant (user_id, org_node_id, role_id)
                 SELECT ?, ?, role_id FROM role WHERE code = 'ADMIN' AND corporation_id IS NULL
                 """, userId, corpId);
+            // dev convenience: the bootstrap admin doubles as platform operator
+            jdbc.update("UPDATE app_user SET sysadmin = true WHERE user_id = ?", userId);
+            // and a dedicated sysadmin with NO tenant grants, to test the tier cleanly
+            jdbc.update("""
+                INSERT INTO app_user (email, password_hash, display_name, email_verified, account_source, sysadmin)
+                VALUES ('sysadmin@artemis.local', ?, 'Platform Sysadmin', true, 'LOCAL', true)
+                """, encoder.encode("sysadmin"));
         };
     }
 }

@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head><title>Artemis WMS</title><th:block th:replace="~{fragments :: headcss}"/></head>
+<body>
+<div class="topbar"><a class="brand" href="/">ARTE<b>MIS</b></a>
+  <div class="user"><span class="role-chip" th:text="${sysadmin} ? 'SYSADMIN' : 'USER'">USER</span> <span th:text="${userEmail}"></span></div></div>
+<div style="padding:40px 24px;max-width:640px">
+  <h1 style="font-size:24px;margin-bottom:12px">No sites yet</h1>
+  <p style="color:var(--ink-soft);line-height:1.6">This tenant has no Site Locations. Build the topology through the API:
+  corporation (sysadmin only) → district region → site → areas. See <a href="/api-docs/ui">/api-docs/ui</a>,
+  or run <span class="mono">scripts/demo-seed.sh</span> to stand up a full demo site.</p>
+</div>
+</body>
+</html>
