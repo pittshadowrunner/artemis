@@ -64,6 +64,8 @@ container, and pushes `ghcr.io/<owner>/artemis-wms`.
 | M5 | Replenishment — trigger scan over `v_replen_pressure`, slot-to-slot assignments, `REPLEN_CRITICAL` → bell + email outbox escalation |
 | UI | Server-rendered operator UI (Thymeleaf): `/` operations board, `/metrics` dashboards — mockup-faithful, snapshot-on-load, DASHBOARD_VIEW-gated |
 | M6 (partial) | Equipment registry (`POST /equipment` — enables batch-cart release), labor dispatch (`POST /assignments/{id}/assign` feeds `v_labor_productivity`), platform console at `/admin` with sysadmin REST (`/api/v1/admin/*`) |
+| Asset screens | Linkable asset registry: hub → Items / Zones / Slots / Carts & Powered / Totes / Waves, list → detail everywhere, Wave → Assignment → pick-line graph; V10 adds assignment numbers, datetime wave numbers, slot dimensions, equipment capabilities, calculated ABC item velocity (`v_item_velocity`, trailing 30d) |
+| Mutations & lifecycle | Create/edit forms on every asset screen (items, slots, equipment, containers) + action buttons (plan/release wave, assign/reassign, attach tote, replen scan); V11 assignment lifecycle: PENDING → ASSIGNED → REASSIGNED → IN PROGRESS → COMPLETE with reassignment audit (count + previous assignee), 4s live-status polling on the assignment screen; pick lines resolve the full put address (equipment type + code + position + tote with authoritative digits) |
 | V9 | Platform SYSADMIN tier — corporation creation and platform admin locked to `app_user.sysadmin`; tenant admin roles propagate downward via grants as before |
 
 ## Auth tiers

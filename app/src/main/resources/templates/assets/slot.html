@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head><title th:text="'Artemis · ' + ${s.code}">Slot</title><th:block th:replace="~{fragments :: headcss}"/></head>
+<body>
+<div th:replace="~{fragments :: topbar('assets')}"></div>
+<div class="apage">
+  <div class="crumbtrail"><a th:href="@{/assets(siteId=${siteId})}">ASSETS</a><span class="sep">›</span>
+    <a th:href="@{/assets/zones(siteId=${siteId})}">ZONES</a>
+    <th:block th:if="${s.zone_id}"><span class="sep">›</span>
+      <a th:href="@{/assets/slots(siteId=${siteId},zoneId=${s.zone_id})}" th:text="${s.zone_code}">Z</a></th:block>
+    <span class="sep">›</span><a th:text="${s.code}">L</a></div>
+  <div th:replace="~{fragments :: flashbar}"></div>
+  <div class="ahead">
+    <span class="eyebrow" th:text="${s.loc_type}">SLOT</span>
+    <h1><span class="placard" th:classappend="${s.css}" style="font-size:20px"><span class="tag" th:text="${s.tag}">T</span><span class="code" th:text="${s.code}">L</span></span></h1>
+    <span class="digits" th:text="'say ' + ${s.check_digits}">say 00</span>
+  </div>
+  <div class="attrs">
+    <div class="attr"><div class="k">Pick Sequence</div><div class="v big" th:text="${s.pick_sequence ?: '—'}">0</div></div>
+    <div class="attr"><div class="k">Check Digits</div><div class="v big" th:text="${s.check_digits}">00</div></div>
+    <div class="attr"><div class="k">Temp Zone</div><div class="v" th:text="${s.temp_zone}">Z</div></div>
+    <div class="attr"><div class="k">Coordinates</div><div class="v" th:text="(${s.aisle ?: '·'}) + '-' + (${s.bay ?: '·'}) + '-' + (${s.tier ?: '·'}) + '-' + (${s.slot ?: '·'})">A-B-T-S</div></div>
+    <div class="attr"><div class="k">Rack Type</div><div class="v" th:text="${s.rack_type ?: '—'}">R</div></div>
+    <div class="attr"><div class="k">Velocity Zone</div><div class="v big" th:text="${s.velocity_zone ?: '—'}">A</div></div>
+    <div class="attr"><div class="k">Golden Zone</div><div class="v" th:text="${s.golden_zone} ? 'YES' : 'no'">no</div></div>
+    <div class="attr"><div class="k">Dimensions</div><div class="v" th:text="${s.width_cm != null} ? ${s.width_cm + ' × ' + s.depth_cm + ' × ' + s.height_cm + ' cm'} : 'not measured'">—</div></div>
+    <div class="attr"><div class="k">Max Weight</div><div class="v" th:text="${s.max_weight_kg != null} ? ${s.max_weight_kg + ' kg'} : '—'">—</div></div>
+    <div class="attr" th:if="${s.hazmat_approved}"><div class="k">Hazmat</div><div class="v">APPROVED</div></div>
+    <div class="attr" th:if="${s.replen_sku}"><div class="k">Dedicated Item</div>
+      <div class="v"><a class="linkcode" th:href="@{'/assets/items/' + ${s.replen_item_id}(siteId=${siteId})}" th:text="${s.replen_sku}">SKU</a></div></div>
+    <div class="attr" th:if="${s.replen_trigger_qty}"><div class="k">Replen Min / Trig / Max</div>
+      <div class="v" th:text="${#numbers.formatDecimal(s.replen_min_qty,1,0)} + ' / ' + ${#numbers.formatDecimal(s.replen_trigger_qty,1,0)} + ' / ' + ${#numbers.formatDecimal(s.replen_max_qty,1,0)}">0</div></div>
+  </div>
+
+  <details class="editbox">
+    <summary>Edit slot</summary>
+    <form method="post" th:action="@{/ui/slots/update}">
+      <input type="hidden" name="locationId" th:value="${s.location_id}">
+      <input type="hidden" name="siteId" th:value="${siteId}">
+      <div class="formgrid">
+        <div class="field"><label>Width cm</label><input name="widthCm" th:value="${s.width_cm}"></div>
+        <div class="field"><label>Depth cm</label><input name="depthCm" th:value="${s.depth_cm}"></div>
+        <div class="field"><label>Height cm</label><input name="heightCm" th:value="${s.height_cm}"></div>
+        <div class="field"><label>Max Weight kg</label><input name="maxWeightKg" th:value="${s.max_weight_kg}"></div>
+        <div class="field"><label>Velocity Zone</label>
+          <select name="velocityZone"><option value="">—</option>
+            <option th:selected="${s.velocity_zone == 'A'}">A</option>
+            <option th:selected="${s.velocity_zone == 'B'}">B</option>
+            <option th:selected="${s.velocity_zone == 'C'}">C</option></select></div>
+        <div class="field"><label>Golden Zone</label>
+          <select name="goldenZone"><option value="false">no</option><option value="true" th:selected="${s.golden_zone}">yes</option></select></div>
+        <div class="field"><label>Replen SKU</label><input name="replenSku" th:value="${s.replen_sku}"></div>
+        <div class="field"><label>Replen Min</label><input name="replenMinQty" th:value="${s.replen_min_qty}"></div>
+        <div class="field"><label>Replen Trigger</label><input name="replenTriggerQty" th:value="${s.replen_trigger_qty}"></div>
+        <div class="field"><label>Replen Max</label><input name="replenMaxQty" th:value="${s.replen_max_qty}"></div>
+      </div>
+      <div class="formfoot"><button class="btn">Save</button></div>
+    </form>
+  </details>
+
+  <div class="panel">
+    <div class="panel-h"><h3>Contents</h3><span class="eyebrow">LPNs in this slot</span></div>
+    <table><thead><tr><th>LPN</th><th>SKU</th><th>Lot</th><th>Expires</th><th class="num">Qty</th><th>Status</th></tr></thead>
+      <tbody>
+        <tr th:each="i : ${s.inventory}">
+          <td class="mono" th:text="${i.lpn}">L</td>
+          <td><a class="linkcode" th:href="@{'/assets/items/' + ${i.item_id}(siteId=${siteId})}" th:text="${i.sku}">SKU</a></td>
+          <td class="mono" th:text="${i.lot_number ?: '—'}">-</td>
+          <td class="mono" th:text="${i.expiration_date ?: '—'}">-</td>
+          <td class="num" th:text="${#numbers.formatDecimal(i.qty,1,0)}">0</td>
+          <td><span class="pill" th:classappend="${i.status == 'AVAILABLE'} ? 'on'" th:text="${i.status}">A</span></td>
+        </tr>
+        <tr th:if="${#lists.isEmpty(s.inventory)}"><td colspan="6" style="color:var(--ink-soft)">Empty slot.</td></tr>
+      </tbody></table>
+  </div>
+</div>
+</body></html>

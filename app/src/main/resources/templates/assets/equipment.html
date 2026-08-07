@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head><title th:text="'Artemis · ' + ${e.code}">Equipment</title><th:block th:replace="~{fragments :: headcss}"/></head>
+<body>
+<div th:replace="~{fragments :: topbar('assets')}"></div>
+<div class="apage">
+  <div class="crumbtrail"><a th:href="@{/assets(siteId=${siteId})}">ASSETS</a><span class="sep">›</span>
+    <a th:href="@{/assets/equipment(siteId=${siteId})}">CARTS &amp; POWERED</a><span class="sep">›</span><a th:text="${e.code}">C</a></div>
+  <div th:replace="~{fragments :: flashbar}"></div>
+  <div class="ahead"><span class="eyebrow" th:text="${e.equipment_type}">CART</span><h1 th:text="${e.code}">CART-014</h1>
+    <span class="digits" th:if="${e.check_digits}" th:text="'say ' + ${e.check_digits}">say 55</span></div>
+  <div class="attrs">
+    <div class="attr"><div class="k">Type</div><div class="v" th:text="${e.equipment_type}">CART</div></div>
+    <div class="attr"><div class="k">Cart Digits</div><div class="v big" th:text="${e.check_digits ?: '—'}">55</div></div>
+    <div class="attr"><div class="k">Positions</div><div class="v big" th:text="${e.container_positions ?: '—'}">4</div></div>
+    <div class="attr"><div class="k">Batch Size</div><div class="v" th:text="${e.container_positions != null} ? ${e.container_positions + ' orders / trip'} : 'single order'">4</div></div>
+    <div class="attr"><div class="k">Capabilities</div><div class="v" th:text="${e.capabilities != null} ? ${#strings.arrayJoin(e.capabilities, ', ')} : '—'">—</div></div>
+    <div class="attr"><div class="k">Max Weight</div><div class="v" th:text="${e.max_weight_kg != null} ? ${e.max_weight_kg + ' kg'} : '—'">—</div></div>
+    <div class="attr"><div class="k">Carried LPN</div><div class="v" th:text="${e.lpn ?: '—'}">—</div></div>
+    <div class="attr"><div class="k">Voice</div><div class="v" th:text="${e.voice_enabled} ? 'ENABLED' : 'off'">on</div></div>
+  </div>
+
+  <details class="editbox">
+    <summary>Edit equipment</summary>
+    <form method="post" th:action="@{/ui/equipment/update}">
+      <input type="hidden" name="equipmentId" th:value="${e.equipment_id}">
+      <input type="hidden" name="siteId" th:value="${siteId}">
+      <div class="formgrid">
+        <div class="field"><label>Capabilities (csv)</label>
+          <input name="capabilities" th:value="${e.capabilities != null} ? ${#strings.arrayJoin(e.capabilities, ', ')} : ''"></div>
+        <div class="field"><label>Max Weight kg</label><input name="maxWeightKg" th:value="${e.max_weight_kg}"></div>
+        <div class="field"><label>Check Digits</label><input name="checkDigits" maxlength="2" th:value="${e.check_digits}"></div>
+        <div class="field"><label>Status</label>
+          <select name="active"><option value="true" th:selected="${e.active}">ACTIVE</option>
+            <option value="false" th:selected="${!e.active}">RETIRED</option></select></div>
+      </div>
+      <div class="formfoot"><button class="btn">Save</button></div>
+    </form>
+  </details>
+
+  <div class="panel" th:if="${!#lists.isEmpty(e.positions)}">
+    <div class="panel-h"><h3>Positions</h3><span class="eyebrow">Per-position put verification — authoritative digits</span></div>
+    <table><thead><tr><th class="num">Position</th><th>Check Digits</th></tr></thead>
+      <tbody><tr th:each="p : ${e.positions}">
+        <td class="num mono" th:text="${p.position_no}">1</td>
+        <td class="check">say <b th:text="${p.check_digits}">23</b></td>
+      </tr></tbody></table>
+  </div>
+
+  <div class="panel">
+    <div class="panel-h"><h3>Trips</h3><span class="eyebrow">Assignments on this equipment</span></div>
+    <table><thead><tr><th>Assignment</th><th>Type</th><th>Wave</th><th class="num">Tasks</th><th>Status</th></tr></thead>
+      <tbody>
+        <tr th:each="a : ${e.assignments}">
+          <td><a class="linkcode" th:href="@{'/assignments/' + ${a.assignment_id}(siteId=${siteId})}" th:text="${a.assignment_number}">A</a></td>
+          <td class="mono" style="font-size:11px" th:text="${a.assignment_type}">SEL</td>
+          <td><a class="linkcode" th:if="${a.wave_id}" th:href="@{'/waves/' + ${a.wave_id}(siteId=${siteId})}" th:text="${a.wave_number}">W</a><span th:unless="${a.wave_id}">—</span></td>
+          <td class="num" th:text="${a.done} + '/' + ${a.tasks}">0</td>
+          <td><span class="status" th:classappend="${a.status == 'COMPLETE'} ? 'open' : 'progress'" th:text="${a.status}">S</span></td>
+        </tr>
+        <tr th:if="${#lists.isEmpty(e.assignments)}"><td colspan="5" style="color:var(--ink-soft)">No trips yet.</td></tr>
+      </tbody></table>
+  </div>
+</div>
+</body></html>

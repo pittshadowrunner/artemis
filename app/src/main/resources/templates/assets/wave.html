@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head><title th:text="'Artemis · ' + ${w.wave_number}">Wave</title><th:block th:replace="~{fragments :: headcss}"/></head>
+<body>
+<div th:replace="~{fragments :: topbar('waves')}"></div>
+<div class="apage">
+  <div class="crumbtrail"><a th:href="@{/assets(siteId=${siteId})}">ASSETS</a><span class="sep">›</span>
+    <a th:href="@{/waves(siteId=${siteId})}">WAVES</a><span class="sep">›</span><a th:text="${w.wave_number}">W</a></div>
+  <div th:replace="~{fragments :: flashbar}"></div>
+  <div class="ahead"><span class="eyebrow" th:text="${w.wave_type} + ' wave'">TYPE</span><h1 th:text="${w.wave_number}">W</h1>
+    <span class="status" th:classappend="${w.status == 'COMPLETE'} ? 'open' : 'progress'" th:text="${w.status}">S</span></div>
+  <div class="attrs">
+    <div class="attr"><div class="k">Type</div><div class="v" th:text="${w.wave_type}">T</div></div>
+    <div class="attr"><div class="k">Created</div><div class="v" th:text="${#dates.format(w.created_at, 'yyyy-MM-dd HH:mm')}">t</div></div>
+    <div class="attr"><div class="k">Released</div><div class="v" th:text="${w.released_at != null} ? ${#dates.format(w.released_at, 'yyyy-MM-dd HH:mm')} : '—'">—</div></div>
+    <div class="attr"><div class="k">Planned By</div><div class="v" th:text="${w.planned_by ?: '—'}">—</div></div>
+    <div class="attr" th:if="${w.route_code}"><div class="k">Route</div><div class="v" th:text="${w.route_code}">R</div></div>
+    <div class="attr" th:if="${w.carrier_cutoff}"><div class="k">Carrier Cutoff</div><div class="v" th:text="${#dates.format(w.carrier_cutoff, 'HH:mm')}">t</div></div>
+  </div>
+
+  <details class="editbox" th:if="${w.status == 'PLANNED'}" open>
+    <summary>Release wave</summary>
+    <form method="post" th:action="@{/ui/waves/release}">
+      <input type="hidden" name="waveId" th:value="${w.wave_id}">
+      <input type="hidden" name="siteId" th:value="${siteId}">
+      <div class="formgrid">
+        <div class="field"><label>Equipment (batching)</label>
+          <select name="equipmentCode"><option value="">— single order per trip —</option>
+            <option th:each="e : ${fleet}" th:if="${e.active}" th:value="${e.code}"
+              th:text="${e.code} + ' · ' + ${e.equipment_type} + (${e.container_positions != null} ? ' · ' + ${e.container_positions} + ' pos' : '')">E</option>
+          </select></div>
+        <div class="field"><label>Put Mode</label>
+          <select name="putMode"><option>TOTE</option><option>SHIPPING_CONTAINER</option></select></div>
+      </div>
+      <div class="formfoot"><button class="btn">Release</button></div>
+    </form>
+  </details>
+
+  <div class="panel">
+    <div class="panel-h"><h3>Assignments</h3><span class="eyebrow">Selection work in this wave</span></div>
+    <table><thead><tr><th>Assignment</th><th>Equipment</th><th>Assigned To</th><th class="num">Orders</th><th class="num">Tasks</th><th style="width:22%">Progress</th><th>Status</th></tr></thead>
+      <tbody>
+        <tr th:each="a : ${w.assignments}">
+          <td><a class="linkcode" th:href="@{'/assignments/' + ${a.assignment_id}(siteId=${siteId})}" th:text="${a.assignment_number}">A</a></td>
+          <td><a class="linkcode" th:if="${a.equipment_id}" th:href="@{'/assets/equipment/' + ${a.equipment_id}(siteId=${siteId})}" th:text="${a.equipment_code}">E</a><span th:unless="${a.equipment_id}" style="color:var(--ink-soft)">—</span></td>
+          <td th:text="${a.assigned_to ?: '—'}">—</td>
+          <td class="num" th:text="${a.orders}">0</td>
+          <td class="num" th:text="${a.done} + '/' + ${a.tasks}">0</td>
+          <td><div class="bar"><i th:classappend="${a.tasks > 0 and a.done == a.tasks} ? 'done'"
+                th:style="'width:' + (${a.tasks > 0} ? ${100 * a.done / a.tasks} : 0) + '%'"></i></div></td>
+          <td><span class="status"
+                th:classappend="${#strings.toLowerCase(#strings.replace(a.display_status,' ',''))}"
+                th:text="${a.display_status}">S</span></td>
+        </tr>
+        <tr th:if="${#lists.isEmpty(w.assignments)}"><td colspan="7" style="color:var(--ink-soft)">Planned — no assignments until release.</td></tr>
+      </tbody></table>
+  </div>
+
+  <div class="panel">
+    <div class="panel-h"><h3>Orders</h3><span class="eyebrow">Grouped into this wave</span></div>
+    <table><thead><tr><th>Order</th><th>Customer</th><th>Status</th></tr></thead>
+      <tbody><tr th:each="o : ${w.orders}">
+        <td class="mono" th:text="${o.order_number}">O</td>
+        <td th:text="${o.customer_code} + ' · ' + ${o.customer_name}">C</td>
+        <td><span class="status" th:classappend="${o.status == 'SHIPPED'} ? 'open' : 'progress'" th:text="${o.status}">S</span></td>
+      </tr></tbody></table>
+  </div>
+</div>
+</body></html>

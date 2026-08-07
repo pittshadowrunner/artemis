@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head><title th:text="'Artemis · ' + ${a.assignment_number}">Assignment</title><th:block th:replace="~{fragments :: headcss}"/></head>
+<body>
+<div th:replace="~{fragments :: topbar('waves')}"></div>
+<div class="apage">
+  <div class="crumbtrail"><a th:href="@{/assets(siteId=${siteId})}">ASSETS</a><span class="sep">›</span>
+    <a th:href="@{/waves(siteId=${siteId})}">WAVES</a>
+    <th:block th:if="${a.wave_id}"><span class="sep">›</span>
+      <a th:href="@{'/waves/' + ${a.wave_id}(siteId=${siteId})}" th:text="${a.wave_number}">W</a></th:block>
+    <span class="sep">›</span><a th:text="${a.assignment_number}">A</a></div>
+  <div th:replace="~{fragments :: flashbar}"></div>
+  <div class="ahead"><span class="eyebrow" th:text="${a.assignment_type}">TYPE</span><h1 th:text="${a.assignment_number}">A</h1>
+    <span class="status" id="astatus"
+          th:classappend="${#strings.toLowerCase(#strings.replace(a.display_status,' ',''))}"
+          th:text="${a.display_status}">S</span>
+    <span class="eyebrow" th:if="${a.reassigned_count > 0}"
+          th:text="'reassigned ×' + ${a.reassigned_count} + (${a.previous_assignee != null} ? ' · was ' + ${a.previous_assignee} : '')">r</span></div>
+
+  <details class="editbox">
+    <summary th:text="${a.assigned_to != null} ? 'Reassign work' : 'Assign work'">Assign</summary>
+    <form method="post" th:action="@{/ui/assignments/assign}">
+      <input type="hidden" name="assignmentId" th:value="${a.assignment_id}">
+      <input type="hidden" name="siteId" th:value="${siteId}">
+      <div class="formgrid">
+        <div class="field"><label>User Email</label>
+          <input name="userEmail" required th:placeholder="${a.assigned_to != null} ? 'currently ' + ${a.assigned_to} : 'picker email'"></div>
+      </div>
+      <div class="formfoot"><button class="btn" th:text="${a.assigned_to != null} ? 'Reassign' : 'Assign'">Assign</button></div>
+    </form>
+  </details>
+  <div class="attrs">
+    <div class="attr"><div class="k">Type</div><div class="v" th:text="${a.assignment_type}">T</div></div>
+    <div class="attr"><div class="k">Priority</div><div class="v big" th:text="${a.priority}">50</div></div>
+    <div class="attr"><div class="k">Assigned To</div><div class="v" th:text="${a.assigned_to ?: 'unassigned'}">—</div></div>
+    <div class="attr" th:if="${a.previous_assignee}"><div class="k">Previously</div><div class="v" th:text="${a.previous_assignee}">—</div></div>
+    <div class="attr" th:if="${a.wave_id}"><div class="k">Wave</div>
+      <div class="v"><a class="linkcode" th:href="@{'/waves/' + ${a.wave_id}(siteId=${siteId})}" th:text="${a.wave_number}">W</a></div></div>
+    <div class="attr" th:if="${a.equipment_id}"><div class="k">Equipment</div>
+      <div class="v"><a class="linkcode" th:href="@{'/assets/equipment/' + ${a.equipment_id}(siteId=${siteId})}" th:text="${a.equipment_code}">E</a>
+        <span th:if="${a.equipment_digits}" th:text="' · say ' + ${a.equipment_digits}"></span></div></div>
+    <div class="attr"><div class="k">Created</div><div class="v" th:text="${#dates.format(a.created_at, 'MM-dd HH:mm')}">t</div></div>
+    <div class="attr"><div class="k">Started</div><div class="v" th:text="${a.started_at != null} ? ${#dates.format(a.started_at, 'MM-dd HH:mm')} : '—'">—</div></div>
+    <div class="attr"><div class="k">Completed</div><div class="v" th:text="${a.completed_at != null} ? ${#dates.format(a.completed_at, 'MM-dd HH:mm')} : '—'">—</div></div>
+  </div>
+
+  <details class="editbox" th:if="${a.equipment_id != null and !#lists.isEmpty(freeTotes)}">
+    <summary>Attach tote to cart position</summary>
+    <form method="post" th:action="@{/ui/assignments/attach-container}" class="formgrid" style="align-items:end">
+      <input type="hidden" name="assignmentId" th:value="${a.assignment_id}">
+      <input type="hidden" name="siteId" th:value="${siteId}">
+      <div class="field"><label>Position</label><input name="cartPosition" type="number" min="1" required></div>
+      <div class="field"><label>Tote</label>
+        <select name="barcode"><option th:each="t : ${freeTotes}" th:value="${t.barcode}"
+          th:text="${t.barcode} + ' · say ' + ${t.check_digits}">T</option></select></div>
+      <div class="field"><button class="btn">Attach</button></div>
+    </form>
+  </details>
+
+  <div class="panel">
+    <div class="panel-h"><h3>Pick Lines · Graph</h3><span class="eyebrow">Sequence order · bar length = quantity · green = complete</span></div>
+    <div class="plgraph">
+      <div class="plrow" th:each="l : ${a.lines}">
+        <span class="seqno" th:text="${#numbers.formatInteger(l.seq, 3)}">001</span>
+        <a th:href="@{'/assets/slots/' + ${l.from_id}(siteId=${siteId})}">
+          <span class="placard" th:classappend="${l.from_css}"><span class="tag" th:text="${l.from_tag}">T</span><span class="code" th:text="${l.from_code}">L</span></span></a>
+        <div class="plbar"><i th:classappend="${l.status == 'COMPLETE'} ? 'done' : 'open'"
+              th:style="'width:' + ${8 + (92 * l.qty / maxQty)} + '%'"></i>
+          <span th:text="${#numbers.formatDecimal(l.qty,1,0)} + (${l.sku != null} ? ' · ' + ${l.sku} : '')">qty</span></div>
+        <span class="mono" style="font-size:11px;color:var(--ink-soft)" th:text="${l.status == 'COMPLETE'} ? 'DONE' : 'OPEN'">S</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-h"><h3>Pick Lines · Detail</h3><span class="eyebrow">Digits shown are task snapshots; asset screens hold the authoritative ones</span></div>
+    <table><thead><tr><th class="num">Seq</th><th>From</th><th>Verify</th><th>To</th><th>Put</th><th>Item</th><th>LPN / Lot</th><th class="num">Qty</th><th>Order</th><th>Status</th></tr></thead>
+      <tbody>
+        <tr th:each="l : ${a.lines}">
+          <td class="num mono" th:text="${l.seq}">1</td>
+          <td><a th:if="${l.from_id}" th:href="@{'/assets/slots/' + ${l.from_id}(siteId=${siteId})}">
+              <span class="placard" th:classappend="${l.from_css}"><span class="tag" th:text="${l.from_tag}">T</span><span class="code" th:text="${l.from_code}">L</span></span></a></td>
+          <td class="check">say <b th:text="${l.check_digits}">00</b></td>
+          <td>
+            <a th:if="${l.to_id}" th:href="@{'/assets/slots/' + ${l.to_id}(siteId=${siteId})}">
+              <span class="placard" th:classappend="${l.to_css}"><span class="tag" th:text="${l.to_tag}">T</span><span class="code" th:text="${l.to_code}">L</span></span></a>
+            <span th:if="${l.to_id == null and l.cart_position != null}" style="display:inline-flex;gap:4px;flex-wrap:wrap">
+              <a th:if="${a.equipment_id}" th:href="@{'/assets/equipment/' + ${a.equipment_id}(siteId=${siteId})}">
+                <span class="placard"><span class="tag" th:text="${a.equipment_type_code == 'PALLET_JACK'} ? 'JCK' : (${a.equipment_type_code == 'FORKLIFT'} ? 'FRK' : 'CRT')">CRT</span>
+                  <span class="code" th:text="${a.equipment_code}">E</span></span></a>
+              <span class="placard"><span class="tag">POS</span><span class="code" th:text="${l.cart_position}">1</span></span>
+              <span class="placard" th:if="${l.tote_barcode}"><span class="tag">TOTE</span><span class="code" th:text="${l.tote_barcode}">T</span></span>
+            </span>
+            <span th:if="${l.to_id == null and l.cart_position == null}" style="color:var(--ink-soft)">—</span>
+          </td>
+          <td class="check" th:if="${l.put_check_digits != null or l.tote_digits != null}">say
+              <b th:text="${l.tote_digits ?: (l.position_digits ?: l.put_check_digits)}">00</b>
+              <span th:if="${l.tote_digits}" style="font-size:10px"> (tote)</span></td>
+          <td th:unless="${l.put_check_digits}" style="color:var(--ink-soft)">—</td>
+          <td><a class="linkcode" th:if="${l.item_id}" th:href="@{'/assets/items/' + ${l.item_id}(siteId=${siteId})}" th:text="${l.sku}">SKU</a></td>
+          <td class="mono" style="font-size:11px" th:text="(${l.lpn ?: ''}) + (${l.lot_number != null} ? ' · ' + ${l.lot_number} : '')">L</td>
+          <td class="num" th:text="${#numbers.formatDecimal(l.qty,1,0)}">0</td>
+          <td class="mono" style="font-size:11px" th:text="${l.order_number ?: '—'}">—</td>
+          <td><span class="status" th:attr="data-task=${l.task_id}"
+                th:classappend="${l.status == 'COMPLETE'} ? 'complete' : 'pending'"
+                th:text="${l.status == 'COMPLETE'} ? 'COMPLETED' : 'PENDING'">S</span></td>
+        </tr>
+      </tbody></table>
+  </div>
+</div>
+<script th:inline="javascript">
+// live lifecycle: poll every 4s, repaint the header badge and per-line states
+const AID = /*[[${a.assignment_id}]]*/ '';
+const SITE = /*[[${siteId}]]*/ '';
+const CLS = {'PENDING':'pending','ASSIGNED':'assigned','REASSIGNED':'reassigned',
+             'IN PROGRESS':'inprogress','COMPLETE':'complete','CANCELLED':'cancelled'};
+async function poll() {
+  try {
+    const r = await fetch(`/api/v1/assignments/${AID}/status`);
+    if (!r.ok) return;
+    const s = await r.json();
+    const h = document.getElementById('astatus');
+    h.textContent = s.display_status;
+    h.className = 'status ' + (CLS[s.display_status] || 'pending');
+    for (const t of s.tasks) {
+      const el = document.querySelector(`[data-task="${t.task_id}"]`);
+      if (el) { el.textContent = t.status === 'COMPLETE' ? 'COMPLETED' : 'PENDING';
+                el.className = 'status ' + (t.status === 'COMPLETE' ? 'complete' : 'pending'); }
+    }
+  } catch (e) { /* transient — next tick */ }
+}
+setInterval(poll, 4000);
+</script>
+</body></html>

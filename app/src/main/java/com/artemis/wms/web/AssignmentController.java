@@ -43,12 +43,64 @@ public class AssignmentController {
             userId = ids.get(0);
         }
         int n = jdbc.update("""
-            UPDATE assignment SET assigned_to = ?, status = CASE WHEN status = 'OPEN' THEN 'ASSIGNED' ELSE status END,
+            UPDATE assignment SET
+                previous_assignee = CASE WHEN assigned_to IS NOT NULL AND assigned_to <> ? THEN assigned_to
+                                         ELSE previous_assignee END,
+                reassigned_count  = reassigned_count + CASE WHEN assigned_to IS NOT NULL AND assigned_to <> ? THEN 1 ELSE 0 END,
+                assigned_to = ?, last_assigned_at = now(),
+                status = CASE WHEN status = 'OPEN' THEN 'ASSIGNED' ELSE status END,
                 started_at = COALESCE(started_at, now())
             WHERE assignment_id = ? AND status NOT IN ('COMPLETE','CANCELLED')
-            """, userId, id);
+            """, userId, userId, userId, id);
         if (n == 0) throw ApiException.conflict("Assignment not found or already complete.");
         return Map.of("assignmentId", id, "assignedTo", userId);
+    }
+
+    /** Live status for polling UIs: assignment display state + per-task states. */
+    @GetMapping("/{id}/status")
+    public Map<String, Object> status(@PathVariable UUID id) {
+        caps.require(TenantContext.user(), null, Capabilities.DASHBOARD_VIEW);
+        Map<String, Object> a = jdbc.queryForMap("""
+            SELECT a.status::text AS status, a.reassigned_count, u.display_name AS assigned_to,
+                   pu.display_name AS previous_assignee,
+                   count(t.task_id) AS total,
+                   count(t.task_id) FILTER (WHERE t.status = 'COMPLETE') AS done,
+                   CASE WHEN a.status = 'CANCELLED' THEN 'CANCELLED'
+                        WHEN a.status = 'COMPLETE' THEN 'COMPLETE'
+                        WHEN count(t.task_id) FILTER (WHERE t.status = 'COMPLETE') > 0 THEN 'IN PROGRESS'
+                        WHEN a.reassigned_count > 0 THEN 'REASSIGNED'
+                        WHEN a.assigned_to IS NOT NULL THEN 'ASSIGNED'
+                        ELSE 'PENDING' END AS display_status
+            FROM assignment a
+            LEFT JOIN app_user u ON u.user_id = a.assigned_to
+            LEFT JOIN app_user pu ON pu.user_id = a.previous_assignee
+            LEFT JOIN assignment_task t ON t.assignment_id = a.assignment_id
+            WHERE a.assignment_id = ?
+            GROUP BY a.assignment_id, u.display_name, pu.display_name
+            """, id);
+        a.put("tasks", jdbc.queryForList(
+            "SELECT task_id, status::text AS status FROM assignment_task WHERE assignment_id = ?", id));
+        return a;
+    }
+
+    /** Attach a tote/container to a cart position — completes the put address: cart + position + tote. */
+    @PostMapping("/{id}/containers")
+    public Map<String, Object> attachContainer(@PathVariable UUID id, @RequestBody Map<String, Object> body) {
+        caps.require(TenantContext.user(), null, Capabilities.SELECTION_EXECUTE);
+        int position = Integer.parseInt(body.get("cartPosition").toString());
+        String barcode = str(body.get("barcode"));
+        List<UUID> cid = jdbc.queryForList("""
+            SELECT c.container_id FROM container c
+            JOIN assignment a ON a.assignment_id = ? AND a.site_id = c.site_id
+            WHERE c.barcode = ? AND c.active
+            """, UUID.class, id, barcode);
+        if (cid.isEmpty()) throw ApiException.notFound("No active container with that barcode at this site.");
+        int n = jdbc.update("""
+            UPDATE assignment_container SET container_id = ?
+            WHERE assignment_id = ? AND cart_position = ?
+            """, cid.get(0), id, position);
+        if (n == 0) throw ApiException.conflict("No such cart position on this assignment.");
+        return Map.of("assignmentId", id, "cartPosition", position, "container", barcode);
     }
 
     @GetMapping

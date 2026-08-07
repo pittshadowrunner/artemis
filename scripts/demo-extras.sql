@@ -36,6 +36,13 @@ SELECT corporation_id, org_node_id, 'JACK-03', 'PALLET_JACK', '00099001', '71', 
 FROM org_node WHERE code = 'PIT1' AND level = 'SITE_LOCATION'
 ON CONFLICT (site_id, code) DO NOTHING;
 
+-- Totes with check digits, so the Totes & Containers screens have assets.
+INSERT INTO container (corporation_id, site_id, barcode, container_type, check_digits, reusable, tare_weight_kg, max_weight_kg)
+SELECT corporation_id, org_node_id, b.code, 'TOTE', b.digits, true, 1.8, 25
+FROM org_node, (VALUES ('TOTE-0101','14'),('TOTE-0102','62'),('TOTE-0103','38'),('TOTE-0104','87')) AS b(code, digits)
+WHERE org_node.code = 'PIT1' AND org_node.level = 'SITE_LOCATION'
+ON CONFLICT (site_id, barcode) DO NOTHING;
+
 -- Demo floor crew, so labor productivity has names attached.
 INSERT INTO app_user (email, display_name, email_verified, active, account_source)
 VALUES ('m.alvarez@artemis.local', 'M. Alvarez', true, true, 'LOCAL'),

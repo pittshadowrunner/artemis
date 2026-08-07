@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head><title>Artemis · Waves</title><th:block th:replace="~{fragments :: headcss}"/></head>
+<body>
+<div th:replace="~{fragments :: topbar('waves')}"></div>
+<div class="apage">
+  <div class="crumbtrail"><a th:href="@{/assets(siteId=${siteId})}">ASSETS</a><span class="sep">›</span><a>WAVES</a></div>
+  <div th:replace="~{fragments :: flashbar}"></div>
+  <div class="ahead"><span class="eyebrow">Outbound Work</span><h1>Waves</h1></div>
+  <details class="editbox">
+    <summary>Plan new wave</summary>
+    <form method="post" th:action="@{/ui/waves/create}">
+      <input type="hidden" name="siteId" th:value="${siteId}">
+      <div class="formgrid">
+        <div class="field"><label>Wave Type</label>
+          <select name="waveType">
+            <option>SHIP_URGENCY</option><option>PROXIMITY</option><option>ROUTE</option>
+            <option>CARRIER_CUTOFF</option><option>ZONE</option><option>RUSH</option>
+            <option>SINGLE_ORDER</option><option>BATCH</option>
+          </select></div>
+        <div class="field"><label>Route (ROUTE type)</label><input name="routeCode" placeholder="RT7"></div>
+        <div class="field"><label>Max Orders</label><input name="maxOrders" type="number" value="25"></div>
+      </div>
+      <div class="formfoot"><button class="btn">Plan Wave</button></div>
+    </form>
+  </details>
+  <div class="panel"><table>
+    <thead><tr><th>Wave</th><th>Type</th><th>Status</th><th class="num">Orders</th><th class="num">Assignments</th><th class="num">Tasks</th><th style="width:22%">Progress</th><th>Created</th></tr></thead>
+    <tbody><tr th:each="w : ${waves}">
+      <td><a class="linkcode" th:href="@{'/waves/' + ${w.wave_id}(siteId=${siteId})}" th:text="${w.wave_number}">W</a></td>
+      <td class="mono" style="font-size:11px" th:text="${w.wave_type}">T</td>
+      <td><span class="status" th:classappend="${w.status == 'COMPLETE'} ? 'open' : 'progress'" th:text="${w.status}">S</span></td>
+      <td class="num" th:text="${w.orders}">0</td>
+      <td class="num" th:text="${w.assignments}">0</td>
+      <td class="num" th:text="${w.done} + '/' + ${w.tasks}">0</td>
+      <td><div class="bar"><i th:classappend="${w.tasks > 0 and w.done == w.tasks} ? 'done'"
+            th:style="'width:' + (${w.tasks > 0} ? ${100 * w.done / w.tasks} : 0) + '%'"></i></div></td>
+      <td class="mono" style="font-size:11px" th:text="${#dates.format(w.created_at, 'MM-dd HH:mm')}">t</td>
+    </tr></tbody></table></div>
+</div>
+<footer>Wave numbers are minted from creation date + time. A wave is a grouping of selection assignments — click through.</footer>
+</body></html>

@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head><title>Artemis · Items</title><th:block th:replace="~{fragments :: headcss}"/></head>
+<body>
+<div th:replace="~{fragments :: topbar('assets')}"></div>
+<div class="apage">
+  <div class="crumbtrail"><a th:href="@{/assets(siteId=${siteId})}">ASSETS</a><span class="sep">›</span><a>ITEMS</a></div>
+  <div th:replace="~{fragments :: flashbar}"></div>
+  <div class="ahead"><span class="eyebrow">Item Master</span><h1>Items</h1></div>
+  <details class="editbox">
+    <summary>New item</summary>
+    <form method="post" th:action="@{/ui/items/create}">
+      <input type="hidden" name="siteId" th:value="${siteId}">
+      <div class="formgrid">
+        <div class="field"><label>SKU</label><input name="sku" required></div>
+        <div class="field"><label>Description</label><input name="description" required></div>
+        <div class="field"><label>UOM</label>
+          <select name="uom"><option>CS</option><option>EA</option><option>LB</option><option>KG</option><option>PL</option></select></div>
+        <div class="field"><label>Temp Zone</label>
+          <select name="tempZone"><option>AMBIENT</option><option>REFRIGERATED</option><option>FROZEN</option><option>DEEP_FROZEN</option><option>CONTROLLED_AMBIENT</option></select></div>
+        <div class="field"><label>Lot Tracked</label><select name="lotTracked"><option value="false">no</option><option value="true">yes</option></select></div>
+        <div class="field"><label>Expiry Tracked</label><select name="expiryTracked"><option value="false">no</option><option value="true">yes</option></select></div>
+        <div class="field"><label>Shelf Life (days)</label><input name="shelfLifeDays" type="number"></div>
+        <div class="field"><label>Declared Velocity</label><select name="velocityClass"><option value="">—</option><option>A</option><option>B</option><option>C</option></select></div>
+      </div>
+      <div class="formfoot"><button class="btn">Create Item</button></div>
+    </form>
+  </details>
+  <div class="panel"><table>
+    <thead><tr><th>SKU</th><th>Description</th><th>UOM</th><th>Zone</th><th>Declared</th><th>Calculated</th><th class="num">Lines 30d</th><th>Tracking</th></tr></thead>
+    <tbody>
+      <tr th:each="i : ${items}">
+        <td><a class="linkcode" th:href="@{'/assets/items/' + ${i.item_id}(siteId=${siteId})}" th:text="${i.sku}">SKU</a></td>
+        <td th:text="${i.description}">desc</td>
+        <td class="mono" th:text="${i.uom}">EA</td>
+        <td><span class="placard" th:classappend="${i.css}"><span class="tag" th:text="${i.temp_zone.substring(0,3)}">AMB</span></span></td>
+        <td><span class="vel" th:if="${i.velocity_class}" th:classappend="${i.velocity_class}" th:text="${i.velocity_class}">A</span></td>
+        <td><span class="vel" th:if="${i.calc_velocity}" th:classappend="${i.calc_velocity}" th:text="${i.calc_velocity}">A</span><span th:unless="${i.calc_velocity}" style="color:var(--ink-soft)">—</span></td>
+        <td class="num" th:text="${i.lines_30d ?: 0}">0</td>
+        <td class="mono" style="font-size:11px" th:text="(${i.lot_tracked} ? 'LOT ' : '') + (${i.expiry_tracked} ? 'EXP ' : '') + (${i.catch_weight} ? 'CW' : '')"></td>
+      </tr>
+    </tbody></table></div>
+</div>
+<footer>Calculated velocity: trailing 30 days of completed picks, ABC by cumulative line share (80 / 15 / 5).</footer>
+</body></html>

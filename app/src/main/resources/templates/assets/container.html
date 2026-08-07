@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head><title th:text="'Artemis · ' + ${c.barcode}">Container</title><th:block th:replace="~{fragments :: headcss}"/></head>
+<body>
+<div th:replace="~{fragments :: topbar('assets')}"></div>
+<div class="apage">
+  <div class="crumbtrail"><a th:href="@{/assets(siteId=${siteId})}">ASSETS</a><span class="sep">›</span>
+    <a th:href="@{/assets/containers(siteId=${siteId})}">TOTES &amp; CONTAINERS</a><span class="sep">›</span><a th:text="${c.barcode}">B</a></div>
+  <div th:replace="~{fragments :: flashbar}"></div>
+  <div class="ahead"><span class="eyebrow" th:text="${c.container_type}">TOTE</span><h1 th:text="${c.barcode}">B</h1>
+    <span class="digits" th:if="${c.check_digits}" th:text="'say ' + ${c.check_digits}">say 00</span></div>
+  <div class="attrs">
+    <div class="attr"><div class="k">Type</div><div class="v" th:text="${c.container_type}">TOTE</div></div>
+    <div class="attr"><div class="k">Check Digits</div><div class="v big" th:text="${c.check_digits ?: '—'}">00</div></div>
+    <div class="attr"><div class="k">Reusable</div><div class="v" th:text="${c.reusable} ? 'YES' : 'no'">yes</div></div>
+    <div class="attr"><div class="k">Tare</div><div class="v" th:text="${c.tare_weight_kg != null} ? ${c.tare_weight_kg + ' kg'} : '—'">—</div></div>
+    <div class="attr"><div class="k">Max Weight</div><div class="v" th:text="${c.max_weight_kg != null} ? ${c.max_weight_kg + ' kg'} : '—'">—</div></div>
+  </div>
+  <details class="editbox">
+    <summary>Edit container</summary>
+    <form method="post" th:action="@{/ui/containers/update}">
+      <input type="hidden" name="containerId" th:value="${c.container_id}">
+      <input type="hidden" name="siteId" th:value="${siteId}">
+      <div class="formgrid">
+        <div class="field"><label>Check Digits</label><input name="checkDigits" maxlength="2" th:value="${c.check_digits}"></div>
+        <div class="field"><label>Tare kg</label><input name="tareWeightKg" th:value="${c.tare_weight_kg}"></div>
+        <div class="field"><label>Max kg</label><input name="maxWeightKg" th:value="${c.max_weight_kg}"></div>
+        <div class="field"><label>Status</label>
+          <select name="active"><option value="true" th:selected="${c.active}">ACTIVE</option>
+            <option value="false" th:selected="${!c.active}">RETIRED</option></select></div>
+      </div>
+      <div class="formfoot"><button class="btn">Save</button></div>
+    </form>
+  </details>
+
+  <div class="panel">
+    <div class="panel-h"><h3>Trips</h3><span class="eyebrow">Cart positions this tote rode in</span></div>
+    <table><thead><tr><th>Assignment</th><th class="num">Position</th><th>Order</th><th>Status</th></tr></thead>
+      <tbody>
+        <tr th:each="t : ${c.trips}">
+          <td><a class="linkcode" th:href="@{'/assignments/' + ${t.assignment_id}(siteId=${siteId})}" th:text="${t.assignment_number}">A</a></td>
+          <td class="num" th:text="${t.cart_position ?: '—'}">1</td>
+          <td class="mono" th:text="${t.order_number}">O</td>
+          <td><span class="status" th:classappend="${t.status == 'COMPLETE'} ? 'open' : 'progress'" th:text="${t.status}">S</span></td>
+        </tr>
+        <tr th:if="${#lists.isEmpty(c.trips)}"><td colspan="4" style="color:var(--ink-soft)">Never inducted onto a cart.</td></tr>
+      </tbody></table>
+  </div>
+</div>
+</body></html>

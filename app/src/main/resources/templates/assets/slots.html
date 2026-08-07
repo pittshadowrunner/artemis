@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head><title>Artemis · Slots</title><th:block th:replace="~{fragments :: headcss}"/></head>
+<body>
+<div th:replace="~{fragments :: topbar('assets')}"></div>
+<div class="apage">
+  <div class="crumbtrail"><a th:href="@{/assets(siteId=${siteId})}">ASSETS</a><span class="sep">›</span>
+    <a th:href="@{/assets/zones(siteId=${siteId})}">ZONES</a>
+    <th:block th:if="${zone != null}"><span class="sep">›</span><a th:text="${zone.code}">Z</a></th:block>
+    <th:block th:if="${zone == null}"><span class="sep">›</span><a>ALL SLOTS</a></th:block></div>
+  <div th:replace="~{fragments :: flashbar}"></div>
+  <details class="editbox">
+    <summary>New slot</summary>
+    <form method="post" th:action="@{/ui/slots/create}">
+      <input type="hidden" name="siteId" th:value="${siteId}">
+      <div class="formgrid">
+        <div class="field"><label>Code</label><input name="code" required placeholder="C-05-01-A"></div>
+        <div class="field"><label>Type</label>
+          <select name="locType"><option>STORAGE</option><option>PICK_FACE</option><option>DROP</option>
+            <option>STAGING</option><option>RECEIVING_DOCK</option><option>SHIPPING_DOCK</option><option>CROSS_DOCK</option></select></div>
+        <div class="field"><label>Zone</label>
+          <select name="areaId"><option value="">— none —</option>
+            <option th:each="z : ${zones}" th:value="${z.zone_id}" th:text="${z.code}">Z</option></select></div>
+        <div class="field"><label>Temp Zone</label>
+          <select name="tempZone"><option>AMBIENT</option><option>REFRIGERATED</option><option>FROZEN</option></select></div>
+        <div class="field"><label>Pick Sequence</label><input name="pickSequence" type="number"></div>
+        <div class="field"><label>Rack Type</label>
+          <select name="rackType"><option value="">—</option><option>SELECTIVE</option><option>DRIVE_IN</option>
+            <option>PUSH_BACK</option><option>PALLET_FLOW</option><option>CARTON_FLOW</option><option>CANTILEVER</option><option>FLOOR</option></select></div>
+      </div>
+      <div class="formfoot"><button class="btn">Create Slot</button></div>
+    </form>
+  </details>
+  <div class="ahead"><span class="eyebrow" th:text="${zone != null} ? 'Zone' : 'Site'">Site</span>
+    <h1 th:text="${zone != null} ? ${zone.name} : 'Slots'">Slots</h1></div>
+  <div class="panel"><table>
+    <thead><tr><th class="num">Seq</th><th>Slot</th><th>Type</th><th>Digits</th><th>Zone</th><th>Rack</th><th>Vel</th><th class="num">On Hand</th></tr></thead>
+    <tbody><tr th:each="s : ${slots}">
+      <td class="num mono" th:text="${s.pick_sequence ?: '—'}">0</td>
+      <td><a th:href="@{'/assets/slots/' + ${s.location_id}(siteId=${siteId})}"><span class="placard" th:classappend="${s.css}"><span class="tag" th:text="${s.tag}">T</span><span class="code" th:text="${s.code}">L</span></span></a></td>
+      <td class="mono" style="font-size:11px" th:text="${s.loc_type}">STORAGE</td>
+      <td class="check">say <b th:text="${s.check_digits}">00</b></td>
+      <td><a class="linkcode" th:if="${s.zone_id}" th:href="@{/assets/slots(siteId=${siteId},zoneId=${s.zone_id})}" th:text="${s.zone_code}">Z</a><span th:unless="${s.zone_id}" style="color:var(--ink-soft)">—</span></td>
+      <td class="mono" style="font-size:11px" th:text="${s.rack_type ?: '—'}">R</td>
+      <td><span class="vel" th:if="${s.velocity_zone}" th:classappend="${s.velocity_zone}" th:text="${s.velocity_zone}">A</span></td>
+      <td class="num" th:text="${#numbers.formatDecimal(s.on_hand,1,0)}">0</td>
+    </tr></tbody></table></div>
+</div>
+</body></html>

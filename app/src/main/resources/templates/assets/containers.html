@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head><title>Artemis · Containers</title><th:block th:replace="~{fragments :: headcss}"/></head>
+<body>
+<div th:replace="~{fragments :: topbar('assets')}"></div>
+<div class="apage">
+  <div class="crumbtrail"><a th:href="@{/assets(siteId=${siteId})}">ASSETS</a><span class="sep">›</span><a>TOTES &amp; CONTAINERS</a></div>
+  <div th:replace="~{fragments :: flashbar}"></div>
+  <div class="ahead"><span class="eyebrow">Handling Units</span><h1>Totes &amp; Containers</h1></div>
+  <details class="editbox">
+    <summary>Register container</summary>
+    <form method="post" th:action="@{/ui/containers/create}">
+      <input type="hidden" name="siteId" th:value="${siteId}">
+      <div class="formgrid">
+        <div class="field"><label>Barcode</label><input name="barcode" required placeholder="TOTE-0110"></div>
+        <div class="field"><label>Type</label>
+          <select name="containerType"><option>TOTE</option><option>CARTON</option><option>PALLET</option><option>CAGE</option></select></div>
+        <div class="field"><label>Check Digits</label><input name="checkDigits" maxlength="2"></div>
+        <div class="field"><label>Tare kg</label><input name="tareWeightKg"></div>
+        <div class="field"><label>Max kg</label><input name="maxWeightKg"></div>
+      </div>
+      <div class="formfoot"><button class="btn">Register</button></div>
+    </form>
+  </details>
+  <div class="panel"><table>
+    <thead><tr><th>Barcode</th><th>Type</th><th>Digits</th><th>Reusable</th><th class="num">Tare kg</th><th class="num">Max kg</th><th>Status</th></tr></thead>
+    <tbody><tr th:each="c : ${containers}">
+      <td><a class="linkcode" th:href="@{'/assets/containers/' + ${c.container_id}(siteId=${siteId})}" th:text="${c.barcode}">B</a></td>
+      <td class="mono" style="font-size:11px" th:text="${c.container_type}">TOTE</td>
+      <td class="check">say <b th:text="${c.check_digits ?: '—'}">00</b></td>
+      <td th:text="${c.reusable} ? 'yes' : 'no'">yes</td>
+      <td class="num" th:text="${c.tare_weight_kg ?: '—'}">—</td>
+      <td class="num" th:text="${c.max_weight_kg ?: '—'}">—</td>
+      <td><span class="pill" th:classappend="${c.active} ? 'on' : 'off'" th:text="${c.active} ? 'ACTIVE' : 'RETIRED'">A</span></td>
+    </tr>
+    <tr th:if="${#lists.isEmpty(containers)}"><td colspan="7" style="color:var(--ink-soft)">No totes registered yet.</td></tr>
+    </tbody></table></div>
+</div>
+</body></html>

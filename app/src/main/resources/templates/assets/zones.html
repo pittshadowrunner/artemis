@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head><title>Artemis · Zones</title><th:block th:replace="~{fragments :: headcss}"/></head>
+<body>
+<div th:replace="~{fragments :: topbar('assets')}"></div>
+<div class="apage">
+  <div class="crumbtrail"><a th:href="@{/assets(siteId=${siteId})}">ASSETS</a><span class="sep">›</span><a>ZONES</a></div>
+  <div class="ahead"><span class="eyebrow">Areas</span><h1>Zones</h1></div>
+  <div class="panel"><table>
+    <thead><tr><th>Code</th><th>Name</th><th>Temp</th><th class="num">Slots</th><th class="num">Pick Faces</th></tr></thead>
+    <tbody><tr th:each="z : ${zones}">
+      <td><a class="linkcode" th:href="@{/assets/slots(siteId=${siteId},zoneId=${z.zone_id})}" th:text="${z.code}">Z</a></td>
+      <td th:text="${z.name}">n</td>
+      <td><span class="placard" th:classappend="${z.css}"><span class="tag" th:text="${z.temp_zone != null} ? ${z.temp_zone.substring(0,3)} : '—'">T</span></span></td>
+      <td class="num" th:text="${z.slots}">0</td>
+      <td class="num" th:text="${z.pick_faces}">0</td>
+    </tr></tbody></table></div>
+</div>
+<footer>Zones and slots behave the same way: a zone is the slot list scoped to one area, with the policy cascade applying smallest-unit-wins.</footer>
+</body></html>

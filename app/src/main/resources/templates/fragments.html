@@ -47,9 +47,72 @@ tr:hover td{background:#FAFAF8}
 .bar i{display:block;height:100%;background:var(--ink)}
 .bar i.done{background:var(--ok)}
 footer{padding:0 24px 28px;font-size:12px;color:var(--ink-soft)}
+/* asset design system: every asset screen = crumbtrail + head + attrs + children */
+.apage{padding:20px 24px;max-width:1200px}
+.crumbtrail{display:flex;gap:8px;align-items:center;font-size:12px;margin-bottom:14px}
+.crumbtrail a{font-family:'IBM Plex Mono';font-size:12px;color:var(--ink-soft);text-decoration:none;padding:3px 8px;border:1px solid var(--line);border-radius:2px;background:#fff}
+.crumbtrail a:hover{border-color:var(--ink);color:var(--ink)}
+.crumbtrail .sep{color:var(--line)}
+.ahead{display:flex;align-items:baseline;gap:14px;margin-bottom:16px;flex-wrap:wrap}
+.ahead .eyebrow{font-size:12px}
+.ahead h1{font-size:26px}
+.ahead .digits{font-family:'IBM Plex Mono';font-size:13px;background:var(--ink);color:var(--amber);padding:4px 10px;border-radius:2px}
+.attrs{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:1px;background:var(--line);border:1px solid var(--line);margin-bottom:20px}
+.attr{background:var(--card);padding:10px 12px}
+.attr .k{font-family:'Saira Condensed';text-transform:uppercase;letter-spacing:.1em;font-size:10px;color:var(--ink-soft)}
+.attr .v{font-family:'IBM Plex Mono';font-size:13px;margin-top:3px;word-break:break-word}
+.attr .v.big{font-size:18px;font-weight:600}
+a.rowlink{color:inherit;text-decoration:none;display:contents}
+td a{color:inherit;text-decoration:none}
+td a:hover .code, tr:hover td a{text-decoration:none}
+.linkcode{font-family:'IBM Plex Mono';font-weight:600;color:var(--ink);text-decoration:none;border-bottom:1px solid var(--amber)}
+.linkcode:hover{background:#FFF3D6}
+.vel{font-family:'Saira Condensed';font-weight:700;font-size:16px;width:26px;height:26px;display:inline-flex;align-items:center;justify-content:center;border:1.5px solid var(--ink);border-radius:2px}
+.vel.A{background:var(--amber);color:var(--amber-ink)}
+.vel.B{background:#EEF0EC}
+.vel.C{background:#fff;color:var(--ink-soft)}
+.pill{font-family:'IBM Plex Mono';font-size:11px;padding:2px 8px;border-radius:2px;border:1px solid var(--line)}
+.pill.on{background:#E7F0EE;color:#2C6B60;border-color:#BFD9D3}
+.pill.off{background:#FDEBE9;color:var(--danger);border-color:#F2C4C0}
+/* pick-line graph */
+.plgraph{padding:16px}
+.plrow{display:grid;grid-template-columns:44px 130px 1fr 60px;gap:10px;align-items:center;margin-bottom:8px}
+.plrow .seqno{font-family:'IBM Plex Mono';font-size:12px;color:var(--ink-soft)}
+.plbar{height:20px;background:#EEF0EC;border-radius:2px;overflow:hidden;position:relative}
+.plbar i{display:block;height:100%}
+.plbar i.done{background:var(--ok)}
+.plbar i.open{background:repeating-linear-gradient(-45deg,var(--amber) 0 8px,#E8A700 8px 16px)}
+.plbar span{position:absolute;left:8px;top:0;line-height:20px;font-family:'IBM Plex Mono';font-size:11px;color:var(--ink)}
+/* forms + actions */
+.flash{background:#E7F0EE;border:1px solid #BFD9D3;color:#2C6B60;padding:10px 16px;margin-bottom:16px;font-size:13px}
+.flash.err{background:#FDEBE9;border-color:#F2C4C0;color:var(--danger)}
+details.editbox{background:var(--card);border:1px solid var(--line);margin-bottom:20px}
+details.editbox summary{cursor:pointer;padding:12px 16px;font-family:'Saira Condensed';text-transform:uppercase;letter-spacing:.1em;font-size:12px;color:var(--ink-soft);user-select:none}
+details.editbox[open] summary{border-bottom:1px solid var(--line);color:var(--ink)}
+.formgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:12px;padding:16px}
+.field label{display:block;font-family:'Saira Condensed';text-transform:uppercase;letter-spacing:.1em;font-size:10px;color:var(--ink-soft);margin-bottom:4px}
+.field input,.field select{width:100%;font-family:'IBM Plex Mono';font-size:13px;padding:7px 9px;border:1px solid var(--line);border-radius:2px;background:#fff}
+.field input:focus,.field select:focus{outline:2px solid var(--amber);border-color:var(--amber)}
+.formfoot{padding:0 16px 16px}
+.btn{font-family:'Saira Condensed';text-transform:uppercase;letter-spacing:.1em;font-weight:600;font-size:13px;background:var(--ink);color:var(--amber);border:none;border-radius:2px;padding:9px 18px;cursor:pointer}
+.btn:hover{background:#2A3138}
+.btn.secondary{background:#fff;color:var(--ink);border:1.5px solid var(--ink)}
+.inlineform{display:flex;gap:8px;align-items:center}
+.inlineform input,.inlineform select{font-family:'IBM Plex Mono';font-size:12px;padding:6px 8px;border:1px solid var(--line);border-radius:2px}
+/* lifecycle badges */
+.status.pending{background:#EEF0EC;color:var(--ink-soft)}
+.status.assigned{background:#E3ECF6;color:#2C4E75}
+.status.reassigned{background:#F0E6F6;color:#5C3A75}
+.status.inprogress{background:#FFF3D6;color:var(--amber-ink)}
+.status.complete{background:#E7F0EE;color:#2C6B60}
+.status.cancelled{background:#FDEBE9;color:var(--danger)}
 </style>
 </th:block>
 <body>
+<div th:fragment="flashbar" th:remove="tag">
+  <div class="flash" th:if="${flash}" th:text="${flash}">ok</div>
+  <div class="flash err" th:if="${flashError}" th:text="${flashError}">err</div>
+</div>
 <div th:fragment="topbar(active)" class="topbar">
   <a class="brand" th:href="@{/(siteId=${siteId})}">ARTE<b>MIS</b></a>
   <nav class="crumbs" aria-label="Organization" th:if="${crumb != null}">
@@ -61,6 +124,8 @@ footer{padding:0 24px 28px;font-size:12px;color:var(--ink-soft)}
   </nav>
   <a class="navlink" th:href="@{/(siteId=${siteId})}" th:classappend="${active=='ops'} ? 'active'">Operations</a>
   <a class="navlink" th:href="@{/metrics(siteId=${siteId})}" th:classappend="${active=='metrics'} ? 'active'">Metrics</a>
+  <a class="navlink" th:href="@{/waves(siteId=${siteId})}" th:classappend="${active=='waves'} ? 'active'">Waves</a>
+  <a class="navlink" th:href="@{/assets(siteId=${siteId})}" th:classappend="${active=='assets'} ? 'active'">Assets</a>
   <a class="navlink" href="/api-docs/ui" target="_blank">API</a>
   <div class="user">
     <span class="role-chip" th:text="${sysadmin} ? 'SYSADMIN' : 'ADMIN'">ADMIN</span>

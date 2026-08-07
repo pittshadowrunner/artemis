@@ -111,8 +111,8 @@ public class ReplenishmentService {
             UUID corp = jdbc.queryForObject(
                 "SELECT corporation_id FROM location WHERE location_id = ?", UUID.class, faceId);
             jdbc.update("""
-                INSERT INTO assignment (assignment_id, corporation_id, site_id, assignment_type, priority)
-                VALUES (?, ?, ?, 'REPLENISHMENT', 70)
+                INSERT INTO assignment (assignment_id, corporation_id, site_id, assignment_type, priority, assignment_number)
+                VALUES (?, ?, ?, 'REPLENISHMENT', 70, 'A-' || to_char(now(),'YYMMDD') || '-' || lpad(nextval('assignment_number_seq')::text, 5, '0'))
                 """, assignmentId, corp, siteId);
             String prompt = "Replenish: pull from " + String.valueOf(src.get("location_code")).replace("-", " ")
                     + ", check " + src.get("check_digits") + " — put to "

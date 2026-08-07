@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head><title th:text="'Artemis · ' + ${it.sku}">Item</title><th:block th:replace="~{fragments :: headcss}"/></head>
+<body>
+<div th:replace="~{fragments :: topbar('assets')}"></div>
+<div class="apage">
+  <div class="crumbtrail"><a th:href="@{/assets(siteId=${siteId})}">ASSETS</a><span class="sep">›</span>
+    <a th:href="@{/assets/items(siteId=${siteId})}">ITEMS</a><span class="sep">›</span><a th:text="${it.sku}">SKU</a></div>
+  <div th:replace="~{fragments :: flashbar}"></div>
+  <div class="ahead">
+    <span class="eyebrow">Item</span><h1 th:text="${it.sku}">SKU</h1>
+    <span style="color:var(--ink-soft)" th:text="${it.description}">desc</span>
+    <span class="vel" th:if="${it.calc_velocity}" th:classappend="${it.calc_velocity}" th:text="${it.calc_velocity}">A</span>
+  </div>
+  <div class="attrs">
+    <div class="attr"><div class="k">UOM</div><div class="v big" th:text="${it.uom}">CS</div></div>
+    <div class="attr"><div class="k">Temp Zone</div><div class="v" th:text="${it.temp_zone}">AMBIENT</div></div>
+    <div class="attr"><div class="k">Declared Velocity</div><div class="v big" th:text="${it.velocity_class ?: '—'}">A</div></div>
+    <div class="attr"><div class="k">Calculated Velocity</div><div class="v big" th:text="${it.calc_velocity ?: '—'}">A</div></div>
+    <div class="attr"><div class="k">Lines · 30d</div><div class="v" th:text="${it.lines_30d ?: 0}">0</div></div>
+    <div class="attr"><div class="k">Cases · 30d</div><div class="v" th:text="${it.cases_30d != null} ? ${#numbers.formatDecimal(it.cases_30d,1,0)} : '0'">0</div></div>
+    <div class="attr"><div class="k">Tracking</div><div class="v" th:text="(${it.lot_tracked} ? 'LOT ' : '') + (${it.expiry_tracked} ? 'EXPIRY ' : '') + (${it.serial_tracked} ? 'SERIAL' : '')"></div></div>
+    <div class="attr" th:if="${it.shelf_life_days}"><div class="k">Shelf Life</div><div class="v" th:text="${it.shelf_life_days} + ' d · ' + ${it.date_label}">d</div></div>
+    <div class="attr" th:if="${it.catch_weight}"><div class="k">Catch Weight</div><div class="v" th:text="'nominal ' + ${it.nominal_weight_kg} + ' kg'">kg</div></div>
+    <div class="attr" th:if="${it.case_pack_qty}"><div class="k">Case Pack</div><div class="v" th:text="${it.case_pack_qty}">0</div></div>
+    <div class="attr" th:if="${it.pallet_ti}"><div class="k">Ti × Hi</div><div class="v" th:text="${it.pallet_ti} + ' × ' + ${it.pallet_hi}">0</div></div>
+    <div class="attr" th:if="${it.min_shelf_life_receipt_days}"><div class="k">Min Receipt Life</div><div class="v" th:text="${it.min_shelf_life_receipt_days} + ' d'">d</div></div>
+    <div class="attr" th:if="${it.allergens}"><div class="k">Allergens</div><div class="v" th:text="${#strings.arrayJoin(it.allergens, ', ')}"></div></div>
+    <div class="attr" th:if="${it.hazmat_class}"><div class="k">Hazmat</div><div class="v" th:text="${it.hazmat_class}"></div></div>
+  </div>
+
+  <details class="editbox">
+    <summary>Edit item</summary>
+    <form method="post" th:action="@{/ui/items/update}">
+      <input type="hidden" name="itemId" th:value="${it.item_id}">
+      <input type="hidden" name="siteId" th:value="${siteId}">
+      <div class="formgrid">
+        <div class="field"><label>Description</label><input name="description" th:value="${it.description}"></div>
+        <div class="field"><label>UOM</label><input name="uom" th:value="${it.uom}"></div>
+        <div class="field"><label>Declared Velocity</label>
+          <select name="velocityClass"><option value="">—</option>
+            <option th:selected="${it.velocity_class == 'A'}">A</option>
+            <option th:selected="${it.velocity_class == 'B'}">B</option>
+            <option th:selected="${it.velocity_class == 'C'}">C</option></select></div>
+        <div class="field"><label>Case Pack</label><input name="casePackQty" type="number" th:value="${it.case_pack_qty}"></div>
+        <div class="field"><label>Pallet Ti</label><input name="palletTi" type="number" th:value="${it.pallet_ti}"></div>
+        <div class="field"><label>Pallet Hi</label><input name="palletHi" type="number" th:value="${it.pallet_hi}"></div>
+        <div class="field"><label>Min Receipt Life (d)</label><input name="minShelfLifeReceiptDays" type="number" th:value="${it.min_shelf_life_receipt_days}"></div>
+        <div class="field"><label>Min Ship Life (d)</label><input name="minShelfLifeShipDays" type="number" th:value="${it.min_shelf_life_ship_days}"></div>
+      </div>
+      <div class="formfoot"><button class="btn">Save</button></div>
+    </form>
+  </details>
+
+  <div class="panel">
+    <div class="panel-h"><h3>Stock On Hand</h3><span class="eyebrow">By slot · pick-path order</span></div>
+    <table><thead><tr><th>Slot</th><th>LPN</th><th>Lot</th><th>Expires</th><th class="num">Qty</th><th>Status</th></tr></thead>
+      <tbody><tr th:each="s : ${it.stock}">
+        <td><a th:href="@{'/assets/slots/' + ${s.location_id}(siteId=${siteId})}"><span class="placard" th:classappend="${s.css}"><span class="tag" th:text="${s.tag}">T</span><span class="code" th:text="${s.location_code}">L</span></span></a></td>
+        <td class="mono" th:text="${s.lpn}">L</td>
+        <td class="mono" th:text="${s.lot_number ?: '—'}">-</td>
+        <td class="mono" th:text="${s.expiration_date ?: '—'}">-</td>
+        <td class="num" th:text="${#numbers.formatDecimal(s.qty,1,0)}">0</td>
+        <td><span class="pill" th:classappend="${s.status == 'AVAILABLE'} ? 'on'" th:text="${s.status}">A</span></td>
+      </tr></tbody></table>
+  </div>
+
+  <div class="panel" th:if="${!#lists.isEmpty(it.faces)}">
+    <div class="panel-h"><h3>Pick Faces</h3><span class="eyebrow">Replen triggers</span></div>
+    <table><thead><tr><th>Slot</th><th class="num">Min</th><th class="num">Trigger</th><th class="num">Max</th></tr></thead>
+      <tbody><tr th:each="f : ${it.faces}">
+        <td><a class="linkcode" th:href="@{'/assets/slots/' + ${f.location_id}(siteId=${siteId})}" th:text="${f.code}">L</a></td>
+        <td class="num" th:text="${#numbers.formatDecimal(f.replen_min_qty,1,0)}">0</td>
+        <td class="num" th:text="${#numbers.formatDecimal(f.replen_trigger_qty,1,0)}">0</td>
+        <td class="num" th:text="${#numbers.formatDecimal(f.replen_max_qty,1,0)}">0</td>
+      </tr></tbody></table>
+  </div>
+</div>
+</body></html>

@@ -46,7 +46,7 @@ public class UiService {
     /** Hazard-stripe banner: the most active wave right now. */
     public Map<String, Object> activeWave(UUID siteId) {
         List<Map<String, Object>> rows = jdbc.queryForList("""
-            SELECT w.wave_number, w.wave_type::text AS wave_type, w.status::text AS status,
+            SELECT w.wave_id, w.wave_number, w.wave_type::text AS wave_type, w.status::text AS status,
                    vp.total_tasks, vp.done_tasks,
                    (SELECT count(*) FROM wave_order wo WHERE wo.wave_id = w.wave_id) AS orders
             FROM wave w JOIN v_wave_progress vp ON vp.wave_id = w.wave_id
@@ -78,14 +78,18 @@ public class UiService {
      */
     public List<Map<String, Object>> openTasks(UUID siteId, int limit) {
         return jdbc.queryForList("""
-            SELECT t.seq, a.assignment_type::text AS assignment_type, t.status::text AS status,
+            SELECT t.seq, a.assignment_id, a.assignment_number,
+                   a.assignment_type::text AS assignment_type, t.status::text AS status,
                    lf.code  AS from_code,
                    CASE lf.loc_type::text WHEN 'RECEIVING_DOCK' THEN 'DCK' WHEN 'DROP' THEN 'DRP'
                         WHEN 'PICK_FACE' THEN tag_of(lf.temp_zone::text)
                         ELSE tag_of(lf.temp_zone::text) END AS from_tag,
                    css_of(lf.temp_zone::text) AS from_css,
-                   COALESCE(lt.code, 'POS ' || t.cart_position) AS to_code,
-                   CASE WHEN lt.location_id IS NULL THEN 'TOTE'
+                   CASE WHEN lt.location_id IS NOT NULL THEN lt.code
+                        WHEN t.cart_position IS NOT NULL THEN 'POS ' || t.cart_position
+                        ELSE NULL END AS to_code,
+                   CASE WHEN lt.location_id IS NULL AND t.cart_position IS NOT NULL THEN 'CRT'
+                        WHEN lt.location_id IS NULL THEN NULL
                         WHEN lt.loc_type::text = 'DROP' THEN 'DRP'
                         WHEN lt.loc_type::text = 'STORAGE' THEN 'STO'
                         ELSE tag_of(lt.temp_zone::text) END AS to_tag,

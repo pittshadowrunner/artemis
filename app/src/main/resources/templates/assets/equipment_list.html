@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head><title>Artemis · Equipment</title><th:block th:replace="~{fragments :: headcss}"/></head>
+<body>
+<div th:replace="~{fragments :: topbar('assets')}"></div>
+<div class="apage">
+  <div class="crumbtrail"><a th:href="@{/assets(siteId=${siteId})}">ASSETS</a><span class="sep">›</span><a>CARTS &amp; POWERED</a></div>
+  <div th:replace="~{fragments :: flashbar}"></div>
+  <div class="ahead"><span class="eyebrow">Fleet</span><h1>Carts &amp; Powered Equipment</h1></div>
+  <details class="editbox">
+    <summary>Register equipment</summary>
+    <form method="post" th:action="@{/ui/equipment/create}">
+      <input type="hidden" name="siteId" th:value="${siteId}">
+      <div class="formgrid">
+        <div class="field"><label>Code</label><input name="code" required placeholder="JACK-05"></div>
+        <div class="field"><label>Type</label>
+          <select name="equipmentType"><option>CART</option><option>PALLET_JACK</option><option>FORKLIFT</option>
+            <option>REACH_TRUCK</option><option>ORDER_PICKER</option><option>TUGGER</option></select></div>
+        <div class="field"><label>Positions (cart totes / jack pallets 2–3)</label>
+          <input name="containerPositions" type="number" min="1" max="12"></div>
+        <div class="field"><label>Check Digits</label><input name="checkDigits" maxlength="2" placeholder="auto for positions"></div>
+        <div class="field"><label>Capabilities (csv)</label><input name="capabilities" placeholder="COLD_RATED, LIFT_HIGH"></div>
+        <div class="field"><label>Max Weight kg</label><input name="maxWeightKg"></div>
+      </div>
+      <div class="formfoot"><button class="btn">Register</button></div>
+    </form>
+  </details>
+  <div class="panel"><table>
+    <thead><tr><th>Code</th><th>Type</th><th>Digits</th><th class="num">Positions</th><th>Capabilities</th><th>Carried LPN</th><th>Status</th></tr></thead>
+    <tbody><tr th:each="e : ${equipment}">
+      <td><a class="linkcode" th:href="@{'/assets/equipment/' + ${e.equipment_id}(siteId=${siteId})}" th:text="${e.code}">C</a></td>
+      <td class="mono" style="font-size:11px" th:text="${e.equipment_type}">CART</td>
+      <td class="check">say <b th:text="${e.check_digits ?: '—'}">00</b></td>
+      <td class="num" th:text="${e.container_positions ?: '—'}">0</td>
+      <td class="mono" style="font-size:11px" th:text="${e.capabilities != null} ? ${#strings.arrayJoin(e.capabilities, ', ')} : '—'">—</td>
+      <td class="mono" th:text="${e.lpn ?: '—'}">—</td>
+      <td><span class="pill" th:classappend="${e.active} ? 'on' : 'off'" th:text="${e.active} ? 'ACTIVE' : 'RETIRED'">A</span></td>
+    </tr>
+    <tr th:if="${#lists.isEmpty(equipment)}"><td colspan="7" style="color:var(--ink-soft)">No equipment registered — <span class="mono">POST /api/v1/equipment</span>.</td></tr>
+    </tbody></table></div>
+</div>
+</body></html>

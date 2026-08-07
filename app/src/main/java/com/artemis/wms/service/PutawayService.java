@@ -38,8 +38,8 @@ public class PutawayService {
 
         UUID assignmentId = UUID.randomUUID();
         jdbc.update("""
-            INSERT INTO assignment (assignment_id, corporation_id, site_id, assignment_type)
-            VALUES (?, ?, ?, 'PUTAWAY')
+            INSERT INTO assignment (assignment_id, corporation_id, site_id, assignment_type, assignment_number)
+            VALUES (?, ?, ?, 'PUTAWAY', 'A-' || to_char(now(),'YYMMDD') || '-' || lpad(nextval('assignment_number_seq')::text, 5, '0'))
             """, assignmentId, TenantContext.corp(), siteId);
         UUID taskId = UUID.randomUUID();
         String digits = String.valueOf(slot.get("check_digits"));

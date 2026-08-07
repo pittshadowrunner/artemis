@@ -34,11 +34,13 @@
 <body>
 
 <div th:replace="~{fragments :: topbar('ops')}"></div>
+<div style="padding:16px 24px 0"><div th:replace="~{fragments :: flashbar}"></div></div>
 
 <div class="wave" th:if="${wave != null}">
   <div class="wave-inner">
     <span class="pulse" aria-hidden="true"></span>
-    <h2 th:text="'Wave ' + ${wave.wave_number} + ' · Selection in progress'">Wave</h2>
+    <h2><a th:href="@{'/waves/' + ${wave.wave_id}(siteId=${siteId})}" style="color:#fff;text-decoration:none"
+           th:text="'Wave ' + ${wave.wave_number} + ' · Selection in progress'">Wave</a></h2>
     <span class="wave-stat">Orders <b th:text="${wave.orders}">0</b></span>
     <span class="wave-stat">Tasks done <b th:text="${wave.done_tasks} + ' / ' + ${wave.total_tasks}">0/0</b></span>
     <span class="wave-stat">Type <b th:text="${wave.wave_type}">TYPE</b></span>
@@ -50,7 +52,10 @@
     <div class="lanes">
       <div class="lane"><div class="eyebrow">Receiving</div><div class="count" th:text="${lanes.receiving}">0</div><div class="sub">manifests at dock</div></div>
       <div class="lane"><div class="eyebrow">Put Away</div><div class="count" th:text="${lanes.putaway}">0</div><div class="sub">open tasks</div></div>
-      <div class="lane" th:classappend="${lanes.replen > 0} ? 'hot'"><div class="eyebrow">Replenishment</div><div class="count" th:text="${lanes.replen}">0</div><div class="sub">faces below trigger</div></div>
+      <div class="lane" th:classappend="${lanes.replen > 0} ? 'hot'"><div class="eyebrow">Replenishment</div><div class="count" th:text="${lanes.replen}">0</div>
+        <form method="post" th:action="@{/ui/replen/scan}" style="margin-top:6px">
+          <input type="hidden" name="siteId" th:value="${siteId}">
+          <button class="btn" style="padding:5px 10px;font-size:11px">Run Scan</button></form></div>
       <div class="lane"><div class="eyebrow">Selection</div><div class="count" th:text="${lanes.selection}">0</div><div class="sub">tasks remaining</div></div>
       <div class="lane"><div class="eyebrow">Shipping</div><div class="count" th:text="${lanes.shipping}">0</div><div class="sub">orders awaiting load</div></div>
     </div>
@@ -61,10 +66,12 @@
         <thead><tr><th>Seq</th><th>Type</th><th>From</th><th>To</th><th>Item / LPN</th><th>Qty</th><th>Verify</th><th>Status</th></tr></thead>
         <tbody>
           <tr th:each="t : ${tasks}">
-            <td class="mono" th:text="${#numbers.formatInteger(t.seq, 3)}">001</td>
+            <td class="mono"><a class="linkcode" th:href="@{'/assignments/' + ${t.assignment_id}(siteId=${siteId})}"
+                  th:text="${#numbers.formatInteger(t.seq, 3)}">001</a></td>
             <td><span class="type-chip" th:text="${t.assignment_type == 'REPLENISHMENT'} ? 'REPLEN' : ${t.assignment_type}">TYPE</span></td>
             <td><span class="placard" th:classappend="${t.from_css}"><span class="tag" th:text="${t.from_tag}">TAG</span><span class="code" th:text="${t.from_code}">LOC</span></span></td>
-            <td><span class="placard" th:classappend="${t.to_css}"><span class="tag" th:text="${t.to_tag}">TAG</span><span class="code" th:text="${t.to_code}">LOC</span></span></td>
+            <td><span class="placard" th:if="${t.to_code != null}" th:classappend="${t.to_css}"><span class="tag" th:text="${t.to_tag}">TAG</span><span class="code" th:text="${t.to_code}">LOC</span></span>
+                <span th:if="${t.to_code == null}" style="color:var(--ink-soft)">—</span></td>
             <td th:utext="${t.item} + (${t.lot_number != null} ? ' <span class=&quot;mono&quot; style=&quot;color:var(--ink-soft)&quot;>· LOT ' + ${t.lot_number} + '</span>' : (${t.lpn != null} ? ' <span class=&quot;mono&quot; style=&quot;color:var(--ink-soft)&quot;>· LPN ' + ${t.lpn} + '</span>' : ''))">Item</td>
             <td class="mono" th:text="${#numbers.formatDecimal(t.qty,1,0)} + ' CS'">0</td>
             <td class="check">say <b th:text="${t.say_digits}">00</b></td>

@@ -32,8 +32,9 @@ public class WaveService {
         UUID waveId = UUID.randomUUID();
         String waveNumber = str(req.get("waveNumber"));
         if (waveNumber == null) {
-            Long n = jdbc.queryForObject("SELECT count(*) + 1 FROM wave WHERE site_id = ?", Long.class, siteId);
-            waveNumber = "W-" + java.time.LocalDate.now() + "-" + String.format("%03d", n);
+            waveNumber = jdbc.queryForObject(
+                "SELECT 'W-' || to_char(now(), 'YYMMDD-HH24MI') || '-' || lpad(nextval('wave_number_seq')::text, 3, '0')",
+                String.class);
         }
         jdbc.update("""
             INSERT INTO wave (wave_id, corporation_id, site_id, wave_number, wave_type, carrier_cutoff,
@@ -113,8 +114,8 @@ public class WaveService {
             List<Map<String, Object>> batch = orders.subList(chunk, Math.min(chunk + positions, orders.size()));
             UUID assignmentId = UUID.randomUUID();
             jdbc.update("""
-                INSERT INTO assignment (assignment_id, corporation_id, site_id, assignment_type, wave_id, equipment_id)
-                VALUES (?, ?, ?, 'SELECTION', ?, ?)
+                INSERT INTO assignment (assignment_id, corporation_id, site_id, assignment_type, wave_id, equipment_id, assignment_number)
+                VALUES (?, ?, ?, 'SELECTION', ?, ?, 'A-' || to_char(now(),'YYMMDD') || '-' || lpad(nextval('assignment_number_seq')::text, 5, '0'))
                 """, assignmentId, TenantContext.corp(), siteId, waveId, equipmentId);
 
             int position = 0;
