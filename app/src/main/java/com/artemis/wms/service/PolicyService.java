@@ -39,7 +39,7 @@ public class PolicyService {
     public boolean allowItemMixing(UUID nodeId) {
         Boolean b = jdbc.queryForObject(
             "SELECT (effective_policy(?)).allow_item_mixing", Boolean.class, nodeId);
-        return b == null || b;                          // default: items may share a slot
+        return b != null && b;                          // convention: one item per slot unless policy says otherwise
     }
 
     public boolean allowLotMixing(UUID nodeId) {

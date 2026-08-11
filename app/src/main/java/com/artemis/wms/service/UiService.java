@@ -77,6 +77,10 @@ public class UiService {
      * page. Placard tag/class are computed here so the template stays dumb.
      */
     public List<Map<String, Object>> openTasks(UUID siteId, int limit) {
+        return openTasks(siteId, null, limit);
+    }
+
+    public List<Map<String, Object>> openTasks(UUID siteId, String type, int limit) {
         return jdbc.queryForList("""
             SELECT t.seq, a.assignment_id, a.assignment_number,
                    a.assignment_type::text AS assignment_type, t.status::text AS status,
@@ -103,9 +107,43 @@ public class UiService {
             LEFT JOIN inventory i ON i.inventory_id = t.inventory_id
             LEFT JOIN item it ON it.item_id = t.item_id
             WHERE a.site_id = ? AND t.status = 'OPEN'
+            """ + " " + (type == null ? "" : " AND a.assignment_type = '" + switch (type) {
+                case "PUTAWAY" -> "PUTAWAY";
+                case "REPLENISHMENT" -> "REPLENISHMENT";
+                case "SELECTION" -> "SELECTION";
+                default -> throw new IllegalArgumentException("bad lane");
+            } + "' ") + " " + """
             ORDER BY lf.pick_sequence ASC NULLS LAST, t.seq
             LIMIT ?
             """, siteId, limit);
+    }
+
+    /** Receiving lane: open manifests with progress. */
+    public List<Map<String, Object>> receivingOpen(UUID siteId) {
+        return jdbc.queryForList("""
+            SELECT manifest_number, carrier, status::text AS status,
+                   expected_qty, received_qty, COALESCE(pct_complete, 0) AS pct
+            FROM v_receiving_progress
+            WHERE site_id = ? AND status IN ('ARRIVED','RECEIVING')
+            ORDER BY manifest_number
+            """, siteId);
+    }
+
+    /** Shipping lane: orders picked or dropped, awaiting load. */
+    public List<Map<String, Object>> shippingAwaiting(UUID siteId) {
+        return jdbc.queryForList("""
+            SELECT o.order_id, o.order_number, o.status::text AS status,
+                   c.code AS customer_code, c.name AS customer_name,
+                   l.code AS drop_code,
+                   count(ol.order_line_id) AS lines
+            FROM customer_order o
+            JOIN customer c ON c.customer_id = o.customer_id
+            LEFT JOIN location l ON l.location_id = o.drop_location_id
+            LEFT JOIN customer_order_line ol ON ol.order_id = o.order_id
+            WHERE o.site_id = ? AND o.status IN ('PICKED','DROPPED')
+            GROUP BY o.order_id, c.code, c.name, l.code
+            ORDER BY o.order_number
+            """, siteId);
     }
 
     /** Right rail: soonest-expiring lots with their slot. */

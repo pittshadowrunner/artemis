@@ -16,9 +16,10 @@
     <div class="attr"><div class="k">UOM</div><div class="v big" th:text="${it.uom}">CS</div></div>
     <div class="attr"><div class="k">Temp Zone</div><div class="v" th:text="${it.temp_zone}">AMBIENT</div></div>
     <div class="attr"><div class="k">Declared Velocity</div><div class="v big" th:text="${it.velocity_class ?: '—'}">A</div></div>
-    <div class="attr"><div class="k">Calculated Velocity</div><div class="v big" th:text="${it.calc_velocity ?: '—'}">A</div></div>
-    <div class="attr"><div class="k">Lines · 30d</div><div class="v" th:text="${it.lines_30d ?: 0}">0</div></div>
-    <div class="attr"><div class="k">Cases · 30d</div><div class="v" th:text="${it.cases_30d != null} ? ${#numbers.formatDecimal(it.cases_30d,1,0)} : '0'">0</div></div>
+    <div class="attr"><div class="k">Calculated Velocity</div><div class="v big" th:text="${it.calc_velocity ?: '—'}">A</div>
+      <div class="k" style="margin-top:4px;text-transform:none;letter-spacing:0">from completed picks, last 30 days</div></div>
+    <div class="attr"><div class="k">Pick Lines · Trailing 30 Days</div><div class="v" th:text="${it.lines_30d ?: 0}">0</div></div>
+    <div class="attr"><div class="k">Cases Picked · Trailing 30 Days</div><div class="v" th:text="${it.cases_30d != null} ? ${#numbers.formatDecimal(it.cases_30d,1,0)} : '0'">0</div></div>
     <div class="attr"><div class="k">Tracking</div><div class="v" th:text="(${it.lot_tracked} ? 'LOT ' : '') + (${it.expiry_tracked} ? 'EXPIRY ' : '') + (${it.serial_tracked} ? 'SERIAL' : '')"></div></div>
     <div class="attr" th:if="${it.shelf_life_days}"><div class="k">Shelf Life</div><div class="v" th:text="${it.shelf_life_days} + ' d · ' + ${it.date_label}">d</div></div>
     <div class="attr" th:if="${it.catch_weight}"><div class="k">Catch Weight</div><div class="v" th:text="'nominal ' + ${it.nominal_weight_kg} + ' kg'">kg</div></div>
@@ -27,6 +28,27 @@
     <div class="attr" th:if="${it.min_shelf_life_receipt_days}"><div class="k">Min Receipt Life</div><div class="v" th:text="${it.min_shelf_life_receipt_days} + ' d'">d</div></div>
     <div class="attr" th:if="${it.allergens}"><div class="k">Allergens</div><div class="v" th:text="${#strings.arrayJoin(it.allergens, ', ')}"></div></div>
     <div class="attr" th:if="${it.hazmat_class}"><div class="k">Hazmat</div><div class="v" th:text="${it.hazmat_class}"></div></div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-h"><h3>Units of Measure</h3><span class="eyebrow">Tiered hierarchy · EA is the base</span></div>
+    <table><thead><tr><th>Unit</th><th>Contains</th><th class="num">Each Equivalent</th></tr></thead>
+      <tbody>
+        <tr><td class="mono">EA</td><td style="color:var(--ink-soft)">base unit</td><td class="num mono">1</td></tr>
+        <tr th:each="u : ${it.uoms}">
+          <td class="mono" th:text="${u.code}">CS</td>
+          <td class="mono" th:text="${#numbers.formatDecimal(u.qty,1,0)} + ' × ' + ${u.of_code}">4 × EA</td>
+          <td class="num mono" th:text="${#numbers.formatDecimal(u.eaches,1,0)} + ' EA'">4</td>
+        </tr>
+      </tbody></table>
+    <form method="post" th:action="@{/ui/items/uom}" class="formgrid" style="align-items:end;border-top:1px solid var(--line)">
+      <input type="hidden" name="itemId" th:value="${it.item_id}">
+      <input type="hidden" name="siteId" th:value="${siteId}">
+      <div class="field"><label>New Unit</label><input name="code" required placeholder="PL"></div>
+      <div class="field"><label>Quantity</label><input name="qty" type="number" step="any" required placeholder="40"></div>
+      <div class="field"><label>Of Unit</label><input name="ofCode" placeholder="CS (default EA)"></div>
+      <div class="field"><button class="btn">Add Tier</button></div>
+    </form>
   </div>
 
   <details class="editbox">

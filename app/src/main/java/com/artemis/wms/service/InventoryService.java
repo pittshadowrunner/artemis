@@ -26,7 +26,10 @@ public class InventoryService {
 
     public InventoryService(JdbcTemplate jdbc) { this.jdbc = jdbc; }
 
-    @Transactional
+    // Deliberately NOT @Transactional: each row commits independently so a
+    // convention rejection (single-item / temp zone triggers) fails that row
+    // alone instead of poisoning the batch transaction. BulkResult reports
+    // per-row outcomes, so per-row atomicity is the honest semantic.
     public BulkResult load(UUID siteId, boolean replaceExisting, List<Map<String, Object>> records) {
         if (replaceExisting) {
             jdbc.update("DELETE FROM inventory WHERE site_id = ? AND status = 'AVAILABLE'", siteId);

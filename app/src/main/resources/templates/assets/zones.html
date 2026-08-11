@@ -11,7 +11,7 @@
     <tbody><tr th:each="z : ${zones}">
       <td><a class="linkcode" th:href="@{/assets/slots(siteId=${siteId},zoneId=${z.zone_id})}" th:text="${z.code}">Z</a></td>
       <td th:text="${z.name}">n</td>
-      <td><span class="placard" th:classappend="${z.css}"><span class="tag" th:text="${z.temp_zone != null} ? ${z.temp_zone.substring(0,3)} : '—'">T</span></span></td>
+      <td><span class="placard" th:classappend="${z.css}"><span class="tag" th:text="${z.tag ?: '—'}">T</span></span></td>
       <td class="num" th:text="${z.slots}">0</td>
       <td class="num" th:text="${z.pick_faces}">0</td>
     </tr></tbody></table></div>

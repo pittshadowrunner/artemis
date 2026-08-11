@@ -24,7 +24,7 @@
       <div class="formfoot"><button class="btn">Plan Wave</button></div>
     </form>
   </details>
-  <div class="panel"><table>
+  <div class="panel"><div class="panel-h"><h3>All Waves</h3><div th:replace="~{fragments :: filterbox}"></div></div><table>
     <thead><tr><th>Wave</th><th>Type</th><th>Status</th><th class="num">Orders</th><th class="num">Assignments</th><th class="num">Tasks</th><th style="width:22%">Progress</th><th>Created</th></tr></thead>
     <tbody><tr th:each="w : ${waves}">
       <td><a class="linkcode" th:href="@{'/waves/' + ${w.wave_id}(siteId=${siteId})}" th:text="${w.wave_number}">W</a></td>

@@ -42,6 +42,7 @@ public class AssetService {
         return jdbc.queryForList("""
             SELECT i.item_id, i.sku::text AS sku, i.description, i.uom,
                    i.temp_zone::text AS temp_zone, css_of(i.temp_zone::text) AS css,
+                   tag_of(i.temp_zone::text) AS tag,
                    i.velocity_class, v.calc_velocity, v.lines AS lines_30d,
                    i.lot_tracked, i.expiry_tracked, i.catch_weight
             FROM item i
@@ -67,6 +68,16 @@ public class AssetService {
             LEFT JOIN v_item_velocity v ON v.item_id = i.item_id AND v.site_id = ?
             WHERE i.item_id = ?
             """, siteId, itemId);
+        it.put("uoms", jdbc.queryForList("""
+            WITH RECURSIVE chain AS (
+                SELECT u.code, u.qty, u.of_code, u.qty::numeric AS eaches, 1 AS depth
+                FROM item_uom u WHERE u.item_id = ? AND u.of_code = 'EA'
+                UNION ALL
+                SELECT u.code, u.qty, u.of_code, u.qty * c.eaches, c.depth + 1
+                FROM item_uom u JOIN chain c ON c.code = u.of_code AND u.item_id = ?
+            )
+            SELECT code, qty, of_code, eaches, depth FROM chain ORDER BY eaches
+            """, itemId, itemId));
         it.put("stock", jdbc.queryForList("""
             SELECT l.location_id, l.code AS location_code, l.loc_type::text AS loc_type,
                    css_of(l.temp_zone::text) AS css, tag_of(l.temp_zone::text) AS tag,
@@ -93,13 +104,22 @@ public class AssetService {
                    css_of(l.temp_zone::text) AS css, tag_of(l.temp_zone::text) AS tag,
                    l.rack_type::text AS rack_type, l.velocity_zone, l.golden_zone,
                    a.code AS zone_code, a.org_node_id AS zone_id,
-                   COALESCE(sum(inv.qty), 0) AS on_hand
+                   COALESCE(sum(inv.qty), 0) AS on_hand,
+                   COALESCE(ri.item_id, si.item_id) AS item_id,
+                   COALESCE(ri.sku::text, si.sku) AS item_sku
             FROM location l
             LEFT JOIN org_node a ON a.org_node_id = l.area_id
             LEFT JOIN inventory inv ON inv.location_id = l.location_id
                  AND inv.status IN ('AVAILABLE','ALLOCATED')
+            LEFT JOIN item ri ON ri.item_id = l.replen_item_id
+            LEFT JOIN LATERAL (
+                SELECT i2.item_id, i2.sku::text AS sku
+                FROM inventory v2 JOIN item i2 ON i2.item_id = v2.item_id
+                WHERE v2.location_id = l.location_id
+                  AND v2.status IN ('AVAILABLE','ALLOCATED','PICKED')
+                LIMIT 1) si ON true
             WHERE l.site_id = ? AND l.active """ + " " + filter + " " + """
-            GROUP BY l.location_id, a.code, a.org_node_id
+            GROUP BY l.location_id, a.code, a.org_node_id, ri.item_id, ri.sku, si.item_id, si.sku
             ORDER BY l.pick_sequence NULLS LAST, l.code
             """, args);
     }
@@ -137,7 +157,8 @@ public class AssetService {
             SELECT a.org_node_id AS zone_id, a.code, a.name,
                    count(l.location_id) AS slots,
                    count(l.location_id) FILTER (WHERE l.loc_type = 'PICK_FACE') AS pick_faces,
-                   min(l.temp_zone::text) AS temp_zone, css_of(min(l.temp_zone::text)) AS css
+                   min(l.temp_zone::text) AS temp_zone, css_of(min(l.temp_zone::text)) AS css,
+                   tag_of(min(l.temp_zone::text)) AS tag
             FROM org_node a
             LEFT JOIN location l ON l.area_id = a.org_node_id AND l.active
             WHERE a.parent_id = ? AND a.level = 'AREA'

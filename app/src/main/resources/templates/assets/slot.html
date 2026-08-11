@@ -13,7 +13,7 @@
   <div class="ahead">
     <span class="eyebrow" th:text="${s.loc_type}">SLOT</span>
     <h1><span class="placard" th:classappend="${s.css}" style="font-size:20px"><span class="tag" th:text="${s.tag}">T</span><span class="code" th:text="${s.code}">L</span></span></h1>
-    <span class="digits" th:text="'say ' + ${s.check_digits}">say 00</span>
+    <span class="digits" th:text="${s.check_digits}">00</span>
   </div>
   <div class="attrs">
     <div class="attr"><div class="k">Pick Sequence</div><div class="v big" th:text="${s.pick_sequence ?: '—'}">0</div></div>

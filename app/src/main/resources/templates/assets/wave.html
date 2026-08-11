@@ -37,7 +37,7 @@
   </details>
 
   <div class="panel">
-    <div class="panel-h"><h3>Assignments</h3><span class="eyebrow">Selection work in this wave</span></div>
+    <div class="panel-h"><h3>Assignments</h3><div style="display:flex;gap:12px;align-items:center"><span class="eyebrow">Selection work in this wave</span><div th:replace="~{fragments :: filterbox}"></div></div></div>
     <table><thead><tr><th>Assignment</th><th>Equipment</th><th>Assigned To</th><th class="num">Orders</th><th class="num">Tasks</th><th style="width:22%">Progress</th><th>Status</th></tr></thead>
       <tbody>
         <tr th:each="a : ${w.assignments}">

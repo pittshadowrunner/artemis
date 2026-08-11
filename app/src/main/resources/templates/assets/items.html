@@ -26,14 +26,14 @@
       <div class="formfoot"><button class="btn">Create Item</button></div>
     </form>
   </details>
-  <div class="panel"><table>
+  <div class="panel"><div class="panel-h"><h3>All Items</h3><div th:replace="~{fragments :: filterbox}"></div></div><table>
     <thead><tr><th>SKU</th><th>Description</th><th>UOM</th><th>Zone</th><th>Declared</th><th>Calculated</th><th class="num">Lines 30d</th><th>Tracking</th></tr></thead>
     <tbody>
       <tr th:each="i : ${items}">
         <td><a class="linkcode" th:href="@{'/assets/items/' + ${i.item_id}(siteId=${siteId})}" th:text="${i.sku}">SKU</a></td>
         <td th:text="${i.description}">desc</td>
         <td class="mono" th:text="${i.uom}">EA</td>
-        <td><span class="placard" th:classappend="${i.css}"><span class="tag" th:text="${i.temp_zone.substring(0,3)}">AMB</span></span></td>
+        <td><span class="placard" th:classappend="${i.css}"><span class="tag" th:text="${i.tag}">DRY</span></span></td>
         <td><span class="vel" th:if="${i.velocity_class}" th:classappend="${i.velocity_class}" th:text="${i.velocity_class}">A</span></td>
         <td><span class="vel" th:if="${i.calc_velocity}" th:classappend="${i.calc_velocity}" th:text="${i.calc_velocity}">A</span><span th:unless="${i.calc_velocity}" style="color:var(--ink-soft)">—</span></td>
         <td class="num" th:text="${i.lines_30d ?: 0}">0</td>

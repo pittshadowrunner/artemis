@@ -33,13 +33,15 @@
   </details>
   <div class="ahead"><span class="eyebrow" th:text="${zone != null} ? 'Zone' : 'Site'">Site</span>
     <h1 th:text="${zone != null} ? ${zone.name} : 'Slots'">Slots</h1></div>
-  <div class="panel"><table>
-    <thead><tr><th class="num">Seq</th><th>Slot</th><th>Type</th><th>Digits</th><th>Zone</th><th>Rack</th><th>Vel</th><th class="num">On Hand</th></tr></thead>
+  <div class="panel"><div class="panel-h"><h3>All Slots</h3><div th:replace="~{fragments :: filterbox}"></div></div><table>
+    <thead><tr><th class="num">Seq</th><th>Slot</th><th>Item</th><th>Type</th><th>Check Digits</th><th>Zone</th><th>Rack</th><th>Vel</th><th class="num">On Hand</th></tr></thead>
     <tbody><tr th:each="s : ${slots}">
       <td class="num mono" th:text="${s.pick_sequence ?: '—'}">0</td>
       <td><a th:href="@{'/assets/slots/' + ${s.location_id}(siteId=${siteId})}"><span class="placard" th:classappend="${s.css}"><span class="tag" th:text="${s.tag}">T</span><span class="code" th:text="${s.code}">L</span></span></a></td>
+      <td><a class="linkcode" th:if="${s.item_id}" th:href="@{'/assets/items/' + ${s.item_id}(siteId=${siteId})}" th:text="${s.item_sku}">SKU</a>
+          <span th:unless="${s.item_id}" style="color:var(--ink-soft)">—</span></td>
       <td class="mono" style="font-size:11px" th:text="${s.loc_type}">STORAGE</td>
-      <td class="check">say <b th:text="${s.check_digits}">00</b></td>
+      <td class="check"><b th:text="${s.check_digits}">00</b></td>
       <td><a class="linkcode" th:if="${s.zone_id}" th:href="@{/assets/slots(siteId=${siteId},zoneId=${s.zone_id})}" th:text="${s.zone_code}">Z</a><span th:unless="${s.zone_id}" style="color:var(--ink-soft)">—</span></td>
       <td class="mono" style="font-size:11px" th:text="${s.rack_type ?: '—'}">R</td>
       <td><span class="vel" th:if="${s.velocity_zone}" th:classappend="${s.velocity_zone}" th:text="${s.velocity_zone}">A</span></td>

@@ -8,7 +8,7 @@
     <a th:href="@{/assets/containers(siteId=${siteId})}">TOTES &amp; CONTAINERS</a><span class="sep">›</span><a th:text="${c.barcode}">B</a></div>
   <div th:replace="~{fragments :: flashbar}"></div>
   <div class="ahead"><span class="eyebrow" th:text="${c.container_type}">TOTE</span><h1 th:text="${c.barcode}">B</h1>
-    <span class="digits" th:if="${c.check_digits}" th:text="'say ' + ${c.check_digits}">say 00</span></div>
+    <span class="digits" th:if="${c.check_digits}" th:text="${c.check_digits}">00</span></div>
   <div class="attrs">
     <div class="attr"><div class="k">Type</div><div class="v" th:text="${c.container_type}">TOTE</div></div>
     <div class="attr"><div class="k">Check Digits</div><div class="v big" th:text="${c.check_digits ?: '—'}">00</div></div>

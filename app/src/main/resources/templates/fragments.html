@@ -106,9 +106,24 @@ details.editbox[open] summary{border-bottom:1px solid var(--line);color:var(--in
 .status.inprogress{background:#FFF3D6;color:var(--amber-ink)}
 .status.complete{background:#E7F0EE;color:#2C6B60}
 .status.cancelled{background:#FDEBE9;color:var(--danger)}
+/* clickable lanes */
+a.lane{display:block;text-decoration:none;color:inherit}
+a.lane:hover{border-top-color:var(--amber)}
+a.lane.active{border-top-color:var(--amber);background:#FFFBF0;outline:1.5px solid var(--amber)}
+a.lane.active .eyebrow{color:var(--amber-ink)}
+/* in-panel filter */
+.filterinput{font-family:'IBM Plex Mono';font-size:12px;padding:6px 10px;border:1px solid var(--line);border-radius:2px;min-width:180px}
+.filterinput:focus{outline:2px solid var(--amber);border-color:var(--amber)}
 </style>
 </th:block>
 <body>
+<th:block th:fragment="filterbox">
+  <input class="filterinput" type="search" placeholder="Filter…" oninput="__flt(this)">
+  <script>function __flt(inp){var t=inp.value.toLowerCase();
+    var scope=inp.closest('.panel')||document;
+    scope.querySelectorAll('tbody tr, .plrow').forEach(function(r){
+      r.style.display=r.textContent.toLowerCase().indexOf(t)>=0?'':'none';});}</script>
+</th:block>
 <div th:fragment="flashbar" th:remove="tag">
   <div class="flash" th:if="${flash}" th:text="${flash}">ok</div>
   <div class="flash err" th:if="${flashError}" th:text="${flashError}">err</div>

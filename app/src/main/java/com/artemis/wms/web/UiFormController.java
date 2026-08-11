@@ -87,6 +87,21 @@ public class UiFormController {
         } catch (Exception e) { return fail(flash, e, to); }
     }
 
+    @PostMapping("/ui/items/uom")
+    public String addUom(@RequestParam Map<String, String> f, RedirectAttributes flash) {
+        caps.require(TenantContext.user(), null, Capabilities.ITEM_MANAGE);
+        String to = "/assets/items/" + f.get("itemId") + "?siteId=" + f.get("siteId");
+        try {
+            jdbc.update("""
+                INSERT INTO item_uom (item_id, code, qty, of_code)
+                VALUES (?, upper(?), ?, upper(COALESCE(NULLIF(?, ''), 'EA')))
+                ON CONFLICT (item_id, code) DO UPDATE SET qty = EXCLUDED.qty, of_code = EXCLUDED.of_code
+                """, UUID.fromString(f.get("itemId")), f.get("code"),
+                new BigDecimal(f.get("qty")), f.get("ofCode"));
+            return back(flash, "UOM tier " + f.get("code").toUpperCase() + " saved.", to);
+        } catch (Exception e) { return fail(flash, e, to); }
+    }
+
     // ----------------------------- slots -----------------------------
 
     @PostMapping("/ui/slots/create")

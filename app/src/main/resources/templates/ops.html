@@ -50,34 +50,86 @@
 <div class="grid">
   <main>
     <div class="lanes">
-      <div class="lane"><div class="eyebrow">Receiving</div><div class="count" th:text="${lanes.receiving}">0</div><div class="sub">manifests at dock</div></div>
-      <div class="lane"><div class="eyebrow">Put Away</div><div class="count" th:text="${lanes.putaway}">0</div><div class="sub">open tasks</div></div>
-      <div class="lane" th:classappend="${lanes.replen > 0} ? 'hot'"><div class="eyebrow">Replenishment</div><div class="count" th:text="${lanes.replen}">0</div>
-        <form method="post" th:action="@{/ui/replen/scan}" style="margin-top:6px">
+      <a class="lane" th:classappend="${lane == 'RECEIVING'} ? 'active'"
+         th:href="${lane == 'RECEIVING'} ? @{/(siteId=${siteId})} : @{/(siteId=${siteId},lane='RECEIVING')}">
+        <div class="eyebrow">Receiving</div><div class="count" th:text="${lanes.receiving}">0</div><div class="sub">manifests at dock</div></a>
+      <a class="lane" th:classappend="${lane == 'PUTAWAY'} ? 'active'"
+         th:href="${lane == 'PUTAWAY'} ? @{/(siteId=${siteId})} : @{/(siteId=${siteId},lane='PUTAWAY')}">
+        <div class="eyebrow">Put Away</div><div class="count" th:text="${lanes.putaway}">0</div><div class="sub">open tasks</div></a>
+      <a class="lane" th:classappend="(${lane == 'REPLENISHMENT'} ? 'active ' : '') + (${lanes.replen > 0} ? 'hot' : '')"
+         th:href="${lane == 'REPLENISHMENT'} ? @{/(siteId=${siteId})} : @{/(siteId=${siteId},lane='REPLENISHMENT')}">
+        <div class="eyebrow">Replenishment</div><div class="count" th:text="${lanes.replen}">0</div>
+        <form method="post" th:action="@{/ui/replen/scan}" style="margin-top:6px" onclick="event.stopPropagation()">
           <input type="hidden" name="siteId" th:value="${siteId}">
-          <button class="btn" style="padding:5px 10px;font-size:11px">Run Scan</button></form></div>
-      <div class="lane"><div class="eyebrow">Selection</div><div class="count" th:text="${lanes.selection}">0</div><div class="sub">tasks remaining</div></div>
-      <div class="lane"><div class="eyebrow">Shipping</div><div class="count" th:text="${lanes.shipping}">0</div><div class="sub">orders awaiting load</div></div>
+          <button class="btn" style="padding:5px 10px;font-size:11px">Run Scan</button></form></a>
+      <a class="lane" th:classappend="${lane == 'SELECTION'} ? 'active'"
+         th:href="${lane == 'SELECTION'} ? @{/(siteId=${siteId})} : @{/(siteId=${siteId},lane='SELECTION')}">
+        <div class="eyebrow">Selection</div><div class="count" th:text="${lanes.selection}">0</div><div class="sub">tasks remaining</div></a>
+      <a class="lane" th:classappend="${lane == 'SHIPPING'} ? 'active'"
+         th:href="${lane == 'SHIPPING'} ? @{/(siteId=${siteId})} : @{/(siteId=${siteId},lane='SHIPPING')}">
+        <div class="eyebrow">Shipping</div><div class="count" th:text="${lanes.shipping}">0</div><div class="sub">orders awaiting load</div></a>
     </div>
 
-    <div class="panel">
-      <div class="panel-h"><h3>Open Assignments</h3><span class="eyebrow">Sequenced by pick path</span></div>
+    <div class="panel" th:if="${manifests != null}">
+      <div class="panel-h"><h3>Receiving · Open Manifests</h3><div th:replace="~{fragments :: filterbox}"></div></div>
       <table>
-        <thead><tr><th>Seq</th><th>Type</th><th>From</th><th>To</th><th>Item / LPN</th><th>Qty</th><th>Verify</th><th>Status</th></tr></thead>
+        <thead><tr><th>Manifest</th><th>Carrier</th><th>Status</th><th class="num">Expected</th><th class="num">Received</th><th style="width:26%">Progress</th></tr></thead>
+        <tbody>
+          <tr th:each="m : ${manifests}">
+            <td class="mono" th:text="${m.manifest_number}">M</td>
+            <td th:text="${m.carrier ?: '—'}">c</td>
+            <td><span class="status open" th:text="${m.status}">S</span></td>
+            <td class="num" th:text="${#numbers.formatDecimal(m.expected_qty,1,0)}">0</td>
+            <td class="num" th:text="${#numbers.formatDecimal(m.received_qty,1,0)}">0</td>
+            <td><div class="bar"><i th:style="'width:' + ${m.pct} + '%'"></i></div></td>
+          </tr>
+          <tr th:if="${#lists.isEmpty(manifests)}"><td colspan="6" style="color:var(--ink-soft)">Dock is clear.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="panel" th:if="${awaiting != null}">
+      <div class="panel-h"><h3>Shipping · Awaiting Load</h3><div th:replace="~{fragments :: filterbox}"></div></div>
+      <table>
+        <thead><tr><th>Order</th><th>Customer</th><th>Drop</th><th class="num">Lines</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr th:each="o : ${awaiting}">
+            <td class="mono" th:text="${o.order_number}">O</td>
+            <td th:text="${o.customer_code} + ' · ' + ${o.customer_name}">c</td>
+            <td class="mono" th:text="${o.drop_code ?: '—'}">d</td>
+            <td class="num" th:text="${o.lines}">0</td>
+            <td><span class="status progress" th:text="${o.status}">S</span></td>
+          </tr>
+          <tr th:if="${#lists.isEmpty(awaiting)}"><td colspan="5" style="color:var(--ink-soft)">Nothing staged for shipping.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="panel" th:if="${tasks != null}">
+      <div class="panel-h">
+        <h3 th:text="${lane != null} ? 'Open Tasks · ' + ${lane} : 'Open Tasks'">Open Tasks</h3>
+        <div style="display:flex;gap:12px;align-items:center">
+          <span class="eyebrow">One row per task · sequenced by pick path</span>
+          <div th:replace="~{fragments :: filterbox}"></div>
+        </div>
+      </div>
+      <table>
+        <thead><tr><th>Seq</th><th>Assignment</th><th>Type</th><th>From</th><th>To</th><th>Item / LPN</th><th>Qty</th><th>Check Digits</th><th>Status</th></tr></thead>
         <tbody>
           <tr th:each="t : ${tasks}">
-            <td class="mono"><a class="linkcode" th:href="@{'/assignments/' + ${t.assignment_id}(siteId=${siteId})}"
-                  th:text="${#numbers.formatInteger(t.seq, 3)}">001</a></td>
+            <td class="mono" th:text="${#numbers.formatInteger(t.seq, 3)}">001</td>
+            <td><a class="linkcode" th:href="@{'/assignments/' + ${t.assignment_id}(siteId=${siteId})}"
+                  th:text="${t.assignment_number}">A</a></td>
             <td><span class="type-chip" th:text="${t.assignment_type == 'REPLENISHMENT'} ? 'REPLEN' : ${t.assignment_type}">TYPE</span></td>
             <td><span class="placard" th:classappend="${t.from_css}"><span class="tag" th:text="${t.from_tag}">TAG</span><span class="code" th:text="${t.from_code}">LOC</span></span></td>
             <td><span class="placard" th:if="${t.to_code != null}" th:classappend="${t.to_css}"><span class="tag" th:text="${t.to_tag}">TAG</span><span class="code" th:text="${t.to_code}">LOC</span></span>
                 <span th:if="${t.to_code == null}" style="color:var(--ink-soft)">—</span></td>
             <td th:utext="${t.item} + (${t.lot_number != null} ? ' <span class=&quot;mono&quot; style=&quot;color:var(--ink-soft)&quot;>· LOT ' + ${t.lot_number} + '</span>' : (${t.lpn != null} ? ' <span class=&quot;mono&quot; style=&quot;color:var(--ink-soft)&quot;>· LPN ' + ${t.lpn} + '</span>' : ''))">Item</td>
             <td class="mono" th:text="${#numbers.formatDecimal(t.qty,1,0)} + ' CS'">0</td>
-            <td class="check">say <b th:text="${t.say_digits}">00</b></td>
+            <td class="check"><b th:text="${t.say_digits}">00</b></td>
             <td><span class="status open">Open</span></td>
           </tr>
-          <tr th:if="${#lists.isEmpty(tasks)}"><td colspan="8" style="color:var(--ink-soft)">No open tasks — the floor is caught up.</td></tr>
+          <tr th:if="${#lists.isEmpty(tasks)}"><td colspan="9" style="color:var(--ink-soft)">No open tasks in this lane.</td></tr>
         </tbody>
       </table>
     </div>

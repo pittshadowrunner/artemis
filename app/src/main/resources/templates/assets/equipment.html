@@ -8,7 +8,7 @@
     <a th:href="@{/assets/equipment(siteId=${siteId})}">CARTS &amp; POWERED</a><span class="sep">›</span><a th:text="${e.code}">C</a></div>
   <div th:replace="~{fragments :: flashbar}"></div>
   <div class="ahead"><span class="eyebrow" th:text="${e.equipment_type}">CART</span><h1 th:text="${e.code}">CART-014</h1>
-    <span class="digits" th:if="${e.check_digits}" th:text="'say ' + ${e.check_digits}">say 55</span></div>
+    <span class="digits" th:if="${e.check_digits}" th:text="${e.check_digits}">55</span></div>
   <div class="attrs">
     <div class="attr"><div class="k">Type</div><div class="v" th:text="${e.equipment_type}">CART</div></div>
     <div class="attr"><div class="k">Cart Digits</div><div class="v big" th:text="${e.check_digits ?: '—'}">55</div></div>
@@ -43,7 +43,7 @@
     <table><thead><tr><th class="num">Position</th><th>Check Digits</th></tr></thead>
       <tbody><tr th:each="p : ${e.positions}">
         <td class="num mono" th:text="${p.position_no}">1</td>
-        <td class="check">say <b th:text="${p.check_digits}">23</b></td>
+        <td class="check"><b th:text="${p.check_digits}">23</b></td>
       </tr></tbody></table>
   </div>
 
