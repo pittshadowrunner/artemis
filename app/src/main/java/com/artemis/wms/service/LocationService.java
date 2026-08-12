@@ -109,7 +109,7 @@ public class LocationService {
                                 .replace("{tier}", tier).replace("{slot}", slot);
                         Map<String, Object> loc = new java.util.HashMap<>();
                         loc.put("code", code);
-                        loc.put("locType", spec.getOrDefault("locType", "STORAGE"));
+                        loc.put("locType", spec.getOrDefault("locType", "STANDARD"));
                         loc.put("aisle", aisles.get(a)); loc.put("bay", bay);
                         loc.put("tier", tier); loc.put("slot", slot);
                         loc.put("pickSequence", seq);
@@ -139,7 +139,7 @@ public class LocationService {
             String code = r.get("code");
             try {
                 Map<String, Object> loc = new java.util.HashMap<>();
-                loc.put("code", code); loc.put("locType", blank(r.get("loctype")) ? "STORAGE" : r.get("loctype"));
+                loc.put("code", code); loc.put("locType", blank(r.get("loctype")) ? "STANDARD" : r.get("loctype"));
                 loc.put("aisle", r.get("aisle")); loc.put("bay", r.get("bay"));
                 loc.put("tier", r.get("tier")); loc.put("slot", r.get("slot"));
                 loc.put("pickSequence", r.get("picksequence"));

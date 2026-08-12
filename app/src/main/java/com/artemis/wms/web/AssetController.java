@@ -117,6 +117,28 @@ public class AssetController {
         return "assets/container";
     }
 
+    /** Receiving detail: the manifest as a linkable document — what came,
+     *  when it finished, and the LPNs it produced (inventory keeps the
+     *  received_from_manifest link, so the pallet trail is native). */
+    @GetMapping("/receiving/{id}")
+    public String receiving(@PathVariable UUID id, @RequestParam(required = false) UUID siteId, Model model) {
+        site(siteId, model);
+        model.addAttribute("m", assets.manifest(id));
+        return "receiving";
+    }
+
+    /** Pallet lookup by LPN: the receiving output is LPN + captured
+     *  attributes + a warehouse location; this makes it findable. */
+    @GetMapping("/lpn")
+    public String lpn(@RequestParam(required = false) String q,
+                      @RequestParam(required = false) UUID siteId, Model model) {
+        UUID s = site(siteId, model);
+        model.addAttribute("q", q == null ? "" : q);
+        model.addAttribute("hits", q == null || q.isBlank()
+                ? java.util.List.of() : assets.lpnSearch(s, q.trim()));
+        return "lpn";
+    }
+
     @GetMapping("/waves")
     public String waves(@RequestParam(required = false) UUID siteId, Model model) {
         UUID s = site(siteId, model);

@@ -4,8 +4,7 @@
 <body>
 <div th:replace="~{fragments :: topbar('waves')}"></div>
 <div class="apage">
-  <div class="crumbtrail"><a th:href="@{/assets(siteId=${siteId})}">ASSETS</a><span class="sep">›</span>
-    <a th:href="@{/waves(siteId=${siteId})}">WAVES</a><span class="sep">›</span><a th:text="${w.wave_number}">W</a></div>
+  <div class="crumbtrail"><a th:href="@{/waves(siteId=${siteId})}">WAVES</a><span class="sep">›</span><a th:text="${w.wave_number}">W</a></div>
   <div th:replace="~{fragments :: flashbar}"></div>
   <div class="ahead"><span class="eyebrow" th:text="${w.wave_type} + ' wave'">TYPE</span><h1 th:text="${w.wave_number}">W</h1>
     <span class="status" th:classappend="${w.status == 'COMPLETE'} ? 'open' : 'progress'" th:text="${w.status}">S</span></div>
@@ -43,7 +42,8 @@
         <tr th:each="a : ${w.assignments}">
           <td><a class="linkcode" th:href="@{'/assignments/' + ${a.assignment_id}(siteId=${siteId})}" th:text="${a.assignment_number}">A</a></td>
           <td><a class="linkcode" th:if="${a.equipment_id}" th:href="@{'/assets/equipment/' + ${a.equipment_id}(siteId=${siteId})}" th:text="${a.equipment_code}">E</a><span th:unless="${a.equipment_id}" style="color:var(--ink-soft)">—</span></td>
-          <td th:text="${a.assigned_to ?: '—'}">—</td>
+          <td><a class="linkcode" th:if="${a.assigned_user_id}" th:href="@{'/operators/' + ${a.assigned_user_id}(siteId=${siteId})}" th:text="${a.assigned_to}">n</a>
+              <span th:unless="${a.assigned_user_id}">—</span></td>
           <td class="num" th:text="${a.orders}">0</td>
           <td class="num" th:text="${a.done} + '/' + ${a.tasks}">0</td>
           <td><div class="bar"><i th:classappend="${a.tasks > 0 and a.done == a.tasks} ? 'done'"

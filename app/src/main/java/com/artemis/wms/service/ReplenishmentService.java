@@ -64,7 +64,9 @@ public class ReplenishmentService {
             BigDecimal maxQty = (BigDecimal) face.get("replen_max_qty");
 
             // critically low: at/below half of trigger -> CRITICAL alert (bell + email outbox via V8)
-            if (trigger != null && onHand.compareTo(trigger.divide(new BigDecimal(2), 3, java.math.RoundingMode.HALF_UP)) <= 0) {
+            boolean isCritical = trigger != null
+                    && onHand.compareTo(trigger.divide(new BigDecimal(2), 3, java.math.RoundingMode.HALF_UP)) <= 0;
+            if (isCritical) {
                 Integer openCritical = jdbc.queryForObject("""
                     SELECT count(*) FROM system_alert
                     WHERE alert_type = 'REPLEN_CRITICAL' AND inventory_id IS NULL AND item_id = ?
@@ -95,7 +97,7 @@ public class ReplenishmentService {
                 SELECT v.inventory_id, v.lpn, v.available_qty, v.location_id, v.location_code, v.check_digits
                 FROM v_available_inventory v
                 JOIN location l ON l.location_id = v.location_id
-                WHERE v.site_id = ? AND v.item_id = ? AND l.loc_type = 'STORAGE'
+                WHERE v.site_id = ? AND v.item_id = ? AND l.loc_type = 'STANDARD' AND l.replen_item_id IS NULL
                 ORDER BY """ + " " + orderBy + " LIMIT 1", siteId, itemId);
             if (reserve.isEmpty()) continue;    // nothing in reserve — the pressure view keeps it visible
             Map<String, Object> src = reserve.get(0);
@@ -112,8 +114,14 @@ public class ReplenishmentService {
                 "SELECT corporation_id FROM location WHERE location_id = ?", UUID.class, faceId);
             jdbc.update("""
                 INSERT INTO assignment (assignment_id, corporation_id, site_id, assignment_type, priority, assignment_number)
-                VALUES (?, ?, ?, 'REPLENISHMENT', 70, 'A-' || to_char(now(),'YYMMDD') || '-' || lpad(nextval('assignment_number_seq')::text, 5, '0'))
-                """, assignmentId, corp, siteId);
+                VALUES (?, ?, ?, 'REPLENISHMENT',
+                        COALESCE((SELECT CASE WHEN critical THEN 9
+                                              WHEN it2.temp_zone IN ('FROZEN','DEEP_FROZEN') THEN 8
+                                              WHEN it2.temp_zone = 'REFRIGERATED' THEN 7
+                                              ELSE 6 END
+                                  FROM (SELECT ? AS critical) c, item it2 WHERE it2.item_id = ?), 6),
+                        'A-' || to_char(now(),'YYMMDD') || '-' || lpad(nextval('assignment_number_seq')::text, 5, '0'))
+                """, assignmentId, corp, siteId, isCritical, itemId);
             String prompt = "Replenish: pull from " + String.valueOf(src.get("location_code")).replace("-", " ")
                     + ", check " + src.get("check_digits") + " — put to "
                     + String.valueOf(faceLoc.get("code")).replace("-", " ")

@@ -95,7 +95,8 @@
         <div class="panel-h"><h3>Receiving Today</h3><span class="eyebrow">Expected vs received</span></div>
         <div class="prog" th:each="r : ${receiving}">
           <div class="pl">
-            <span th:utext="${r.manifest_number} + ' <span class=&quot;mono&quot;>· ' + ${r.carrier ?: ''} + '</span>'">MAN</span>
+            <span><a class="linkcode" th:href="@{'/receiving/' + ${r.manifest_id}(siteId=${siteId})}" th:text="${r.manifest_number}">MAN</a>
+              <span class="mono" th:text="'· ' + ${r.carrier ?: ''}"></span></span>
             <b class="pct" th:text="${r.status == 'ARRIVED' and r.pct == 0} ? 'at dock' : ${#numbers.formatDecimal(r.pct,1,0) + '%'}">0%</b>
           </div>
           <div class="bar"><i th:classappend="${r.pct >= 100} ? 'done'" th:style="'width:' + ${r.pct} + '%'"></i></div>
@@ -116,7 +117,7 @@
         <div class="panel-h"><h3>Labor · Selection</h3><span class="eyebrow">Cases today</span></div>
         <table><tbody>
           <tr th:each="l : ${labor}">
-            <td th:text="${l.display_name}">Name</td>
+            <td><a class="linkcode" th:href="@{'/operators/' + ${l.user_id}(siteId=${siteId})}" th:text="${l.display_name}">Name</a></td>
             <td class="num" th:text="${#numbers.formatDecimal(l.cases,1,0)}">0</td>
           </tr>
           <tr th:if="${#lists.isEmpty(labor)}"><td style="color:var(--ink-soft)">No assigned selection work yet.</td><td></td></tr>

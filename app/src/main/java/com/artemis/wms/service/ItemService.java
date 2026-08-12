@@ -92,6 +92,25 @@ public class ItemService {
             intVal(it.get("innerPackQty"), ""), intVal(it.get("casePackQty"), ""),
             intVal(it.get("palletTi"), ""), intVal(it.get("palletHi"), ""),
             str(it.get("hazmatClass")), str(it.get("unNumber")), str(it.get("velocityClass")));
+
+        // Tiered UOMs derive automatically from the flat pack data:
+        // 1 CS = casePack EA; 1 PL = ti*hi CS. (V12 backfilled legacy rows.)
+        UUID newId = jdbc.queryForObject(
+            "SELECT item_id FROM item WHERE corporation_id = ? AND sku = ?::citext",
+            UUID.class, TenantContext.corp(), str(it.get("sku")));
+        jdbc.update("""
+            INSERT INTO item_uom (item_id, code, qty, of_code)
+            SELECT item_id, 'CS', case_pack_qty, 'EA' FROM item
+            WHERE item_id = ? AND case_pack_qty IS NOT NULL AND case_pack_qty > 0
+            ON CONFLICT (item_id, code) DO NOTHING
+            """, newId);
+        jdbc.update("""
+            INSERT INTO item_uom (item_id, code, qty, of_code)
+            SELECT item_id, 'PL', pallet_ti * pallet_hi, 'CS' FROM item
+            WHERE item_id = ? AND pallet_ti IS NOT NULL AND pallet_hi IS NOT NULL
+              AND EXISTS (SELECT 1 FROM item_uom u WHERE u.item_id = item.item_id AND u.code = 'CS')
+            ON CONFLICT (item_id, code) DO NOTHING
+            """, newId);
     }
 
     @Transactional

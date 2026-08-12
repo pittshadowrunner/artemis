@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head><title>Artemis · Pallet Lookup</title><th:block th:replace="~{fragments :: headcss}"/></head>
+<body>
+<div th:replace="~{fragments :: topbar('ops')}"></div>
+<div class="apage">
+  <div class="ahead"><span class="eyebrow">Pallet Lookup</span><h1>Find by LPN</h1></div>
+  <form method="get" th:action="@{/lpn}" class="inlineform" style="margin-bottom:20px">
+    <input type="hidden" name="siteId" th:value="${siteId}">
+    <input name="q" th:value="${q}" placeholder="LPN or prefix…" class="filterinput" style="min-width:260px" autofocus>
+    <button class="btn">Look Up</button>
+  </form>
+  <div class="panel" th:if="${!#lists.isEmpty(hits)}">
+    <div class="panel-h"><h3>Pallets</h3><span class="eyebrow" th:text="${#lists.size(hits)} + ' match(es)'">n</span></div>
+    <table><thead><tr><th>LPN</th><th>SKU</th><th>Lot</th><th>Expires</th><th class="num">Qty</th><th>Location</th><th>Manifest</th><th>Status</th></tr></thead>
+      <tbody><tr th:each="h : ${hits}">
+        <td class="mono" style="font-weight:600" th:text="${h.lpn}">L</td>
+        <td><a class="linkcode" th:href="@{'/assets/items/' + ${h.item_id}(siteId=${siteId})}" th:text="${h.sku}">S</a></td>
+        <td class="mono" th:text="${h.lot_number ?: '—'}">-</td>
+        <td class="mono" th:text="${h.expiration_date ?: '—'}">-</td>
+        <td class="num" th:text="${#numbers.formatDecimal(h.qty,1,0)}">0</td>
+        <td><a th:if="${h.location_id}" th:href="@{'/assets/slots/' + ${h.location_id}(siteId=${siteId})}">
+            <span class="placard" th:classappend="${h.css}">
+              <span class="tag" th:text="${h.loc_type == 'RECEIVING_DOCK'} ? 'DCK' : (${h.loc_type == 'CROSS_DOCK'} ? 'XDK' : (${h.loc_type == 'DROP'} ? 'DRP' : ${h.tag}))">T</span>
+              <span class="code" th:text="${h.location_code}">L</span></span></a></td>
+        <td><a class="linkcode" th:if="${h.manifest_id}" th:href="@{'/receiving/' + ${h.manifest_id}(siteId=${siteId})}" th:text="${h.manifest_number}">M</a>
+            <span th:unless="${h.manifest_id}" style="color:var(--ink-soft)">—</span></td>
+        <td><span class="pill" th:classappend="${h.status == 'AVAILABLE'} ? 'on'" th:text="${h.status}">A</span></td>
+      </tr></tbody></table>
+  </div>
+  <div th:if="${q != '' and #lists.isEmpty(hits)}" style="color:var(--ink-soft)">No pallet matches '<span th:text="${q}"></span>' at this site.</div>
+</div>
+</body></html>

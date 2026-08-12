@@ -86,7 +86,7 @@ public class UiService {
                    a.assignment_type::text AS assignment_type, t.status::text AS status,
                    lf.code  AS from_code,
                    CASE lf.loc_type::text WHEN 'RECEIVING_DOCK' THEN 'DCK' WHEN 'DROP' THEN 'DRP'
-                        WHEN 'PICK_FACE' THEN tag_of(lf.temp_zone::text)
+                        WHEN 'STAGING' THEN 'STG' WHEN 'CROSS_DOCK' THEN 'XDK'
                         ELSE tag_of(lf.temp_zone::text) END AS from_tag,
                    css_of(lf.temp_zone::text) AS from_css,
                    CASE WHEN lt.location_id IS NOT NULL THEN lt.code
@@ -95,11 +95,11 @@ public class UiService {
                    CASE WHEN lt.location_id IS NULL AND t.cart_position IS NOT NULL THEN 'CRT'
                         WHEN lt.location_id IS NULL THEN NULL
                         WHEN lt.loc_type::text = 'DROP' THEN 'DRP'
-                        WHEN lt.loc_type::text = 'STORAGE' THEN 'STO'
                         ELSE tag_of(lt.temp_zone::text) END AS to_tag,
                    COALESCE(css_of(lt.temp_zone::text), '') AS to_css,
                    COALESCE(it.description, '') AS item, i.lpn, i.lot_number, t.qty,
-                   COALESCE(t.put_check_digits, t.check_digits) AS say_digits
+                   COALESCE(t.put_check_digits, t.check_digits) AS say_digits,
+                   round(EXTRACT(EPOCH FROM (now() - a.created_at)) / 3600.0, 1) AS wait_hours
             FROM assignment_task t
             JOIN assignment a ON a.assignment_id = t.assignment_id
             LEFT JOIN location lf ON lf.location_id = t.from_location
@@ -121,7 +121,7 @@ public class UiService {
     /** Receiving lane: open manifests with progress. */
     public List<Map<String, Object>> receivingOpen(UUID siteId) {
         return jdbc.queryForList("""
-            SELECT manifest_number, carrier, status::text AS status,
+            SELECT manifest_id, manifest_number, carrier, status::text AS status,
                    expected_qty, received_qty, COALESCE(pct_complete, 0) AS pct
             FROM v_receiving_progress
             WHERE site_id = ? AND status IN ('ARRIVED','RECEIVING')
@@ -171,7 +171,7 @@ public class UiService {
             FROM location l
             LEFT JOIN inventory i ON i.location_id = l.location_id
                  AND i.status IN ('AVAILABLE','ALLOCATED')
-            WHERE l.site_id = ? AND l.active AND l.loc_type IN ('STORAGE','PICK_FACE')
+            WHERE l.site_id = ? AND l.active AND l.loc_type = 'STANDARD'
             GROUP BY l.temp_zone ORDER BY l.temp_zone
             """, siteId);
     }
@@ -224,7 +224,7 @@ public class UiService {
 
     public List<Map<String, Object>> receivingToday(UUID siteId) {
         return jdbc.queryForList("""
-            SELECT manifest_number, carrier, status::text AS status,
+            SELECT manifest_id, manifest_number, carrier, status::text AS status,
                    expected_qty, received_qty, COALESCE(pct_complete, 0) AS pct
             FROM v_receiving_progress WHERE site_id = ? ORDER BY manifest_number
             """, siteId);
@@ -243,10 +243,10 @@ public class UiService {
 
     public List<Map<String, Object>> laborSelection(UUID siteId) {
         return jdbc.queryForList("""
-            SELECT display_name, sum(cases) AS cases
+            SELECT user_id, display_name, sum(cases) AS cases
             FROM v_labor_productivity
             WHERE site_id = ? AND assignment_type = 'SELECTION'
-            GROUP BY display_name ORDER BY cases DESC LIMIT 8
+            GROUP BY user_id, display_name ORDER BY cases DESC LIMIT 8
             """, siteId);
     }
 }

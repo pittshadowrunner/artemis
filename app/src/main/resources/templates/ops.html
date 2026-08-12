@@ -76,7 +76,7 @@
         <thead><tr><th>Manifest</th><th>Carrier</th><th>Status</th><th class="num">Expected</th><th class="num">Received</th><th style="width:26%">Progress</th></tr></thead>
         <tbody>
           <tr th:each="m : ${manifests}">
-            <td class="mono" th:text="${m.manifest_number}">M</td>
+            <td><a class="linkcode" th:href="@{'/receiving/' + ${m.manifest_id}(siteId=${siteId})}" th:text="${m.manifest_number}">M</a></td>
             <td th:text="${m.carrier ?: '—'}">c</td>
             <td><span class="status open" th:text="${m.status}">S</span></td>
             <td class="num" th:text="${#numbers.formatDecimal(m.expected_qty,1,0)}">0</td>
@@ -114,7 +114,8 @@
         </div>
       </div>
       <table>
-        <thead><tr><th>Seq</th><th>Assignment</th><th>Type</th><th>From</th><th>To</th><th>Item / LPN</th><th>Qty</th><th>Check Digits</th><th>Status</th></tr></thead>
+        <thead><tr><th>Seq</th><th>Assignment</th><th>Type</th><th>From</th><th>To</th><th>Item / LPN</th><th>Qty</th>
+          <th th:if="${lane == 'PUTAWAY'}">Waiting</th><th>Check Digits</th><th>Status</th></tr></thead>
         <tbody>
           <tr th:each="t : ${tasks}">
             <td class="mono" th:text="${#numbers.formatInteger(t.seq, 3)}">001</td>
@@ -126,10 +127,13 @@
                 <span th:if="${t.to_code == null}" style="color:var(--ink-soft)">—</span></td>
             <td th:utext="${t.item} + (${t.lot_number != null} ? ' <span class=&quot;mono&quot; style=&quot;color:var(--ink-soft)&quot;>· LOT ' + ${t.lot_number} + '</span>' : (${t.lpn != null} ? ' <span class=&quot;mono&quot; style=&quot;color:var(--ink-soft)&quot;>· LPN ' + ${t.lpn} + '</span>' : ''))">Item</td>
             <td class="mono" th:text="${#numbers.formatDecimal(t.qty,1,0)} + ' CS'">0</td>
+            <td th:if="${lane == 'PUTAWAY'}" class="mono"
+                th:style="${t.wait_hours != null and t.wait_hours > 4} ? 'color:var(--danger);font-weight:600' : ''"
+                th:text="${t.wait_hours != null} ? (${t.wait_hours} + ' h') : '—'">0 h</td>
             <td class="check"><b th:text="${t.say_digits}">00</b></td>
             <td><span class="status open">Open</span></td>
           </tr>
-          <tr th:if="${#lists.isEmpty(tasks)}"><td colspan="9" style="color:var(--ink-soft)">No open tasks in this lane.</td></tr>
+          <tr th:if="${#lists.isEmpty(tasks)}"><td colspan="10" style="color:var(--ink-soft)">No open tasks in this lane.</td></tr>
         </tbody>
       </table>
     </div>

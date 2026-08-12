@@ -38,9 +38,13 @@ public class PutawayService {
 
         UUID assignmentId = UUID.randomUUID();
         jdbc.update("""
-            INSERT INTO assignment (assignment_id, corporation_id, site_id, assignment_type, assignment_number)
-            VALUES (?, ?, ?, 'PUTAWAY', 'A-' || to_char(now(),'YYMMDD') || '-' || lpad(nextval('assignment_number_seq')::text, 5, '0'))
-            """, assignmentId, TenantContext.corp(), siteId);
+            INSERT INTO assignment (assignment_id, corporation_id, site_id, assignment_type, assignment_number, priority)
+            VALUES (?, ?, ?, 'PUTAWAY', 'A-' || to_char(now(),'YYMMDD') || '-' || lpad(nextval('assignment_number_seq')::text, 5, '0'),
+                    COALESCE((SELECT CASE WHEN it2.temp_zone IN ('FROZEN','DEEP_FROZEN') THEN 7
+                                          WHEN it2.temp_zone = 'REFRIGERATED' THEN 6
+                                          ELSE 4 END FROM inventory v2 JOIN item it2 ON it2.item_id = v2.item_id
+                              WHERE v2.inventory_id = ?), 4))
+            """, assignmentId, TenantContext.corp(), siteId, inventoryId);
         UUID taskId = UUID.randomUUID();
         String digits = String.valueOf(slot.get("check_digits"));
         String prompt = "Put away to " + String.valueOf(slot.get("code")).replace("-", " ") + ", check " + digits;

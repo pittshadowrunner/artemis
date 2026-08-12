@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head><title th:text="'Artemis · ' + ${op.display_name}">Operator</title><th:block th:replace="~{fragments :: headcss}"/></head>
+<body>
+<div th:replace="~{fragments :: topbar('operators')}"></div>
+<div class="apage">
+  <div class="crumbtrail"><a th:href="@{/operators(siteId=${siteId})}">OPERATORS</a><span class="sep">›</span><a th:text="${op.display_name}">N</a></div>
+  <div th:replace="~{fragments :: flashbar}"></div>
+  <div class="ahead"><span class="eyebrow">Operator</span><h1 th:text="${op.display_name}">Name</h1>
+    <span class="pill" th:classappend="${op.active} ? 'on' : 'off'" th:text="${op.active} ? 'ACTIVE' : 'INACTIVE'">A</span></div>
+
+  <div class="attrs">
+    <div class="attr"><div class="k">Email</div><div class="v" th:text="${op.email}">e</div></div>
+    <div class="attr"><div class="k">Trained In</div><div class="v"
+        th:text="${op.trained_workflows != null and !#arrays.isEmpty(op.trained_workflows)} ? ${#strings.arrayJoin(op.trained_workflows, ', ')} : 'not certified'">w</div></div>
+    <div class="attr"><div class="k">Last Login</div><div class="v" th:text="${op.last_login_at != null} ? ${#dates.format(op.last_login_at,'yyyy-MM-dd HH:mm')} : '—'">—</div></div>
+    <div class="attr"><div class="k">On Roster Since</div><div class="v" th:text="${#dates.format(op.created_at,'yyyy-MM-dd')}">d</div></div>
+  </div>
+
+  <details class="editbox">
+    <summary>Workflow allowances</summary>
+    <form method="post" th:action="@{/ui/operators/allowances}">
+      <input type="hidden" name="userId" th:value="${op.user_id}">
+      <input type="hidden" name="siteId" th:value="${siteId}">
+      <div class="formgrid">
+        <div class="field" th:each="w : ${workflows}">
+          <label style="display:flex;gap:8px;align-items:center;font-size:12px;text-transform:none;letter-spacing:.04em">
+            <input type="checkbox" style="width:auto" th:name="'wf_' + ${w}"
+                   th:checked="${op.trained_workflows != null and #arrays.contains(op.trained_workflows, w)}">
+            <span th:text="${w}">W</span></label></div>
+      </div>
+      <div class="formfoot"><button class="btn">Save Allowances</button></div>
+    </form>
+  </details>
+
+  <div class="panel">
+    <div class="panel-h"><h3>Labor Metrics</h3><span class="eyebrow">All time · by workstream</span></div>
+    <table><thead><tr><th>Workstream</th><th class="num">Tasks</th><th class="num">Cases</th></tr></thead>
+      <tbody>
+        <tr th:each="m : ${metrics}">
+          <td class="mono" th:text="${m.assignment_type}">T</td>
+          <td class="num" th:text="${m.tasks}">0</td>
+          <td class="num" th:text="${#numbers.formatDecimal(m.cases,1,0)}">0</td>
+        </tr>
+        <tr th:if="${#lists.isEmpty(metrics)}"><td colspan="3" style="color:var(--ink-soft)">No completed work yet.</td></tr>
+      </tbody></table>
+  </div>
+
+  <div class="panel">
+    <div class="panel-h"><h3>Work History</h3><div th:replace="~{fragments :: filterbox}"></div></div>
+    <table><thead><tr><th>Assignment</th><th>Type</th><th class="num">Priority</th><th>Wave</th><th class="num">Tasks</th><th>Status</th></tr></thead>
+      <tbody>
+        <tr th:each="a : ${work}">
+          <td><a class="linkcode" th:href="@{'/assignments/' + ${a.assignment_id}(siteId=${siteId})}" th:text="${a.assignment_number}">A</a></td>
+          <td class="mono" style="font-size:11px" th:text="${a.assignment_type}">T</td>
+          <td class="num mono" th:text="'P' + ${a.priority}">P5</td>
+          <td><a class="linkcode" th:if="${a.wave_id}" th:href="@{'/waves/' + ${a.wave_id}(siteId=${siteId})}" th:text="${a.wave_number}">W</a><span th:unless="${a.wave_id}">—</span></td>
+          <td class="num" th:text="${a.done} + '/' + ${a.tasks}">0</td>
+          <td><span class="status" th:classappend="${#strings.toLowerCase(#strings.replace(a.display_status,' ',''))}" th:text="${a.display_status}">S</span></td>
+        </tr>
+        <tr th:if="${#lists.isEmpty(work)}"><td colspan="6" style="color:var(--ink-soft)">Never dispatched.</td></tr>
+      </tbody></table>
+  </div>
+</div>
+</body></html>

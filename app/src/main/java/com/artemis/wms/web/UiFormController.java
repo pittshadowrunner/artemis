@@ -261,6 +261,19 @@ public class UiFormController {
         } catch (Exception e) { return fail(flash, e, to); }
     }
 
+    @PostMapping("/ui/assignments/priority")
+    public String setPriority(@RequestParam Map<String, String> f, RedirectAttributes flash) {
+        caps.require(TenantContext.user(), null, Capabilities.DASHBOARD_VIEW);
+        String to = "/assignments/" + f.get("assignmentId") + "?siteId=" + f.get("siteId");
+        try {
+            int p = Integer.parseInt(f.get("priority"));
+            if (p < 1 || p > 10) throw ApiException.badRequest("Priority is 1-10.");
+            jdbc.update("UPDATE assignment SET priority = ? WHERE assignment_id = ?",
+                p, UUID.fromString(f.get("assignmentId")));
+            return back(flash, "Priority set to P" + p + ".", to);
+        } catch (Exception e) { return fail(flash, e, to); }
+    }
+
     @PostMapping("/ui/assignments/attach-container")
     public String attachContainer(@RequestParam Map<String, String> f, RedirectAttributes flash) {
         caps.require(TenantContext.user(), null, Capabilities.SELECTION_EXECUTE);

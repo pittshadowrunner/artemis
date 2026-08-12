@@ -168,6 +168,19 @@ public class WaveService {
             UPDATE customer_order SET status = 'RELEASED'
             WHERE order_id IN (SELECT order_id FROM wave_order WHERE wave_id = ?)
             """, waveId);
+        // Priority 1-10: cold chain outranks dry. Coldest item in each
+        // assignment sets its floor (FRZ 8, CHL 7, DRY 5).
+        jdbc.update("""
+            UPDATE assignment a SET priority = sub.p FROM (
+                SELECT t.assignment_id,
+                       max(CASE WHEN it.temp_zone IN ('FROZEN','DEEP_FROZEN') THEN 8
+                                WHEN it.temp_zone = 'REFRIGERATED' THEN 7 ELSE 5 END) AS p
+                FROM assignment_task t JOIN item it ON it.item_id = t.item_id
+                WHERE t.assignment_id IN (SELECT assignment_id FROM assignment WHERE wave_id = ?)
+                GROUP BY t.assignment_id) sub
+            WHERE a.assignment_id = sub.assignment_id
+            """, waveId);
+
         return Map.of("waveId", waveId, "assignments", assignments, "putMode",
                 shippingContainer ? "SHIPPING_CONTAINER" : "TOTE");
     }

@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head><title>Artemis · Operators</title><th:block th:replace="~{fragments :: headcss}"/></head>
+<body>
+<div th:replace="~{fragments :: topbar('operators')}"></div>
+<div class="apage">
+  <div class="ahead"><span class="eyebrow">People</span><h1>Operators</h1></div>
+  <div class="panel">
+    <div class="panel-h"><h3>Floor Crew</h3><div th:replace="~{fragments :: filterbox}"></div></div>
+    <table>
+      <thead><tr><th>Operator</th><th>Email</th><th>Trained In</th><th class="num">Open Work</th><th class="num">Cases Today</th><th>Status</th></tr></thead>
+      <tbody>
+        <tr th:each="o : ${operators}">
+          <td><a class="linkcode" th:href="@{'/operators/' + ${o.user_id}(siteId=${siteId})}" th:text="${o.display_name}">Name</a></td>
+          <td class="mono" style="font-size:11px" th:text="${o.email}">e</td>
+          <td class="mono" style="font-size:11px"
+              th:text="${o.trained_workflows != null and !#arrays.isEmpty(o.trained_workflows)} ? ${#strings.arrayJoin(o.trained_workflows, ' · ')} : 'not certified'">w</td>
+          <td class="num" th:text="${o.open_work}">0</td>
+          <td class="num" th:text="${#numbers.formatDecimal(o.cases_today,1,0)}">0</td>
+          <td><span class="pill" th:classappend="${o.active} ? 'on' : 'off'" th:text="${o.active} ? 'ACTIVE' : 'INACTIVE'">A</span></td>
+        </tr>
+      </tbody></table>
+  </div>
+</div>
+<footer>Operators are people, not assets — trained-workflow allowances and personal labor metrics live on the profile.</footer>
+</body></html>

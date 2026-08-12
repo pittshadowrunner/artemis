@@ -156,7 +156,7 @@ public class AssetService {
         return jdbc.queryForList("""
             SELECT a.org_node_id AS zone_id, a.code, a.name,
                    count(l.location_id) AS slots,
-                   count(l.location_id) FILTER (WHERE l.loc_type = 'PICK_FACE') AS pick_faces,
+                   count(l.location_id) FILTER (WHERE l.replen_item_id IS NOT NULL) AS pick_faces,
                    min(l.temp_zone::text) AS temp_zone, css_of(min(l.temp_zone::text)) AS css,
                    tag_of(min(l.temp_zone::text)) AS tag
             FROM org_node a
@@ -248,6 +248,55 @@ public class AssetService {
             """, siteId);
     }
 
+    public Map<String, Object> manifest(UUID manifestId) {
+        Map<String, Object> m = jdbc.queryForMap("""
+            SELECT m.manifest_id, m.site_id, m.manifest_number, m.carrier, m.trailer_number,
+                   m.status::text AS status, m.expected_date, m.arrived_at, m.closed_at,
+                   sum(ml.expected_qty) AS expected_qty, sum(ml.received_qty) AS received_qty
+            FROM receiving_manifest m
+            LEFT JOIN receiving_manifest_line ml ON ml.manifest_id = m.manifest_id
+            WHERE m.manifest_id = ?
+            GROUP BY m.manifest_id
+            """, manifestId);
+        m.put("lines", jdbc.queryForList("""
+            SELECT ml.line_number, i.item_id, i.sku::text AS sku, i.description,
+                   ml.expected_qty, ml.received_qty,
+                   round(100.0 * ml.received_qty / NULLIF(ml.expected_qty, 0), 0) AS pct
+            FROM receiving_manifest_line ml JOIN item i ON i.item_id = ml.item_id
+            WHERE ml.manifest_id = ? ORDER BY ml.line_number
+            """, manifestId));
+        m.put("lpns", jdbc.queryForList("""
+            SELECT inv.lpn, i.item_id, i.sku::text AS sku, inv.lot_number, inv.expiration_date,
+                   inv.qty, inv.status::text AS status, inv.created_at AS received_at,
+                   l.location_id, l.code AS location_code, l.loc_type::text AS loc_type,
+                   tag_of(l.temp_zone::text) AS tag, css_of(l.temp_zone::text) AS css
+            FROM inventory inv
+            JOIN item i ON i.item_id = inv.item_id
+            LEFT JOIN location l ON l.location_id = inv.location_id
+            WHERE inv.received_from_manifest = ?
+            ORDER BY inv.lpn
+            """, manifestId));
+        return m;
+    }
+
+    /** Pallet lookup: LPN prefix/exact match with full captured attributes. */
+    public List<Map<String, Object>> lpnSearch(UUID siteId, String q) {
+        return jdbc.queryForList("""
+            SELECT inv.inventory_id, inv.lpn, inv.status::text AS status, inv.qty,
+                   inv.lot_number, inv.expiration_date, inv.arrival_date, inv.created_at,
+                   i.item_id, i.sku::text AS sku, i.description,
+                   l.location_id, l.code AS location_code, l.loc_type::text AS loc_type,
+                   tag_of(l.temp_zone::text) AS tag, css_of(l.temp_zone::text) AS css,
+                   m.manifest_id, m.manifest_number
+            FROM inventory inv
+            JOIN item i ON i.item_id = inv.item_id
+            LEFT JOIN location l ON l.location_id = inv.location_id
+            LEFT JOIN receiving_manifest m ON m.manifest_id = inv.received_from_manifest
+            WHERE inv.site_id = ? AND inv.lpn ILIKE ? || '%'
+            ORDER BY inv.lpn LIMIT 25
+            """, siteId, q);
+    }
+
     // ----------------------------- waves & assignments -----------------------------
 
     public List<Map<String, Object>> waves(UUID siteId) {
@@ -313,7 +362,7 @@ public class AssetService {
             SELECT a.assignment_id, a.site_id, a.assignment_number,
                    a.assignment_type::text AS assignment_type, a.status::text AS status,
                    a.priority, a.created_at, a.started_at, a.completed_at,
-                   a.reassigned_count, u.display_name AS assigned_to,
+                   a.reassigned_count, u.display_name AS assigned_to, a.assigned_to AS assigned_user_id,
                    pu.display_name AS previous_assignee,
                    w.wave_id, w.wave_number,
                    e.equipment_id, e.code AS equipment_code,
@@ -343,7 +392,6 @@ public class AssetService {
                    lt.location_id AS to_id, lt.code AS to_code,
                    CASE WHEN lt.location_id IS NULL THEN NULL
                         WHEN lt.loc_type::text = 'DROP' THEN 'DRP'
-                        WHEN lt.loc_type::text = 'STORAGE' THEN 'STO'
                         ELSE tag_of(lt.temp_zone::text) END AS to_tag,
                    css_of(lt.temp_zone::text) AS to_css,
                    it.item_id, it.sku::text AS sku, it.description AS item,

@@ -140,8 +140,13 @@ a.lane.active .eyebrow{color:var(--amber-ink)}
   <a class="navlink" th:href="@{/(siteId=${siteId})}" th:classappend="${active=='ops'} ? 'active'">Operations</a>
   <a class="navlink" th:href="@{/metrics(siteId=${siteId})}" th:classappend="${active=='metrics'} ? 'active'">Metrics</a>
   <a class="navlink" th:href="@{/waves(siteId=${siteId})}" th:classappend="${active=='waves'} ? 'active'">Waves</a>
+  <a class="navlink" th:href="@{/operators(siteId=${siteId})}" th:classappend="${active=='operators'} ? 'active'">Operators</a>
   <a class="navlink" th:href="@{/assets(siteId=${siteId})}" th:classappend="${active=='assets'} ? 'active'">Assets</a>
   <a class="navlink" href="/api-docs/ui" target="_blank">API</a>
+  <form method="get" th:action="@{/lpn}" style="display:flex;gap:6px;margin-left:8px">
+    <input type="hidden" name="siteId" th:value="${siteId}">
+    <input name="q" placeholder="LPN…" style="font-family:'IBM Plex Mono';font-size:12px;padding:5px 8px;border:1px solid #3A424A;border-radius:2px;background:#2A3138;color:#fff;width:110px">
+  </form>
   <div class="user">
     <span class="role-chip" th:text="${sysadmin} ? 'SYSADMIN' : 'ADMIN'">ADMIN</span>
     <span th:text="${userEmail}">user</span>

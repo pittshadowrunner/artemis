@@ -4,8 +4,7 @@
 <body>
 <div th:replace="~{fragments :: topbar('waves')}"></div>
 <div class="apage">
-  <div class="crumbtrail"><a th:href="@{/assets(siteId=${siteId})}">ASSETS</a><span class="sep">›</span>
-    <a th:href="@{/waves(siteId=${siteId})}">WAVES</a>
+  <div class="crumbtrail"><a th:href="@{/waves(siteId=${siteId})}">WAVES</a>
     <th:block th:if="${a.wave_id}"><span class="sep">›</span>
       <a th:href="@{'/waves/' + ${a.wave_id}(siteId=${siteId})}" th:text="${a.wave_number}">W</a></th:block>
     <span class="sep">›</span><a th:text="${a.assignment_number}">A</a></div>
@@ -31,8 +30,17 @@
   </details>
   <div class="attrs">
     <div class="attr"><div class="k">Type</div><div class="v" th:text="${a.assignment_type}">T</div></div>
-    <div class="attr"><div class="k">Priority</div><div class="v big" th:text="${a.priority}">50</div></div>
-    <div class="attr"><div class="k">Assigned To</div><div class="v" th:text="${a.assigned_to ?: 'unassigned'}">—</div></div>
+    <div class="attr"><div class="k">Priority</div><div class="v big" th:text="'P' + ${a.priority}">P5</div>
+      <form method="post" th:action="@{/ui/assignments/priority}" class="inlineform" style="margin-top:6px">
+        <input type="hidden" name="assignmentId" th:value="${a.assignment_id}">
+        <input type="hidden" name="siteId" th:value="${siteId}">
+        <select name="priority"><option th:each="p : ${#numbers.sequence(1,10)}" th:value="${p}"
+          th:selected="${p == a.priority}" th:text="'P' + ${p}">P</option></select>
+        <button class="btn" style="padding:5px 10px;font-size:11px">Set</button>
+      </form></div>
+    <div class="attr"><div class="k">Assigned To</div><div class="v">
+      <a class="linkcode" th:if="${a.assigned_user_id}" th:href="@{'/operators/' + ${a.assigned_user_id}(siteId=${siteId})}" th:text="${a.assigned_to}">n</a>
+      <span th:unless="${a.assigned_user_id}">unassigned</span></div></div>
     <div class="attr" th:if="${a.previous_assignee}"><div class="k">Previously</div><div class="v" th:text="${a.previous_assignee}">—</div></div>
     <div class="attr" th:if="${a.wave_id}"><div class="k">Wave</div>
       <div class="v"><a class="linkcode" th:href="@{'/waves/' + ${a.wave_id}(siteId=${siteId})}" th:text="${a.wave_number}">W</a></div></div>

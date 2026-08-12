@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head><title th:text="'Artemis · ' + ${m.manifest_number}">Manifest</title><th:block th:replace="~{fragments :: headcss}"/></head>
+<body>
+<div th:replace="~{fragments :: topbar('ops')}"></div>
+<div class="apage">
+  <div class="crumbtrail"><a th:href="@{/(siteId=${siteId},lane='RECEIVING')}">RECEIVING</a><span class="sep">›</span><a th:text="${m.manifest_number}">M</a></div>
+  <div class="ahead"><span class="eyebrow">Manifest</span><h1 th:text="${m.manifest_number}">M</h1>
+    <span class="status" th:classappend="${m.status == 'CLOSED'} ? 'complete' : 'inprogress'" th:text="${m.status}">S</span></div>
+
+  <div class="attrs">
+    <div class="attr"><div class="k">Carrier</div><div class="v" th:text="${m.carrier ?: '—'}">c</div></div>
+    <div class="attr"><div class="k">Trailer</div><div class="v" th:text="${m.trailer_number ?: '—'}">t</div></div>
+    <div class="attr"><div class="k">Arrived</div><div class="v" th:text="${m.arrived_at != null} ? ${#dates.format(m.arrived_at,'MM-dd HH:mm')} : '—'">—</div></div>
+    <div class="attr"><div class="k">Receiving Completed</div><div class="v" th:text="${m.closed_at != null} ? ${#dates.format(m.closed_at,'MM-dd HH:mm')} : 'in progress'">—</div></div>
+    <div class="attr"><div class="k">Expected</div><div class="v big" th:text="${#numbers.formatDecimal(m.expected_qty,1,0)}">0</div></div>
+    <div class="attr"><div class="k">Received</div><div class="v big" th:text="${#numbers.formatDecimal(m.received_qty,1,0)}">0</div></div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-h"><h3>Manifest Lines</h3><span class="eyebrow">Expected vs received</span></div>
+    <table><thead><tr><th class="num">Line</th><th>SKU</th><th>Description</th><th class="num">Expected</th><th class="num">Received</th><th style="width:22%">Progress</th></tr></thead>
+      <tbody><tr th:each="ln : ${m.lines}">
+        <td class="num mono" th:text="${ln.line_number}">1</td>
+        <td><a class="linkcode" th:href="@{'/assets/items/' + ${ln.item_id}(siteId=${siteId})}" th:text="${ln.sku}">S</a></td>
+        <td th:text="${ln.description}">d</td>
+        <td class="num" th:text="${#numbers.formatDecimal(ln.expected_qty,1,0)}">0</td>
+        <td class="num" th:text="${#numbers.formatDecimal(ln.received_qty,1,0)}">0</td>
+        <td><div class="bar"><i th:classappend="${ln.pct != null and ln.pct >= 100} ? 'done'" th:style="'width:' + ${ln.pct ?: 0} + '%'"></i></div></td>
+      </tr></tbody></table>
+  </div>
+
+  <div class="panel">
+    <div class="panel-h"><h3>Pallets Produced</h3><div style="display:flex;gap:12px;align-items:center">
+      <span class="eyebrow">Inbound LPN = SKU + lot + expiry + qty + a warehouse location</span>
+      <div th:replace="~{fragments :: filterbox}"></div></div></div>
+    <table><thead><tr><th>LPN</th><th>SKU</th><th>Lot</th><th>Expires</th><th class="num">Qty</th><th>Location</th><th>Received</th><th>Status</th></tr></thead>
+      <tbody>
+        <tr th:each="p : ${m.lpns}">
+          <td><a class="linkcode" th:href="@{/lpn(q=${p.lpn},siteId=${siteId})}" th:text="${p.lpn}">L</a></td>
+          <td><a class="linkcode" th:href="@{'/assets/items/' + ${p.item_id}(siteId=${siteId})}" th:text="${p.sku}">S</a></td>
+          <td class="mono" th:text="${p.lot_number ?: '—'}">-</td>
+          <td class="mono" th:text="${p.expiration_date ?: '—'}">-</td>
+          <td class="num" th:text="${#numbers.formatDecimal(p.qty,1,0)}">0</td>
+          <td><span class="placard" th:if="${p.location_code}" th:classappend="${p.css}">
+              <span class="tag" th:text="${p.loc_type == 'RECEIVING_DOCK'} ? 'DCK' : (${p.loc_type == 'CROSS_DOCK'} ? 'XDK' : ${p.tag})">T</span>
+              <span class="code" th:text="${p.location_code}">L</span></span></td>
+          <td class="mono" style="font-size:11px" th:text="${#dates.format(p.received_at,'MM-dd HH:mm')}">t</td>
+          <td><span class="pill" th:classappend="${p.status == 'AVAILABLE'} ? 'on'" th:text="${p.status}">A</span></td>
+        </tr>
+        <tr th:if="${#lists.isEmpty(m.lpns)}"><td colspan="8" style="color:var(--ink-soft)">No pallets received yet.</td></tr>
+      </tbody></table>
+  </div>
+</div>
+</body></html>

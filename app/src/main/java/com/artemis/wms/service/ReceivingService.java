@@ -50,7 +50,7 @@ public class ReceivingService {
     @Transactional
     public void arrive(UUID manifestId) {
         int n = jdbc.update(
-            "UPDATE receiving_manifest SET status = 'ARRIVED' WHERE manifest_id = ? AND status = 'EXPECTED'",
+            "UPDATE receiving_manifest SET status = 'ARRIVED', arrived_at = now() WHERE manifest_id = ? AND status = 'EXPECTED'",
             manifestId);
         if (n == 0) throw ApiException.conflict("Manifest is not in EXPECTED status.");
     }
@@ -164,7 +164,7 @@ public class ReceivingService {
     @Transactional
     public void close(UUID manifestId) {
         int n = jdbc.update("""
-            UPDATE receiving_manifest SET status = 'CLOSED'
+            UPDATE receiving_manifest SET status = 'CLOSED', closed_at = now()
             WHERE manifest_id = ? AND status IN ('ARRIVED','RECEIVING','RECEIVED')
             """, manifestId);
         if (n == 0) throw ApiException.conflict("Manifest cannot be closed from its current status.");

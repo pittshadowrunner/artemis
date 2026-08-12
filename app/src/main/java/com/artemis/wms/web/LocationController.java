@@ -18,9 +18,23 @@ public class LocationController {
 
     private final LocationService locations;
     private final CapabilityService caps;
+    private final org.springframework.jdbc.core.JdbcTemplate jdbc;
 
-    public LocationController(LocationService locations, CapabilityService caps) {
+    public LocationController(LocationService locations, CapabilityService caps,
+                              org.springframework.jdbc.core.JdbcTemplate jdbc) {
+        this.jdbc = jdbc;
         this.locations = locations; this.caps = caps;
+    }
+
+    @org.springframework.web.bind.annotation.GetMapping
+    public java.util.List<java.util.Map<String, Object>> find(
+            @org.springframework.web.bind.annotation.RequestParam java.util.UUID siteId,
+            @org.springframework.web.bind.annotation.RequestParam(required = false) String code) {
+        return jdbc.queryForList(
+            "SELECT location_id, code, loc_type::text AS loc_type, temp_zone::text AS temp_zone, "
+            + "check_digits, pick_sequence FROM location WHERE site_id = ? "
+            + (code == null ? "" : "AND code = ? ") + "ORDER BY code LIMIT 50",
+            code == null ? new Object[]{siteId} : new Object[]{siteId, code});
     }
 
     @PostMapping("/bulk")
