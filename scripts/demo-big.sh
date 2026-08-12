@@ -260,11 +260,14 @@ OPS=(m.alvarez d.chen j.okafor t.rivas l.tran)
 i=0
 for A in $ASGS; do
   api POST "/assignments/$A/assign" "{\"userEmail\":\"${OPS[$((i % 5))]}@artemis.local\"}" >/dev/null
-  # complete the first 2 tasks of each assignment
-  for T in $(api GET "/selection/assignments/$A/tasks" | jq -c '.[0:2][]'); do
-    TID=$(echo "$T" | jq -r .task_id); CD=$(echo "$T" | jq -r .check_digits); PD=$(echo "$T" | jq -r '.put_check_digits // .check_digits')
-    api POST "/selection/tasks/$TID/pick" "{\"checkDigits\":\"$CD\",\"putConfirmation\":\"$PD\"}" >/dev/null
-  done
+  # complete the first 2 open tasks of each assignment
+  # (TSV + read: for-loops word-split on spaces and shred JSON strings)
+  api GET "/selection/assignments/$A/tasks" \
+    | jq -r '[.[] | select(.status == "OPEN")][0:2][]
+             | [.task_id, .check_digits, (.put_check_digits // .check_digits)] | @tsv' \
+    | while IFS=$'\t' read -r TID CD PD; do
+        api POST "/selection/tasks/$TID/pick" "{\"checkDigits\":\"$CD\",\"putConfirmation\":\"$PD\"}" >/dev/null
+      done
   i=$((i+1))
 done
 echo "operators dispatched across $i selection assignments; 2 picks each completed"
