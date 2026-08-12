@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head><title th:text="'Artemis · ' + ${c.name}">Customer</title><th:block th:replace="~{fragments :: headcss}"/></head>
+<body>
+<div th:replace="~{fragments :: topbar('orders')}"></div>
+<div class="apage">
+  <div class="crumbtrail"><a th:href="@{/orders(siteId=${siteId})}">ORDERS</a><span class="sep">›</span><a th:text="${c.name}">C</a></div>
+  <div class="ahead"><span class="eyebrow">Customer</span><h1 th:text="${c.name}">C</h1>
+    <span class="pill" th:classappend="${c.active} ? 'on' : 'off'" th:text="${c.active} ? 'ACTIVE' : 'INACTIVE'">A</span></div>
+
+  <div class="attrs">
+    <div class="attr"><div class="k">Code</div><div class="v mono" th:text="${c.code}">C</div></div>
+    <div class="attr"><div class="k">Address</div><div class="v" style="font-size:12px">
+      <span th:text="${c.address_line1}">a</span><br th:if="${c.address_line2}"><span th:text="${c.address_line2}"></span><br>
+      <span th:text="${c.city} + ', ' + ${c.state_province} + ' ' + ${c.postal_code}">c</span></div></div>
+    <div class="attr"><div class="k">Phone</div><div class="v mono" th:text="${c.contact_phone ?: '—'}">p</div></div>
+    <div class="attr"><div class="k">Email</div><div class="v" style="font-size:12px" th:text="${c.contact_email ?: '—'}">e</div></div>
+    <div class="attr"><div class="k">Route / Stop</div><div class="v" th:text="${c.route_code ?: '—'} + ' / ' + ${c.stop_sequence ?: '—'}">r</div></div>
+    <div class="attr"><div class="k">Delivery Window</div><div class="v" th:text="${c.delivery_window_start != null} ? (${c.delivery_window_start} + '–' + ${c.delivery_window_end}) : '—'">w</div></div>
+    <div class="attr"><div class="k">Min Shelf Life</div><div class="v" th:text="${c.min_shelf_life_days != null} ? (${c.min_shelf_life_days} + ' days') : '—'">s</div></div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-h"><h3>Order History</h3><div th:replace="~{fragments :: filterbox}"></div></div>
+    <table><thead><tr><th>Order</th><th>Status</th><th class="num">Lines</th><th class="num">Cases</th><th>Created</th></tr></thead>
+      <tbody>
+        <tr th:each="h : ${history}">
+          <td><a class="linkcode" th:href="@{'/orders/' + ${h.order_id}(siteId=${siteId})}" th:text="${h.order_number}">O</a></td>
+          <td><span class="status" th:classappend="${#strings.toLowerCase(h.status)}" th:text="${h.status}">S</span></td>
+          <td class="num" th:text="${h.lines}">0</td>
+          <td class="num" th:text="${#numbers.formatDecimal(h.qty,1,0)}">0</td>
+          <td class="mono" style="font-size:11px" th:text="${#dates.format(h.created_at,'yyyy-MM-dd HH:mm')}">t</td>
+        </tr>
+        <tr th:if="${#lists.isEmpty(history)}"><td colspan="5" style="color:var(--ink-soft)">No orders yet.</td></tr>
+      </tbody></table>
+  </div>
+</div>
+</body></html>

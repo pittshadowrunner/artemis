@@ -52,22 +52,19 @@
     <div class="lanes">
       <a class="lane" th:classappend="${lane == 'RECEIVING'} ? 'active'"
          th:href="${lane == 'RECEIVING'} ? @{/(siteId=${siteId})} : @{/(siteId=${siteId},lane='RECEIVING')}">
-        <div class="eyebrow">Receiving</div><div class="count" th:text="${lanes.receiving}">0</div><div class="sub">manifests at dock</div></a>
+        <div class="eyebrow">Receiving</div><div class="count" th:text="${lanes.receiving}">0</div></a>
       <a class="lane" th:classappend="${lane == 'PUTAWAY'} ? 'active'"
          th:href="${lane == 'PUTAWAY'} ? @{/(siteId=${siteId})} : @{/(siteId=${siteId},lane='PUTAWAY')}">
-        <div class="eyebrow">Put Away</div><div class="count" th:text="${lanes.putaway}">0</div><div class="sub">open tasks</div></a>
+        <div class="eyebrow">Put Away</div><div class="count" th:text="${lanes.putaway}">0</div></a>
       <a class="lane" th:classappend="(${lane == 'REPLENISHMENT'} ? 'active ' : '') + (${lanes.replen > 0} ? 'hot' : '')"
          th:href="${lane == 'REPLENISHMENT'} ? @{/(siteId=${siteId})} : @{/(siteId=${siteId},lane='REPLENISHMENT')}">
-        <div class="eyebrow">Replenishment</div><div class="count" th:text="${lanes.replen}">0</div>
-        <form method="post" th:action="@{/ui/replen/scan}" style="margin-top:6px" onclick="event.stopPropagation()">
-          <input type="hidden" name="siteId" th:value="${siteId}">
-          <button class="btn" style="padding:5px 10px;font-size:11px">Run Scan</button></form></a>
+        <div class="eyebrow">Replenishment</div><div class="count" th:text="${lanes.replen}">0</div></a>
       <a class="lane" th:classappend="${lane == 'SELECTION'} ? 'active'"
          th:href="${lane == 'SELECTION'} ? @{/(siteId=${siteId})} : @{/(siteId=${siteId},lane='SELECTION')}">
-        <div class="eyebrow">Selection</div><div class="count" th:text="${lanes.selection}">0</div><div class="sub">tasks remaining</div></a>
+        <div class="eyebrow">Selection</div><div class="count" th:text="${lanes.selection}">0</div></a>
       <a class="lane" th:classappend="${lane == 'SHIPPING'} ? 'active'"
          th:href="${lane == 'SHIPPING'} ? @{/(siteId=${siteId})} : @{/(siteId=${siteId},lane='SHIPPING')}">
-        <div class="eyebrow">Shipping</div><div class="count" th:text="${lanes.shipping}">0</div><div class="sub">orders awaiting load</div></a>
+        <div class="eyebrow">Shipping</div><div class="count" th:text="${lanes.shipping}">0</div></a>
     </div>
 
     <div class="panel" th:if="${manifests != null}">
@@ -112,8 +109,9 @@
            class="pill" th:classappend="${zone == z} ? 'on'"
            th:text="${z == ''} ? 'ALL ZONES' : ${z}">Z</a>
       </div>
+      <th:block th:if="${lane != 'SELECTION'}">
       <div class="panel-h">
-        <h3 th:text="${lane != null} ? 'Open Tasks · ' + ${lane} : 'Open Tasks'">Open Tasks</h3>
+        <h3 th:text="'Open Tasks · ' + ${lane}">Open Tasks</h3>
         <div style="display:flex;gap:12px;align-items:center">
           <span class="eyebrow">One row per task · sequenced by pick path</span>
           <div th:replace="~{fragments :: filterbox}"></div>
@@ -128,8 +126,12 @@
             <td><a class="linkcode" th:href="@{'/assignments/' + ${t.assignment_id}(siteId=${siteId})}"
                   th:text="${t.assignment_number}">A</a></td>
             <td><span class="type-chip" th:text="${t.assignment_type == 'REPLENISHMENT'} ? 'REPLEN' : ${t.assignment_type}">TYPE</span></td>
-            <td><span class="placard" th:classappend="${t.from_css}"><span class="tag" th:text="${t.from_tag}">TAG</span><span class="code" th:text="${t.from_code}">LOC</span></span></td>
-            <td><span class="placard" th:if="${t.to_code != null}" th:classappend="${t.to_css}"><span class="tag" th:text="${t.to_tag}">TAG</span><span class="code" th:text="${t.to_code}">LOC</span></span>
+            <td><a th:if="${t.from_id}" th:href="@{'/assets/slots/' + ${t.from_id}(siteId=${siteId})}">
+                  <span class="placard" th:classappend="${t.from_css}"><span class="tag" th:text="${t.from_tag}">TAG</span><span class="code" th:text="${t.from_code}">LOC</span></span></a>
+                <span class="placard" th:unless="${t.from_id}" th:classappend="${t.from_css}"><span class="tag" th:text="${t.from_tag}">TAG</span><span class="code" th:text="${t.from_code}">LOC</span></span></td>
+            <td><a th:if="${t.to_id}" th:href="@{'/assets/slots/' + ${t.to_id}(siteId=${siteId})}">
+                  <span class="placard" th:classappend="${t.to_css}"><span class="tag" th:text="${t.to_tag}">TAG</span><span class="code" th:text="${t.to_code}">LOC</span></span></a>
+                <span class="placard" th:if="${t.to_id == null and t.to_code != null}" th:classappend="${t.to_css}"><span class="tag" th:text="${t.to_tag}">TAG</span><span class="code" th:text="${t.to_code}">LOC</span></span>
                 <span th:if="${t.to_code == null}" style="color:var(--ink-soft)">—</span></td>
             <td><span th:text="${t.item}">Item</span>
                 <a class="linkcode mono" style="font-size:11px" th:if="${t.inventory_id}"
@@ -145,6 +147,59 @@
           <tr th:if="${#lists.isEmpty(tasks)}"><td colspan="10" style="color:var(--ink-soft)">No open tasks in this lane.</td></tr>
         </tbody>
       </table>
+      </th:block>
+
+      <th:block th:if="${lane == 'SELECTION'}">
+      <div class="panel-h">
+        <h3>Selection · Assignments</h3>
+        <span class="eyebrow">A selection assignment spans many items — task detail lives on the assignment page</span>
+      </div>
+      <table>
+        <thead><tr><th>Priority</th><th>Assignment</th><th>Zone</th><th>Wave</th><th>Equipment</th><th>Operator</th><th class="num">Tasks</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr th:each="a : ${selAssignments}">
+            <td class="mono" style="font-weight:600" th:text="'P' + ${a.priority}">P5</td>
+            <td><a class="linkcode" th:href="@{'/assignments/' + ${a.assignment_id}(siteId=${siteId})}" th:text="${a.assignment_number}">A</a></td>
+            <td><span class="placard" th:if="${a.zone_tag}" th:classappend="${a.zone_css}"><span class="tag" th:text="${a.zone_tag}">T</span></span><span th:unless="${a.zone_tag}">—</span></td>
+            <td><a class="linkcode" th:if="${a.wave_id}" th:href="@{'/waves/' + ${a.wave_id}(siteId=${siteId})}" th:text="${a.wave_number}">W</a><span th:unless="${a.wave_id}">—</span></td>
+            <td><a class="linkcode" th:if="${a.equipment_id}" th:href="@{'/assets/equipment/' + ${a.equipment_id}(siteId=${siteId})}" th:text="${a.equipment_code}">E</a><span th:unless="${a.equipment_id}">—</span></td>
+            <td><a class="linkcode" th:if="${a.assigned_user_id}" th:href="@{'/operators/' + ${a.assigned_user_id}(siteId=${siteId})}" th:text="${a.operator}">op</a><span th:unless="${a.assigned_user_id}">—</span></td>
+            <td class="num" th:text="${a.done} + '/' + ${a.tasks}">0</td>
+            <td><span class="status" th:classappend="${#strings.toLowerCase(#strings.replace(a.display_status,' ',''))}" th:text="${a.display_status}">S</span></td>
+          </tr>
+          <tr th:if="${#lists.isEmpty(selAssignments)}"><td colspan="8" style="color:var(--ink-soft)">No open selection assignments in this zone.</td></tr>
+        </tbody>
+      </table>
+
+      <form method="post" th:action="@{/ui/assignments/build}">
+        <input type="hidden" name="siteId" th:value="${siteId}">
+        <input type="hidden" name="back" value="/?lane=SELECTION">
+        <div class="panel-h" style="margin-top:14px">
+          <h3>Build Assignment</h3>
+          <span class="eyebrow">Check released zone orders (one zone) · pick a unit · dispatch</span>
+        </div>
+        <table><thead><tr><th></th><th>Zone Order</th><th>Zone</th><th>Customer</th><th>Wave</th></tr></thead>
+          <tbody>
+            <tr th:each="z : ${buildable}">
+              <td><input type="checkbox" name="zoneOrderIds" th:value="${z.zone_order_id}"></td>
+              <td><a class="linkcode mono" style="font-weight:600" th:href="@{'/orders/' + ${z.order_id}(siteId=${siteId})}" th:text="${z.order_number} + '-' + ${z.tag}">Z</a></td>
+              <td><span class="placard" th:classappend="${z.css}"><span class="tag" th:text="${z.tag}">T</span></span></td>
+              <td th:text="${z.customer_name}">c</td>
+              <td><a class="linkcode" th:href="@{'/waves/' + ${z.wave_id}(siteId=${siteId})}" th:text="${z.wave_number}">W</a></td>
+            </tr>
+            <tr th:if="${#lists.isEmpty(buildable)}"><td colspan="5" style="color:var(--ink-soft)">No released zone orders awaiting an assignment.</td></tr>
+          </tbody></table>
+        <div style="display:flex;gap:10px;align-items:center;padding:10px 0" th:if="${!#lists.isEmpty(buildable)}">
+          <select name="equipmentCode"><option value="" disabled selected>Equipment…</option>
+            <option th:each="e : ${fleetCodes}" th:value="${e}" th:text="${e}">E</option></select>
+          <select name="userEmail"><option value="">Operator (optional)</option>
+            <option th:each="c : ${crew}" th:value="${c.email}" th:text="${c.display_name}">O</option></select>
+          <select name="priority"><option value="">Auto priority</option>
+            <option th:each="p : ${#numbers.sequence(1,10)}" th:value="${p}" th:text="'P' + ${p}">P</option></select>
+          <button class="btn">Build Assignment</button>
+        </div>
+      </form>
+      </th:block>
     </div>
   </main>
 

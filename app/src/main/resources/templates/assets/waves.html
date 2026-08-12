@@ -7,27 +7,48 @@
   <div class="crumbtrail"><a>WAVES</a></div>
   <div th:replace="~{fragments :: flashbar}"></div>
   <div class="ahead"><span class="eyebrow">Outbound Work</span><h1>Waves</h1></div>
-  <details class="editbox">
-    <summary>Plan new wave</summary>
-    <form method="post" th:action="@{/ui/waves/create}">
+  <div class="panel">
+    <div class="panel-h"><h3>Plan Wave</h3><span class="eyebrow">Pick a zone, check unreleased zone orders, roll them into a wave</span></div>
+    <form method="post" th:action="@{/ui/waves/build}">
       <input type="hidden" name="siteId" th:value="${siteId}">
-      <div class="formgrid">
-        <div class="field"><label>Wave Type</label>
-          <select name="waveType">
-            <option>SHIP_URGENCY</option><option>PROXIMITY</option><option>ROUTE</option>
-            <option>CARRIER_CUTOFF</option><option>ZONE</option><option>RUSH</option>
-            <option>SINGLE_ORDER</option><option>BATCH</option>
-          </select></div>
-        <div class="field"><label>Route (ROUTE type)</label><input name="routeCode" placeholder="RT7"></div>
-        <div class="field"><label>Max Orders</label><input name="maxOrders" type="number" value="25"></div>
+      <div style="display:flex;gap:14px;align-items:center;padding:10px 14px">
+        <label class="eyebrow" for="zonesel">Zone</label>
+        <select name="tempZone" id="zonesel" onchange="zoFilter(this.value)">
+          <option value="AMBIENT">DRY (AMBIENT)</option>
+          <option value="REFRIGERATED">CHL (REFRIGERATED)</option>
+          <option value="FROZEN">FRZ (FROZEN)</option>
+        </select>
+        <button class="btn">Plan Wave From Checked</button>
       </div>
-      <div class="formfoot"><button class="btn">Plan Wave</button></div>
+      <table id="zotable"><thead><tr><th></th><th>Zone Order</th><th>Zone</th><th>Customer</th><th>Order</th><th>Created</th></tr></thead>
+        <tbody>
+          <tr th:each="z : ${unwaved}" th:attr="data-zone=${z.temp_zone}">
+            <td><input type="checkbox" name="orderIds" th:value="${z.order_id}"></td>
+            <td class="mono" style="font-weight:600" th:text="${z.order_number} + '-' + ${z.tag}">Z</td>
+            <td><span class="placard" th:classappend="${z.css}"><span class="tag" th:text="${z.tag}">T</span></span></td>
+            <td th:text="${z.customer_name}">c</td>
+            <td><a class="linkcode" th:href="@{'/orders/' + ${z.order_id}(siteId=${siteId})}" th:text="${z.order_number}">O</a></td>
+            <td class="mono" style="font-size:11px" th:text="${#dates.format(z.created_at,'MM-dd HH:mm')}">t</td>
+          </tr>
+          <tr th:if="${#lists.isEmpty(unwaved)}"><td colspan="6" style="color:var(--ink-soft)">Nothing unreleased — every allocated zone order is already waved.</td></tr>
+        </tbody></table>
     </form>
-  </details>
-  <div class="panel"><div class="panel-h"><h3>All Waves</h3><div th:replace="~{fragments :: filterbox}"></div></div><table>
-    <thead><tr><th>Wave</th><th>Type</th><th>Status</th><th class="num">Orders</th><th class="num">Assignments</th><th class="num">Tasks</th><th style="width:22%">Progress</th><th>Created</th></tr></thead>
+    <script>
+      function zoFilter(zone) {
+        document.querySelectorAll('#zotable tbody tr[data-zone]').forEach(function(r) {
+          var match = r.getAttribute('data-zone') === zone;
+          r.style.display = match ? '' : 'none';
+          if (!match) { var cb = r.querySelector('input[type=checkbox]'); if (cb) cb.checked = false; }
+        });
+      }
+      zoFilter(document.getElementById('zonesel').value);
+    </script>
+  </div>
+  <div class="panel"><div class="panel-h"><h3>All Waves</h3></div><table>
+    <thead><tr><th>Wave</th><th>Zone</th><th>Type</th><th>Status</th><th class="num">Orders</th><th class="num">Assignments</th><th class="num">Tasks</th><th style="width:22%">Progress</th><th>Created</th></tr></thead>
     <tbody><tr th:each="w : ${waves}">
       <td><a class="linkcode" th:href="@{'/waves/' + ${w.wave_id}(siteId=${siteId})}" th:text="${w.wave_number}">W</a></td>
+      <td><span class="placard" th:if="${w.temp_zone}" th:classappend="${w.zone_css}"><span class="tag" th:text="${w.zone_tag}">T</span></span><span th:unless="${w.temp_zone}">—</span></td>
       <td class="mono" style="font-size:11px" th:text="${w.wave_type}">T</td>
       <td><span class="status" th:classappend="${w.status == 'COMPLETE'} ? 'open' : 'progress'" th:text="${w.status}">S</span></td>
       <td class="num" th:text="${w.orders}">0</td>
@@ -38,5 +59,5 @@
       <td class="mono" style="font-size:11px" th:text="${#dates.format(w.created_at, 'MM-dd HH:mm')}">t</td>
     </tr></tbody></table></div>
 </div>
-<footer>Wave numbers are minted from creation date + time. A wave is a grouping of selection assignments — click through.</footer>
+<footer>Waves are zone-shaped: a wave collects zone orders from one temp zone, so every assignment it yields stays in-zone by construction.</footer>
 </body></html>

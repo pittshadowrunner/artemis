@@ -25,9 +25,9 @@
       <span class="mono" th:text="${p.arrival_date ?: '—'}">d</span>
       <a class="linkcode" th:if="${p.manifest_id}" th:href="@{'/receiving/' + ${p.manifest_id}(siteId=${siteId})}" th:text="' · ' + ${p.manifest_number}">M</a></div></div>
     <div class="attr"><div class="k">Current Location</div><div class="v">
-      <span class="placard" th:if="${p.location_code}" th:classappend="${p.css}">
+      <a th:if="${p.location_id}" th:href="@{'/assets/slots/' + ${p.location_id}(siteId=${siteId})}"><span class="placard" th:classappend="${p.css}">
         <span class="tag" th:text="${p.loc_type == 'RECEIVING_DOCK'} ? 'DCK' : (${p.loc_type == 'CROSS_DOCK'} ? 'XDK' : (${p.loc_type == 'DROP'} ? 'DRP' : ${p.tag}))">T</span>
-        <span class="code" th:text="${p.location_code}">L</span></span>
+        <span class="code" th:text="${p.location_code}">L</span></span></a>
       <span th:unless="${p.location_code}" th:text="${p.status == 'PICKED'} ? 'On equipment (picked)' : 'In transit'">—</span></div></div>
   </div>
 
@@ -37,7 +37,7 @@
       <tbody>
         <tr th:each="h : ${p.history}">
           <td class="mono" style="font-size:11px" th:text="${#dates.format(h.arrived,'MM-dd HH:mm')}">t</td>
-          <td><span class="placard" th:if="${h.location_code}" th:classappend="${h.css}">
+          <td><a th:if="${h.location_id}" th:href="@{'/assets/slots/' + ${h.location_id}(siteId=${siteId})}"><span class="placard" th:classappend="${h.css}">
               <span class="tag" th:text="${h.loc_type == 'RECEIVING_DOCK'} ? 'DCK' : (${h.loc_type == 'CROSS_DOCK'} ? 'XDK' : (${h.loc_type == 'DROP'} ? 'DRP' : ${h.tag}))">T</span>
               <span class="code" th:text="${h.location_code}">L</span></span>
               <span th:unless="${h.location_code}" style="color:var(--ink-soft)">off-slot (picked to equipment)</span></td>

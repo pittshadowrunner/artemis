@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head><title th:text="'Artemis · ' + ${o.order_number}">Order</title><th:block th:replace="~{fragments :: headcss}"/></head>
+<body>
+<div th:replace="~{fragments :: topbar('orders')}"></div>
+<div class="apage">
+  <div class="crumbtrail"><a th:href="@{/orders(siteId=${siteId})}">ORDERS</a><span class="sep">›</span><a th:text="${o.order_number}">O</a></div>
+  <div th:replace="~{fragments :: flashbar}"></div>
+  <div class="ahead"><span class="eyebrow">Customer Order</span><h1 th:text="${o.order_number}">O</h1>
+    <span class="status" th:classappend="${#strings.toLowerCase(o.status)}" th:text="${o.status}">S</span></div>
+
+  <div class="attrs">
+    <div class="attr"><div class="k">Customer</div><div class="v">
+      <a class="linkcode" th:href="@{'/customers/' + ${o.customer_id}(siteId=${siteId})}" th:text="${o.customer_name}">C</a></div></div>
+    <div class="attr"><div class="k">Ship To</div><div class="v" style="font-size:12px">
+      <span th:text="${o.address_line1}">a</span><br th:if="${o.address_line2}"><span th:text="${o.address_line2}"></span><br>
+      <span th:text="${o.city} + ', ' + ${o.state_province} + ' ' + ${o.postal_code}">c</span></div></div>
+    <div class="attr"><div class="k">Route / Stop</div><div class="v" th:text="${o.route_code ?: '—'} + ' / ' + ${o.stop_sequence ?: '—'}">r</div></div>
+    <div class="attr"><div class="k">Requested Ship</div><div class="v" th:text="${o.requested_ship_date ?: '—'}">d</div></div>
+    <div class="attr"><div class="k">Drop</div><div class="v" th:text="${o.drop_location ?: '—'}">d</div></div>
+    <div class="attr"><div class="k">Created</div><div class="v" th:text="${#dates.format(o.created_at,'yyyy-MM-dd HH:mm')}">t</div></div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-h"><h3>Zone Orders</h3><span class="eyebrow">The same order, split by zone — each becomes one assignment's worth of work</span></div>
+    <table><thead><tr><th>Zone Order</th><th>Zone</th><th>Status</th><th>Wave</th><th>Assignment</th><th class="num">Priority</th><th>Operator</th></tr></thead>
+      <tbody>
+        <tr th:each="z : ${zoneOrders}">
+          <td class="mono" style="font-weight:600" th:text="${o.order_number} + '-' + ${z.tag}">Z</td>
+          <td><span class="placard" th:classappend="${z.css}"><span class="tag" th:text="${z.tag}">T</span></span></td>
+          <td><span class="status" th:classappend="${#strings.toLowerCase(z.display_status)}" th:text="${z.display_status}">S</span></td>
+          <td><a class="linkcode" th:if="${z.wave_id}" th:href="@{'/waves/' + ${z.wave_id}(siteId=${siteId})}" th:text="${z.wave_number}">W</a><span th:unless="${z.wave_id}">—</span></td>
+          <td><a class="linkcode" th:if="${z.assignment_id}" th:href="@{'/assignments/' + ${z.assignment_id}(siteId=${siteId})}" th:text="${z.assignment_number}">A</a><span th:unless="${z.assignment_id}">—</span></td>
+          <td class="num mono" th:text="${z.priority != null} ? 'P' + ${z.priority} : '—'">P</td>
+          <td><a class="linkcode" th:if="${z.assigned_user_id}" th:href="@{'/operators/' + ${z.assigned_user_id}(siteId=${siteId})}" th:text="${z.operator}">op</a><span th:unless="${z.assigned_user_id}">—</span></td>
+        </tr>
+      </tbody></table>
+  </div>
+
+  <div class="panel">
+    <div class="panel-h"><h3>Order Lines</h3><span class="eyebrow" th:text="${o.customer_name} + ' · ' + ${o.city} + ', ' + ${o.state_province}">c</span></div>
+    <table><thead><tr><th class="num">Line</th><th>SKU</th><th>Description</th><th>Zone</th><th class="num">Ordered</th><th class="num">Allocated</th></tr></thead>
+      <tbody>
+        <tr th:each="l : ${lines}">
+          <td class="num mono" th:text="${l.line_number}">1</td>
+          <td><a class="linkcode" th:href="@{'/assets/items/' + ${l.item_id}(siteId=${siteId})}" th:text="${l.sku}">S</a></td>
+          <td th:text="${l.description}">d</td>
+          <td><span class="placard" th:classappend="${l.css}"><span class="tag" th:text="${l.tag}">T</span></span></td>
+          <td class="num" th:text="${#numbers.formatDecimal(l.qty_ordered,1,0)}">0</td>
+          <td class="num" th:text="${#numbers.formatDecimal(l.qty_allocated,1,0)}">0</td>
+        </tr>
+      </tbody></table>
+  </div>
+</div>
+</body></html>

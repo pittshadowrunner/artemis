@@ -21,6 +21,41 @@ public class UiService {
     public UiService(JdbcTemplate jdbc) { this.jdbc = jdbc; }
 
     /** Sites the current tenant can see, for the picker / default site. */
+    /** Selection lane: assignment-level rows (a full selection assignment
+     *  spans many items, so task columns don't apply). Zone filters via the
+     *  wave's designation, falling back to the coldest task item. */
+    public List<Map<String, Object>> selectionAssignments(UUID siteId, String zone) {
+        String zoneFilter = zone == null || zone.isBlank() ? "" :
+            " AND COALESCE(w.temp_zone::text, (SELECT CASE WHEN bool_or(i2.temp_zone IN ('FROZEN','DEEP_FROZEN')) THEN 'FROZEN' "
+            + " WHEN bool_or(i2.temp_zone = 'REFRIGERATED') THEN 'REFRIGERATED' ELSE 'AMBIENT' END "
+            + " FROM assignment_task t2 JOIN item i2 ON i2.item_id = t2.item_id WHERE t2.assignment_id = a.assignment_id)) = ? ";
+        java.util.List<Object> args = new java.util.ArrayList<>();
+        args.add(siteId);
+        if (!zoneFilter.isEmpty()) args.add(zone);
+        return jdbc.queryForList("""
+            SELECT a.assignment_id, a.assignment_number, a.priority,
+                   w.wave_id, w.wave_number, tag_of(w.temp_zone::text) AS zone_tag,
+                   css_of(w.temp_zone::text) AS zone_css,
+                   e.equipment_id, e.code AS equipment_code,
+                   a.assigned_to AS assigned_user_id, u.display_name AS operator,
+                   count(t.task_id) AS tasks,
+                   count(t.task_id) FILTER (WHERE t.status = 'COMPLETE') AS done,
+                   CASE WHEN count(t.task_id) FILTER (WHERE t.status = 'COMPLETE') > 0 THEN 'IN PROGRESS'
+                        WHEN a.assigned_to IS NOT NULL THEN 'ASSIGNED'
+                        ELSE 'PENDING' END AS display_status
+            FROM assignment a
+            LEFT JOIN wave w ON w.wave_id = a.wave_id
+            LEFT JOIN equipment e ON e.equipment_id = a.equipment_id
+            LEFT JOIN app_user u ON u.user_id = a.assigned_to
+            LEFT JOIN assignment_task t ON t.assignment_id = a.assignment_id
+            WHERE a.site_id = ? AND a.assignment_type = 'SELECTION'
+              AND a.status NOT IN ('COMPLETE','CANCELLED')
+            """ + " " + zoneFilter + " " + """
+            GROUP BY a.assignment_id, w.wave_id, e.equipment_id, u.display_name
+            ORDER BY a.priority DESC, a.assignment_number
+            """, args.toArray());
+    }
+
     public List<Map<String, Object>> sites() {
         return jdbc.queryForList("""
             SELECT org_node_id, code, name FROM org_node
@@ -88,6 +123,7 @@ public class UiService {
         return jdbc.queryForList("""
             SELECT a.priority, a.assignment_id, a.assignment_number,
                    a.assignment_type::text AS assignment_type, t.status::text AS status,
+                   lf.location_id AS from_id, lt.location_id AS to_id,
                    lf.code  AS from_code,
                    CASE lf.loc_type::text WHEN 'RECEIVING_DOCK' THEN 'DCK' WHEN 'DROP' THEN 'DRP'
                         WHEN 'STAGING' THEN 'STG' WHEN 'CROSS_DOCK' THEN 'XDK'

@@ -26,8 +26,11 @@ public class UiController {
 
     private final UiService ui;
     private final CapabilityService caps;
+    private final com.artemis.wms.service.AssetService assets;
+    private final org.springframework.jdbc.core.JdbcTemplate jdbc;
 
-    public UiController(UiService ui, CapabilityService caps) { this.ui = ui; this.caps = caps; }
+    public UiController(UiService ui, CapabilityService caps, com.artemis.wms.service.AssetService assets, org.springframework.jdbc.core.JdbcTemplate jdbc) { this.ui = ui; this.caps = caps;         this.assets = assets; this.jdbc = jdbc;
+    }
 
     private UUID resolveSite(UUID siteId, Model model) {
         List<Map<String, Object>> sites = ui.sites();
@@ -65,6 +68,15 @@ public class UiController {
         switch (effLane) {
             case "RECEIVING" -> model.addAttribute("manifests", ui.receivingOpen(site));
             case "SHIPPING"  -> model.addAttribute("awaiting", ui.shippingAwaiting(site));
+            case "SELECTION" -> {
+                model.addAttribute("selAssignments", ui.selectionAssignments(site, zone));
+                model.addAttribute("buildable", assets.buildableZoneOrders(site));
+                model.addAttribute("fleetCodes", jdbc.queryForList(
+                    "SELECT code FROM equipment WHERE site_id = ? AND active ORDER BY code", String.class, site));
+                model.addAttribute("crew", jdbc.queryForList(
+                    "SELECT email::text AS email, display_name FROM app_user WHERE sysadmin = false AND active ORDER BY display_name"));
+                model.addAttribute("tasks", java.util.List.of());
+            }
             default -> model.addAttribute("tasks", ui.openTasks(site, effLane, zone, 20));
         }
         model.addAttribute("expiring", ui.expiringLots(site, 6));

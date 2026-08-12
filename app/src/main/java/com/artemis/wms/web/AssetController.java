@@ -178,6 +178,7 @@ public class AssetController {
     public String waves(@RequestParam(required = false) UUID siteId, Model model) {
         UUID s = site(siteId, model);
         model.addAttribute("waves", assets.waves(s));
+        model.addAttribute("unwaved", assets.unwavedZoneOrders(s));
         model.addAttribute("fleet", assets.equipmentList(s));
         return "assets/waves";
     }

@@ -42,9 +42,10 @@
           <td class="mono" th:text="${p.lot_number ?: '—'}">-</td>
           <td class="mono" th:text="${p.expiration_date ?: '—'}">-</td>
           <td class="num" th:text="${#numbers.formatDecimal(p.qty,1,0)}">0</td>
-          <td><span class="placard" th:if="${p.location_code}" th:classappend="${p.css}">
+          <td><a th:if="${p.location_code}" th:href="@{'/assets/slots/' + ${p.location_id}(siteId=${siteId})}">
+              <span class="placard" th:classappend="${p.css}">
               <span class="tag" th:text="${p.loc_type == 'RECEIVING_DOCK'} ? 'DCK' : (${p.loc_type == 'CROSS_DOCK'} ? 'XDK' : ${p.tag})">T</span>
-              <span class="code" th:text="${p.location_code}">L</span></span></td>
+              <span class="code" th:text="${p.location_code}">L</span></span></a></td>
           <td class="mono" style="font-size:11px" th:text="${#dates.format(p.received_at,'MM-dd HH:mm')}">t</td>
           <td><span class="pill" th:classappend="${p.status == 'AVAILABLE'} ? 'on'" th:text="${p.status}">A</span></td>
         </tr>

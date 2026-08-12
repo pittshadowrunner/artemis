@@ -7,6 +7,7 @@
   <div class="crumbtrail"><a th:href="@{/waves(siteId=${siteId})}">WAVES</a><span class="sep">›</span><a th:text="${w.wave_number}">W</a></div>
   <div th:replace="~{fragments :: flashbar}"></div>
   <div class="ahead"><span class="eyebrow" th:text="${w.wave_type} + ' wave'">TYPE</span><h1 th:text="${w.wave_number}">W</h1>
+    <span class="placard" th:if="${w.temp_zone}" th:classappend="${w.zone_css}"><span class="tag" th:text="${w.zone_tag}">T</span></span>
     <span class="status" th:classappend="${w.status == 'COMPLETE'} ? 'open' : 'progress'" th:text="${w.status}">S</span></div>
   <div class="attrs">
     <div class="attr"><div class="k">Type</div><div class="v" th:text="${w.wave_type}">T</div></div>
@@ -63,7 +64,23 @@
   </details>
 
   <div class="panel">
-    <div class="panel-h"><h3>Assignments</h3><div style="display:flex;gap:12px;align-items:center"><span class="eyebrow">Selection work in this wave</span><div th:replace="~{fragments :: filterbox}"></div></div></div>
+    <div class="panel-h"><h3>Zone Orders</h3><span class="eyebrow">The units this wave picks — one zone by construction</span></div>
+    <table><thead><tr><th>Zone Order</th><th>Parent Order</th><th>Customer</th><th>Status</th><th>Assignment</th><th class="num">Priority</th><th>Operator</th></tr></thead>
+      <tbody>
+        <tr th:each="z : ${w.zoneOrders}">
+          <td class="mono" style="font-weight:600" th:text="${z.order_number} + '-' + ${z.tag}">Z</td>
+          <td><a class="linkcode" th:href="@{'/orders/' + ${z.order_id}(siteId=${siteId})}" th:text="${z.order_number}">O</a></td>
+          <td><a class="linkcode" th:href="@{'/customers/' + ${z.customer_id}(siteId=${siteId})}" th:text="${z.customer_name}">c</a></td>
+          <td><span class="status" th:classappend="${#strings.toLowerCase(z.display_status)}" th:text="${z.display_status}">S</span></td>
+          <td><a class="linkcode" th:if="${z.assignment_id}" th:href="@{'/assignments/' + ${z.assignment_id}(siteId=${siteId})}" th:text="${z.assignment_number}">A</a><span th:unless="${z.assignment_id}">—</span></td>
+          <td class="num mono" th:text="${z.priority != null} ? 'P' + ${z.priority} : '—'">P</td>
+          <td><a class="linkcode" th:if="${z.assigned_user_id}" th:href="@{'/operators/' + ${z.assigned_user_id}(siteId=${siteId})}" th:text="${z.operator}">op</a><span th:unless="${z.assigned_user_id}">—</span></td>
+        </tr>
+      </tbody></table>
+  </div>
+
+  <div class="panel">
+    <div class="panel-h"><h3>Assignments</h3><span class="eyebrow">Selection work in this wave</span></div>
     <table><thead><tr><th>Assignment</th><th>Equipment</th><th>Assigned To</th><th class="num">Orders</th><th class="num">Tasks</th><th style="width:22%">Progress</th><th>Status</th></tr></thead>
       <tbody>
         <tr th:each="a : ${w.assignments}">
@@ -79,7 +96,8 @@
                 th:classappend="${#strings.toLowerCase(#strings.replace(a.display_status,' ',''))}"
                 th:text="${a.display_status}">S</span></td>
         </tr>
-        <tr th:if="${#lists.isEmpty(w.assignments)}"><td colspan="7" style="color:var(--ink-soft)">Planned — no assignments until release.</td></tr>
+        <tr th:if="${#lists.isEmpty(w.assignments)}"><td colspan="7" style="color:var(--ink-soft)"
+            th:text="${w.status == 'RELEASED'} ? 'Released to the pool — build assignments from the Selection lane.' : 'Planned — no assignments until release.'">—</td></tr>
       </tbody></table>
   </div>
 
@@ -87,7 +105,7 @@
     <div class="panel-h"><h3>Orders</h3><span class="eyebrow">Grouped into this wave</span></div>
     <table><thead><tr><th>Order</th><th>Customer</th><th>Status</th></tr></thead>
       <tbody><tr th:each="o : ${w.orders}">
-        <td class="mono" th:text="${o.order_number}">O</td>
+        <td><a class="linkcode" th:href="@{'/orders/' + ${o.order_id}(siteId=${siteId})}" th:text="${o.order_number}">O</a></td>
         <td th:text="${o.customer_code} + ' · ' + ${o.customer_name}">C</td>
         <td><span class="status" th:classappend="${o.status == 'SHIPPED'} ? 'open' : 'progress'" th:text="${o.status}">S</span></td>
       </tr></tbody></table>

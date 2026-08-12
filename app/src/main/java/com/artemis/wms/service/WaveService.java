@@ -23,11 +23,23 @@ public class WaveService {
         UUID siteId = uuid(req.get("siteId"));
         String waveType = str(req.get("waveType"));
         List<UUID> orderIds = uuidList(req.get("orderIds"));
+        String tempZone = str(req.get("tempZone"));
         int maxOrders = req.get("maxOrders") == null ? 25 : Integer.parseInt(req.get("maxOrders").toString());
 
         if (orderIds.isEmpty()) {
             orderIds = autoSelect(siteId, waveType, str(req.get("routeCode")), maxOrders);
             if (orderIds.isEmpty()) throw ApiException.conflict("No ALLOCATED orders match this wave type.");
+        }
+        // A wave is zone-shaped. Derive the zone from the orders when not
+        // given; refuse ambiguity rather than guess.
+        if (tempZone == null) {
+            List<String> zones = jdbc.queryForList("""
+                SELECT DISTINCT temp_zone::text FROM zone_order WHERE order_id = ANY(?)
+                """, String.class, (Object) orderIds.toArray(UUID[]::new));
+            if (zones.size() != 1)
+                throw ApiException.badRequest("These orders span " + zones.size()
+                    + " temp zones — pass tempZone to say which zone this wave picks.");
+            tempZone = zones.get(0);
         }
         UUID waveId = UUID.randomUUID();
         String waveNumber = str(req.get("waveNumber"));
@@ -38,14 +50,22 @@ public class WaveService {
         }
         jdbc.update("""
             INSERT INTO wave (wave_id, corporation_id, site_id, wave_number, wave_type, carrier_cutoff,
-                route_code, area_id, planned_by)
-            VALUES (?, ?, ?, ?, ?::wave_type, ?::timestamptz, ?, ?, ?)
+                route_code, area_id, planned_by, temp_zone)
+            VALUES (?, ?, ?, ?, ?::wave_type, ?::timestamptz, ?, ?, ?, ?::temp_zone)
             """, waveId, TenantContext.corp(), siteId, waveNumber, waveType,
             str(req.get("carrierCutoff")), str(req.get("routeCode")), uuid(req.get("areaId")),
-            TenantContext.user());
-        for (UUID orderId : orderIds)
+            TenantContext.user(), tempZone);
+        int attached = 0;
+        for (UUID orderId : orderIds) {
             jdbc.update("INSERT INTO wave_order (wave_id, order_id) VALUES (?, ?)", waveId, orderId);
-        return Map.of("waveId", waveId, "waveNumber", waveNumber, "orders", orderIds.size());
+            attached += jdbc.update("""
+                UPDATE zone_order SET wave_id = ?
+                WHERE order_id = ? AND temp_zone = ?::temp_zone AND wave_id IS NULL
+                """, waveId, orderId, tempZone);
+        }
+        if (attached == 0)
+            throw ApiException.conflict("None of these orders have unwaved " + tempZone + " zone orders.");
+        return Map.of("waveId", waveId, "waveNumber", waveNumber, "tempZone", tempZone, "zoneOrders", attached);
     }
 
     private List<UUID> autoSelect(UUID siteId, String waveType, String routeCode, int maxOrders) {
@@ -98,28 +118,29 @@ public class WaveService {
         }
         boolean shippingContainer = "SHIPPING_CONTAINER".equals(putMode);
 
-        List<Map<String, Object>> orders = jdbc.queryForList("""
-            SELECT wo.order_id, COALESCE(min(l.pick_sequence), 0) AS path_start
-            FROM wave_order wo
-            LEFT JOIN customer_order_line col ON col.order_id = wo.order_id
-            LEFT JOIN allocation al ON al.order_line_id = col.order_line_id
+        List<Map<String, Object>> zoneOrders = jdbc.queryForList("""
+            SELECT zo.zone_order_id, COALESCE(min(l.pick_sequence), 0) AS path_start
+            FROM zone_order zo
+            JOIN wave w ON w.wave_id = zo.wave_id
+            LEFT JOIN customer_order_line col ON col.order_id = zo.order_id
+            LEFT JOIN item i ON i.item_id = col.item_id AND i.temp_zone = w.temp_zone
+            LEFT JOIN allocation al ON al.order_line_id = col.order_line_id AND i.item_id IS NOT NULL
             LEFT JOIN inventory inv ON inv.inventory_id = al.inventory_id
             LEFT JOIN location l ON l.location_id = inv.location_id
-            WHERE wo.wave_id = ?
-            GROUP BY wo.order_id ORDER BY path_start
+            WHERE zo.wave_id = ?
+            GROUP BY zo.zone_order_id ORDER BY path_start
             """, waveId);
 
         List<UUID> assignments = new ArrayList<>();
         if (equipmentId == null) {
-            // Pooled release: the wave and its orders become RELEASED work,
-            // but no assignments exist yet. Put-to stays blank by definition —
-            // positions only make sense once equipment is known. Assignments
-            // get built later (manual combine now; operator work-request later).
+            // Pooled release: the wave and its zone orders become RELEASED
+            // work, but no assignments exist yet. Put-to stays blank by
+            // definition — positions only make sense once equipment is known.
         } else {
-            for (int chunk = 0; chunk < orders.size(); chunk += positions) {
-                List<Map<String, Object>> batch = orders.subList(chunk, Math.min(chunk + positions, orders.size()));
+            for (int chunk = 0; chunk < zoneOrders.size(); chunk += positions) {
+                List<Map<String, Object>> batch = zoneOrders.subList(chunk, Math.min(chunk + positions, zoneOrders.size()));
                 assignments.add(buildOne(siteId, waveId,
-                    batch.stream().map(o -> (UUID) o.get("order_id")).toList(),
+                    batch.stream().map(o -> (UUID) o.get("zone_order_id")).toList(),
                     equipmentId, shippingContainer));
             }
         }
@@ -165,7 +186,7 @@ public class WaveService {
     /** One selection assignment from an ordered set of orders: containers by
      *  position, merged tasks in pick-path order. Shared by wave release and
      *  manual combine. */
-    private UUID buildOne(UUID siteId, UUID waveId, List<UUID> orderIds,
+    private UUID buildOne(UUID siteId, UUID waveId, List<UUID> zoneOrderIds,
                           UUID equipmentId, boolean shippingContainer) {
         UUID assignmentId = UUID.randomUUID();
         jdbc.update("""
@@ -174,32 +195,38 @@ public class WaveService {
             """, assignmentId, TenantContext.corp(), siteId, waveId, equipmentId);
 
         int position = 0;
-        Map<UUID, Integer> orderPosition = new HashMap<>();
-        for (UUID orderId : orderIds) {
+        Map<UUID, Integer> zoPosition = new HashMap<>();
+        for (UUID zoId : zoneOrderIds) {
             position++;
-            orderPosition.put(orderId, position);
+            zoPosition.put(zoId, position);
             jdbc.update("""
                 INSERT INTO assignment_container (assignment_id, order_id, cart_position)
-                VALUES (?, ?, ?)
-                """, assignmentId, orderId, position);
+                SELECT ?, order_id, ? FROM zone_order WHERE zone_order_id = ?
+                """, assignmentId, position, zoId);
+            jdbc.update("UPDATE zone_order SET assignment_id = ? WHERE zone_order_id = ?",
+                assignmentId, zoId);
         }
 
+        // Picks: only this zone order's slice of its parent order — the
+        // lines whose items live in the zone order's temp zone.
         List<Map<String, Object>> picks = jdbc.queryForList("""
-            SELECT col.order_id, al.allocation_id, al.inventory_id, al.qty, col.item_id,
+            SELECT zo.zone_order_id, al.allocation_id, al.inventory_id, al.qty, col.item_id,
                    inv.location_id, l.code AS loc_code, l.check_digits, l.pick_sequence
-            FROM customer_order_line col
+            FROM zone_order zo
+            JOIN customer_order_line col ON col.order_id = zo.order_id
+            JOIN item i ON i.item_id = col.item_id AND i.temp_zone = zo.temp_zone
             JOIN allocation al ON al.order_line_id = col.order_line_id
             JOIN inventory inv ON inv.inventory_id = al.inventory_id
             JOIN location l ON l.location_id = inv.location_id
-            WHERE col.order_id = ANY(?)
+            WHERE zo.zone_order_id = ANY(?)
             ORDER BY l.pick_sequence ASC NULLS LAST
-            """, (Object) orderIds.toArray(UUID[]::new));
+            """, (Object) zoneOrderIds.toArray(UUID[]::new));
 
         int seq = 0;
         for (Map<String, Object> p : picks) {
             seq++;
-            UUID orderId = (UUID) p.get("order_id");
-            int cartPos = orderPosition.get(orderId);
+            UUID zoId = (UUID) p.get("zone_order_id");
+            int cartPos = zoPosition.get(zoId);
             String putDigits = putDigits(equipmentId, cartPos, shippingContainer);
             String prompt = "Pick " + p.get("qty") + " from "
                     + String.valueOf(p.get("loc_code")).replace("-", " ")
@@ -215,48 +242,55 @@ public class WaveService {
         return assignmentId;
     }
 
-    /** Manual combine: released orders + chosen equipment -> one assignment,
-     *  optionally dispatched to an operator with an explicit priority. */
-    public Map<String, Object> combine(UUID siteId, List<UUID> orderIds, String equipmentCode,
+    /** Manual combine: released zone orders (one zone, by construction)
+     *  + chosen equipment -> one assignment, optionally dispatched to an
+     *  operator with an explicit priority. */
+    public Map<String, Object> combine(UUID siteId, List<UUID> zoneOrderIds, String equipmentCode,
                                        String userEmail, Integer priority) {
-        if (orderIds == null || orderIds.isEmpty())
-            throw ApiException.badRequest("Pick at least one released order.");
+        if (zoneOrderIds == null || zoneOrderIds.isEmpty())
+            throw ApiException.badRequest("Pick at least one released zone order.");
         Map<String, Object> eq = jdbc.queryForMap(
             "SELECT equipment_id, container_positions FROM equipment WHERE site_id = ? AND code = ? AND active",
             siteId, equipmentCode);
         UUID equipmentId = (UUID) eq.get("equipment_id");
         int positions = eq.get("container_positions") == null ? 1 : (Integer) eq.get("container_positions");
-        if (orderIds.size() > positions)
-            throw ApiException.badRequest("That unit has " + positions + " position(s) — pick at most that many orders.");
+        if (zoneOrderIds.size() > positions)
+            throw ApiException.badRequest("That unit has " + positions + " position(s) — pick at most that many zone orders.");
 
+        List<String> zones = jdbc.queryForList("""
+            SELECT DISTINCT temp_zone::text FROM zone_order WHERE zone_order_id = ANY(?)
+            """, String.class, (Object) zoneOrderIds.toArray(UUID[]::new));
+        if (zones.size() != 1)
+            throw ApiException.conflict("An assignment stays in one zone — those zone orders span " + zones.size() + ".");
         Integer notReleased = jdbc.queryForObject("""
-            SELECT count(*) FROM customer_order
-            WHERE order_id = ANY(?) AND status <> 'RELEASED'
-            """, Integer.class, (Object) orderIds.toArray(UUID[]::new));
+            SELECT count(*) FROM zone_order zo
+            LEFT JOIN wave w ON w.wave_id = zo.wave_id
+            WHERE zo.zone_order_id = ANY(?) AND (w.status IS DISTINCT FROM 'RELEASED')
+            """, Integer.class, (Object) zoneOrderIds.toArray(UUID[]::new));
         if (notReleased != null && notReleased > 0)
-            throw ApiException.conflict("Only RELEASED orders can be combined into an assignment.");
+            throw ApiException.conflict("Only zone orders in a RELEASED wave can be combined into an assignment.");
         Integer alreadyBuilt = jdbc.queryForObject("""
-            SELECT count(*) FROM assignment_container ac
-            JOIN assignment a ON a.assignment_id = ac.assignment_id
-            WHERE ac.order_id = ANY(?) AND a.status NOT IN ('CANCELLED')
-            """, Integer.class, (Object) orderIds.toArray(UUID[]::new));
+            SELECT count(*) FROM zone_order WHERE zone_order_id = ANY(?) AND assignment_id IS NOT NULL
+            """, Integer.class, (Object) zoneOrderIds.toArray(UUID[]::new));
         if (alreadyBuilt != null && alreadyBuilt > 0)
-            throw ApiException.conflict("One of those orders is already on an assignment.");
+            throw ApiException.conflict("One of those zone orders is already on an assignment.");
 
         UUID waveId = jdbc.queryForObject("""
-            SELECT max(wave_id::text)::uuid FROM wave_order WHERE order_id = ANY(?)
-            """, UUID.class, (Object) orderIds.toArray(UUID[]::new));
+            SELECT max(wave_id::text)::uuid FROM zone_order WHERE zone_order_id = ANY(?)
+            """, UUID.class, (Object) zoneOrderIds.toArray(UUID[]::new));
 
         // sort by pick-path start so positions follow the walk
         List<UUID> ordered = jdbc.queryForList("""
-            SELECT col.order_id
-            FROM customer_order_line col
+            SELECT zo.zone_order_id
+            FROM zone_order zo
+            JOIN customer_order_line col ON col.order_id = zo.order_id
+            JOIN item i ON i.item_id = col.item_id AND i.temp_zone = zo.temp_zone
             JOIN allocation al ON al.order_line_id = col.order_line_id
             JOIN inventory inv ON inv.inventory_id = al.inventory_id
             LEFT JOIN location l ON l.location_id = inv.location_id
-            WHERE col.order_id = ANY(?)
-            GROUP BY col.order_id ORDER BY COALESCE(min(l.pick_sequence), 0)
-            """, UUID.class, (Object) orderIds.toArray(UUID[]::new));
+            WHERE zo.zone_order_id = ANY(?)
+            GROUP BY zo.zone_order_id ORDER BY COALESCE(min(l.pick_sequence), 0)
+            """, UUID.class, (Object) zoneOrderIds.toArray(UUID[]::new));
 
         UUID assignmentId = buildOne(siteId, waveId, ordered, equipmentId, false);
         jdbc.update("""

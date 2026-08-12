@@ -368,7 +368,7 @@ public class AssetService {
             WITH stops AS (
                 SELECT mv.created_at AS arrived,
                        lead(mv.created_at) OVER (ORDER BY mv.created_at) AS departed,
-                       lt.code AS location_code, lt.loc_type::text AS loc_type,
+                       lt.location_id, lt.code AS location_code, lt.loc_type::text AS loc_type,
                        tag_of(lt.temp_zone::text) AS tag, css_of(lt.temp_zone::text) AS css,
                        mv.movement_type::text AS how, u.display_name AS by_whom, u.user_id
                 FROM (
@@ -438,7 +438,9 @@ public class AssetService {
         return jdbc.queryForList("""
             SELECT w.wave_id, w.wave_number, w.wave_type::text AS wave_type,
                    w.status::text AS status, w.created_at, w.released_at,
-                   (SELECT count(*) FROM wave_order wo WHERE wo.wave_id = w.wave_id) AS orders,
+                   w.temp_zone::text AS temp_zone, tag_of(w.temp_zone::text) AS zone_tag,
+                   css_of(w.temp_zone::text) AS zone_css,
+                   (SELECT count(*) FROM zone_order zo WHERE zo.wave_id = w.wave_id) AS orders,
                    count(DISTINCT a.assignment_id) AS assignments,
                    count(t.task_id) AS tasks,
                    count(t.task_id) FILTER (WHERE t.status = 'COMPLETE') AS done
@@ -450,10 +452,42 @@ public class AssetService {
             """, siteId);
     }
 
+    /** Unreleased zone orders (allocated, not yet waved) for the wave planner. */
+    public List<Map<String, Object>> unwavedZoneOrders(UUID siteId) {
+        return jdbc.queryForList("""
+            SELECT zo.zone_order_id, zo.temp_zone::text AS temp_zone,
+                   tag_of(zo.temp_zone::text) AS tag, css_of(zo.temp_zone::text) AS css,
+                   o.order_id, o.order_number, c.name AS customer_name, o.created_at
+            FROM zone_order zo
+            JOIN customer_order o ON o.order_id = zo.order_id
+            JOIN customer c ON c.customer_id = o.customer_id
+            WHERE o.site_id = ? AND zo.wave_id IS NULL AND o.status = 'ALLOCATED'
+            ORDER BY zo.temp_zone, o.order_number
+            """, siteId);
+    }
+
+    /** Released, unbuilt zone orders for the assignment builder. */
+    public List<Map<String, Object>> buildableZoneOrders(UUID siteId) {
+        return jdbc.queryForList("""
+            SELECT zo.zone_order_id, zo.temp_zone::text AS temp_zone,
+                   tag_of(zo.temp_zone::text) AS tag, css_of(zo.temp_zone::text) AS css,
+                   o.order_id, o.order_number, c.name AS customer_name,
+                   w.wave_id, w.wave_number
+            FROM zone_order zo
+            JOIN customer_order o ON o.order_id = zo.order_id
+            JOIN customer c ON c.customer_id = o.customer_id
+            JOIN wave w ON w.wave_id = zo.wave_id
+            WHERE o.site_id = ? AND w.status = 'RELEASED' AND zo.assignment_id IS NULL
+            ORDER BY zo.temp_zone, o.order_number
+            """, siteId);
+    }
+
     public Map<String, Object> wave(UUID waveId) {
         Map<String, Object> w = jdbc.queryForMap("""
             SELECT w.wave_id, w.site_id, w.wave_number, w.wave_type::text AS wave_type,
                    w.status::text AS status, w.carrier_cutoff, w.route_code,
+                   w.temp_zone::text AS temp_zone, tag_of(w.temp_zone::text) AS zone_tag,
+                   css_of(w.temp_zone::text) AS zone_css,
                    w.created_at, w.released_at, w.completed_at,
                    u.display_name AS planned_by
             FROM wave w LEFT JOIN app_user u ON u.user_id = w.planned_by
@@ -468,7 +502,7 @@ public class AssetService {
                         WHEN a.assigned_to IS NOT NULL THEN 'ASSIGNED'
                         ELSE 'PENDING' END AS display_status,
                    e.code AS equipment_code, e.equipment_id,
-                   u.display_name AS assigned_to,
+                   u.display_name AS assigned_to, a.assigned_to AS assigned_user_id, a.priority,
                    count(t.task_id) AS tasks,
                    count(t.task_id) FILTER (WHERE t.status = 'COMPLETE') AS done,
                    count(DISTINCT ac.order_id) AS orders
@@ -480,6 +514,28 @@ public class AssetService {
             WHERE a.wave_id = ?
             GROUP BY a.assignment_id, e.code, e.equipment_id, u.display_name
             ORDER BY a.assignment_number
+            """, waveId));
+        w.put("zoneOrders", jdbc.queryForList("""
+            SELECT zo.zone_order_id, zo.temp_zone::text AS temp_zone,
+                   tag_of(zo.temp_zone::text) AS tag, css_of(zo.temp_zone::text) AS css,
+                   o.order_id, o.order_number, c.customer_id, c.name AS customer_name,
+                   a.assignment_id, a.assignment_number, a.priority,
+                   a.assigned_to AS assigned_user_id, u2.display_name AS operator,
+                   CASE WHEN zo.assignment_id IS NOT NULL THEN
+                            CASE WHEN a.status = 'COMPLETE' THEN 'COMPLETE'
+                                 WHEN a.status = 'CANCELLED' THEN 'CANCELLED'
+                                 WHEN a.assigned_to IS NOT NULL THEN 'ASSIGNED'
+                                 ELSE 'BUILT' END
+                        WHEN w2.status = 'RELEASED' THEN 'RELEASED'
+                        ELSE 'WAVED' END AS display_status
+            FROM zone_order zo
+            JOIN customer_order o ON o.order_id = zo.order_id
+            JOIN customer c ON c.customer_id = o.customer_id
+            JOIN wave w2 ON w2.wave_id = zo.wave_id
+            LEFT JOIN assignment a ON a.assignment_id = zo.assignment_id
+            LEFT JOIN app_user u2 ON u2.user_id = a.assigned_to
+            WHERE zo.wave_id = ?
+            ORDER BY o.order_number
             """, waveId));
         w.put("orders", jdbc.queryForList("""
             SELECT o.order_id, o.order_number, o.status::text AS status,

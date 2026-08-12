@@ -120,6 +120,18 @@ public class AllocationService {
 
         if (!anyShort) {
             jdbc.update("UPDATE customer_order SET status = 'ALLOCATED' WHERE order_id = ?", orderId);
+            // Zone orders spring into existence at allocation: one per
+            // distinct temp zone across the order's items. They are the
+            // unit that gets waved.
+            jdbc.update("""
+                INSERT INTO zone_order (corporation_id, order_id, temp_zone)
+                SELECT DISTINCT co.corporation_id, co.order_id, i.temp_zone
+                FROM customer_order co
+                JOIN customer_order_line col ON col.order_id = co.order_id
+                JOIN item i ON i.item_id = col.item_id
+                WHERE co.order_id = ?
+                ON CONFLICT (order_id, temp_zone) DO NOTHING
+                """, orderId);
         }
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("orderId", orderId);
