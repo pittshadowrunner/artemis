@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head><title>Artemis · Orders</title><th:block th:replace="~{fragments :: headcss}"/></head>
+<body>
+<div th:replace="~{fragments :: topbar('orders')}"></div>
+<div class="apage">
+  <div th:replace="~{fragments :: flashbar}"></div>
+  <div class="ahead"><span class="eyebrow">Demand</span><h1>Orders</h1></div>
+
+  <form method="get" th:action="@{/orders}" class="inlineform" style="margin-bottom:16px;flex-wrap:wrap;gap:8px">
+    <input type="hidden" name="siteId" th:value="${siteId}">
+    <input name="customer" th:value="${customer}" placeholder="Customer name or code…" class="filterinput" style="min-width:200px">
+    <input type="date" name="from" th:value="${from}" class="filterinput">
+    <input type="date" name="to" th:value="${to}" class="filterinput">
+    <select name="status" class="filterinput">
+      <option value="" th:selected="${status == ''}">Any status</option>
+      <option th:each="st : ${ {'NEW','ALLOCATED','RELEASED','PICKING','PICKED','SHIPPED'} }"
+              th:value="${st}" th:text="${st}" th:selected="${status == st}">S</option>
+    </select>
+    <button class="btn">Filter</button>
+  </form>
+
+  <!-- Roll unreleased orders into a wave -->
+  <form method="post" th:action="@{/ui/waves/build}" id="waveform">
+    <input type="hidden" name="siteId" th:value="${siteId}">
+  <div class="panel">
+    <div class="panel-h"><h3>Orders</h3>
+      <div style="display:flex;gap:10px;align-items:center">
+        <span class="eyebrow">Check ALLOCATED orders → plan a wave · check RELEASED orders → build an assignment below</span>
+        <button class="btn" form="waveform">Plan Wave From Checked</button>
+      </div></div>
+    <table><thead><tr><th></th><th>Order</th><th>Customer</th><th>Route</th><th class="num">Lines</th><th class="num">Ordered</th><th class="num">Picked</th><th>Wave</th><th>Created</th><th>Status</th></tr></thead>
+      <tbody>
+        <tr th:each="o : ${orders}">
+          <td><input type="checkbox" name="orderIds" th:value="${o.order_id}"
+                     th:form="${o.status == 'RELEASED' and !o.on_assignment} ? 'buildform' : 'waveform'"
+                     th:disabled="${!(o.status == 'ALLOCATED' or (o.status == 'RELEASED' and !o.on_assignment))}"></td>
+          <td class="mono" style="font-weight:600" th:text="${o.order_number}">O</td>
+          <td th:text="${o.customer_name} + ' (' + ${o.customer_code} + ')'">c</td>
+          <td class="mono" th:text="${o.route_code ?: '—'}">r</td>
+          <td class="num" th:text="${o.lines}">0</td>
+          <td class="num" th:text="${#numbers.formatDecimal(o.ordered_qty,1,0)}">0</td>
+          <td class="num" th:text="${#numbers.formatDecimal(o.picked_qty,1,0)}">0</td>
+          <td><a class="linkcode" th:if="${o.wave_id}" th:href="@{'/waves/' + ${o.wave_id}(siteId=${siteId})}" th:text="${o.wave_number}">W</a>
+              <span th:unless="${o.wave_id}" style="color:var(--ink-soft)">—</span></td>
+          <td class="mono" style="font-size:11px" th:text="${#dates.format(o.created_at,'MM-dd HH:mm')}">t</td>
+          <td><span class="pill" th:classappend="${o.status == 'RELEASED' or o.status == 'ALLOCATED'} ? 'on'" th:text="${o.status}">S</span></td>
+        </tr>
+        <tr th:if="${#lists.isEmpty(orders)}"><td colspan="10" style="color:var(--ink-soft)">No orders match the filter.</td></tr>
+      </tbody></table>
+  </div>
+  </form>
+
+  <!-- Manually combine released orders into an assignment -->
+  <form method="post" th:action="@{/ui/assignments/build}" id="buildform">
+    <input type="hidden" name="siteId" th:value="${siteId}">
+    <input type="hidden" name="back" value="/orders">
+    <div class="panel">
+      <div class="panel-h"><h3>Build Assignment From Checked Released Orders</h3>
+        <span class="eyebrow">Equipment decides positions; put-to is assigned here</span></div>
+      <div class="formgrid" style="padding:14px 16px">
+        <div class="field"><label>Equipment</label>
+          <select name="equipmentCode" required><option value="">— pick a unit —</option>
+            <option th:each="e : ${equipment}" th:value="${e.code}"
+                    th:text="${e.code} + ' (' + ${e.container_positions ?: 1} + ' pos)'">E</option></select></div>
+        <div class="field"><label>Operator (optional)</label>
+          <select name="userEmail"><option value="">— unassigned —</option>
+            <option th:each="op : ${operators}" th:value="${op.email}" th:text="${op.display_name}">O</option></select></div>
+        <div class="field"><label>Priority (optional)</label>
+          <select name="priority"><option value="">auto by zone</option>
+            <option th:each="p : ${#numbers.sequence(1,10)}" th:value="${p}" th:text="'P' + ${p}">P</option></select></div>
+      </div>
+      <div class="formfoot"><button class="btn">Build Assignment</button></div>
+    </div>
+  </form>
+</div>
+</body></html>

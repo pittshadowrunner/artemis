@@ -232,8 +232,10 @@ public class UiFormController {
         try {
             Map<String, Object> result = waves.release(UUID.fromString(f.get("waveId")),
                 str(f.get("equipmentCode")), str(f.get("putMode")));
-            return back(flash, "Released: " + ((List<?>) result.get("assignments")).size()
-                    + " assignment(s), " + result.get("putMode") + " mode.", to);
+            int n = ((List<?>) result.get("assignments")).size();
+            return back(flash, n > 0
+                ? "Released: " + n + " assignment(s), " + result.get("putMode") + " mode."
+                : "Wave released — orders pooled. Combine them into assignments once equipment is known.", to);
         } catch (Exception e) { return fail(flash, e, to); }
     }
 
@@ -258,6 +260,74 @@ public class UiFormController {
                 """, userId, userId, userId, UUID.fromString(f.get("assignmentId")));
             if (n == 0) throw ApiException.conflict("Assignment is complete or cancelled.");
             return back(flash, "Assigned to " + f.get("userEmail") + ".", to);
+        } catch (Exception e) { return fail(flash, e, to); }
+    }
+
+    /** Roll selected unreleased (ALLOCATED) orders into a PLANNED wave. */
+    @PostMapping("/ui/waves/build")
+    public String buildWave(@RequestParam Map<String, String> f,
+                            @RequestParam(name = "orderIds", required = false) java.util.List<String> orderIds,
+                            RedirectAttributes flash) {
+        caps.require(TenantContext.user(), null, Capabilities.WAVE_PLAN);
+        String to = "/orders?siteId=" + f.get("siteId");
+        try {
+            if (orderIds == null || orderIds.isEmpty())
+                throw ApiException.badRequest("Check at least one unreleased order.");
+            Map<String, Object> res = waves.create(Map.of(
+                "siteId", f.get("siteId"), "waveType", "PROXIMITY", "orderIds", orderIds));
+            return back(flash, "Wave " + res.get("waveNumber") + " planned with "
+                + orderIds.size() + " order(s).", "/waves/" + res.get("waveId") + "?siteId=" + f.get("siteId"));
+        } catch (Exception e) { return fail(flash, e, to); }
+    }
+
+    /** Manually combine released orders into one assignment on a unit,
+     *  optionally dispatched to an operator at a chosen priority. */
+    @PostMapping("/ui/assignments/build")
+    public String buildAssignment(@RequestParam Map<String, String> f,
+                                  @RequestParam(name = "orderIds", required = false) java.util.List<String> orderIds,
+                                  RedirectAttributes flash) {
+        caps.require(TenantContext.user(), null, Capabilities.WAVE_PLAN);
+        String to = f.getOrDefault("back", "/orders") + "?siteId=" + f.get("siteId");
+        try {
+            if (orderIds == null || orderIds.isEmpty())
+                throw ApiException.badRequest("Check at least one released order.");
+            String prio = f.get("priority");
+            Map<String, Object> res = waves.combine(UUID.fromString(f.get("siteId")),
+                orderIds.stream().map(UUID::fromString).toList(),
+                f.get("equipmentCode"), f.get("userEmail"),
+                prio == null || prio.isBlank() ? null : Integer.parseInt(prio));
+            return back(flash, "Assignment built from " + res.get("orders") + " order(s).",
+                "/assignments/" + res.get("assignmentId") + "?siteId=" + f.get("siteId"));
+        } catch (Exception e) { return fail(flash, e, to); }
+    }
+
+    /** Equipment custody: check out to an operator / check back in. */
+    @PostMapping("/ui/equipment/checkout")
+    public String checkout(@RequestParam Map<String, String> f, RedirectAttributes flash) {
+        caps.require(TenantContext.user(), null, Capabilities.DASHBOARD_VIEW);
+        String to = "/assets/equipment/" + f.get("equipmentId") + "?siteId=" + f.get("siteId");
+        try {
+            jdbc.update("""
+                INSERT INTO equipment_checkout (equipment_id, user_id)
+                VALUES (?, (SELECT user_id FROM app_user WHERE email = ?::citext))
+                """, UUID.fromString(f.get("equipmentId")), f.get("userEmail"));
+            return back(flash, "Checked out to " + f.get("userEmail") + ".", to);
+        } catch (org.springframework.dao.DuplicateKeyException e) {
+            flash.addFlashAttribute("flashError", "That unit is already checked out — check it in first.");
+            return "redirect:" + to;
+        } catch (Exception e) { return fail(flash, e, to); }
+    }
+
+    @PostMapping("/ui/equipment/checkin")
+    public String checkin(@RequestParam Map<String, String> f, RedirectAttributes flash) {
+        caps.require(TenantContext.user(), null, Capabilities.DASHBOARD_VIEW);
+        String to = "/assets/equipment/" + f.get("equipmentId") + "?siteId=" + f.get("siteId");
+        try {
+            int n = jdbc.update("""
+                UPDATE equipment_checkout SET checked_in_at = now()
+                WHERE equipment_id = ? AND checked_in_at IS NULL
+                """, UUID.fromString(f.get("equipmentId")));
+            return back(flash, n > 0 ? "Checked in." : "Nothing was checked out.", to);
         } catch (Exception e) { return fail(flash, e, to); }
     }
 

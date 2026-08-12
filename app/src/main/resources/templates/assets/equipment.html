@@ -38,27 +38,58 @@
     </form>
   </details>
 
+  <!-- Custody: who has this unit right now -->
+  <div class="panel">
+    <div class="panel-h"><h3>Checkout</h3>
+      <span class="eyebrow" th:if="${!#lists.isEmpty(e.openCheckout)}">
+        Out with <a class="linkcode" th:href="@{'/operators/' + ${e.openCheckout[0].user_id}(siteId=${siteId})}"
+                    th:text="${e.openCheckout[0].display_name}">op</a>
+        since <span th:text="${#dates.format(e.openCheckout[0].checked_out_at,'MM-dd HH:mm')}">t</span></span>
+      <span class="eyebrow" th:if="${#lists.isEmpty(e.openCheckout)}">Available</span></div>
+    <div style="padding:12px 16px;display:flex;gap:12px;align-items:center">
+      <form th:if="${#lists.isEmpty(e.openCheckout)}" method="post" th:action="@{/ui/equipment/checkout}" class="inlineform">
+        <input type="hidden" name="equipmentId" th:value="${e.equipment_id}">
+        <input type="hidden" name="siteId" th:value="${siteId}">
+        <select name="userEmail" required><option value="">— operator —</option>
+          <option th:each="op : ${operators}" th:value="${op.email}" th:text="${op.display_name}">O</option></select>
+        <button class="btn">Check Out</button>
+      </form>
+      <form th:if="${!#lists.isEmpty(e.openCheckout)}" method="post" th:action="@{/ui/equipment/checkin}" class="inlineform">
+        <input type="hidden" name="equipmentId" th:value="${e.equipment_id}">
+        <input type="hidden" name="siteId" th:value="${siteId}">
+        <button class="btn">Check In</button>
+      </form>
+    </div>
+  </div>
+
   <div class="panel" th:if="${!#lists.isEmpty(e.positions)}">
-    <div class="panel-h"><h3>Positions</h3><span class="eyebrow">Per-position put verification — authoritative digits</span></div>
-    <table><thead><tr><th class="num">Position</th><th>Check Digits</th></tr></thead>
+    <div class="panel-h"><h3>Positions</h3><span class="eyebrow">Container on board + confirmed picks, linked to order and wave</span></div>
+    <table><thead><tr><th class="num">Position</th><th>Check Digits</th><th>Container</th><th>Order</th><th>Wave</th><th class="num">Confirmed Qty</th></tr></thead>
       <tbody><tr th:each="p : ${e.positions}">
         <td class="num mono" th:text="${p.position_no}">1</td>
         <td class="check"><b th:text="${p.check_digits}">23</b></td>
+        <td><a class="linkcode" th:if="${p.container_id}" th:href="@{'/assets/containers/' + ${p.container_id}(siteId=${siteId})}"
+               th:text="${p.barcode} + ' (' + ${p.container_type} + ')'">C</a>
+            <span th:unless="${p.container_id}" style="color:var(--ink-soft)">—</span></td>
+        <td><a class="linkcode" th:if="${p.order_id}" th:href="@{/orders(siteId=${siteId},customer='')}" th:text="${p.order_number}">O</a>
+            <span th:unless="${p.order_id}" style="color:var(--ink-soft)">—</span></td>
+        <td><a class="linkcode" th:if="${p.wave_id}" th:href="@{'/waves/' + ${p.wave_id}(siteId=${siteId})}" th:text="${p.wave_number}">W</a>
+            <span th:unless="${p.wave_id}" style="color:var(--ink-soft)">—</span></td>
+        <td class="num" th:text="${#numbers.formatDecimal(p.confirmed_qty,1,0)}">0</td>
       </tr></tbody></table>
   </div>
 
   <div class="panel">
-    <div class="panel-h"><h3>Trips</h3><span class="eyebrow">Assignments on this equipment</span></div>
-    <table><thead><tr><th>Assignment</th><th>Type</th><th>Wave</th><th class="num">Tasks</th><th>Status</th></tr></thead>
+    <div class="panel-h"><h3>Operator Uses</h3><span class="eyebrow">Custody log — who and when, nothing else</span></div>
+    <table><thead><tr><th>Operator</th><th>Checked Out</th><th>Checked In</th><th class="num">Hours</th></tr></thead>
       <tbody>
-        <tr th:each="a : ${e.assignments}">
-          <td><a class="linkcode" th:href="@{'/assignments/' + ${a.assignment_id}(siteId=${siteId})}" th:text="${a.assignment_number}">A</a></td>
-          <td class="mono" style="font-size:11px" th:text="${a.assignment_type}">SEL</td>
-          <td><a class="linkcode" th:if="${a.wave_id}" th:href="@{'/waves/' + ${a.wave_id}(siteId=${siteId})}" th:text="${a.wave_number}">W</a><span th:unless="${a.wave_id}">—</span></td>
-          <td class="num" th:text="${a.done} + '/' + ${a.tasks}">0</td>
-          <td><span class="status" th:classappend="${a.status == 'COMPLETE'} ? 'open' : 'progress'" th:text="${a.status}">S</span></td>
+        <tr th:each="u : ${e.uses}">
+          <td><a class="linkcode" th:href="@{'/operators/' + ${u.user_id}(siteId=${siteId})}" th:text="${u.display_name}">O</a></td>
+          <td class="mono" style="font-size:11px" th:text="${#dates.format(u.checked_out_at,'MM-dd HH:mm')}">t</td>
+          <td class="mono" style="font-size:11px" th:text="${u.checked_in_at != null} ? ${#dates.format(u.checked_in_at,'MM-dd HH:mm')} : 'out now'">t</td>
+          <td class="num mono" th:text="${u.hours} + ' h'">0</td>
         </tr>
-        <tr th:if="${#lists.isEmpty(e.assignments)}"><td colspan="5" style="color:var(--ink-soft)">No trips yet.</td></tr>
+        <tr th:if="${#lists.isEmpty(e.uses)}"><td colspan="4" style="color:var(--ink-soft)">Never checked out.</td></tr>
       </tbody></table>
   </div>
 </div>

@@ -37,7 +37,7 @@
     <table><thead><tr><th>LPN</th><th>SKU</th><th>Lot</th><th>Expires</th><th class="num">Qty</th><th>Location</th><th>Received</th><th>Status</th></tr></thead>
       <tbody>
         <tr th:each="p : ${m.lpns}">
-          <td><a class="linkcode" th:href="@{/lpn(q=${p.lpn},siteId=${siteId})}" th:text="${p.lpn}">L</a></td>
+          <td><a class="linkcode" th:href="@{/assets/pallets(q=${p.lpn},siteId=${siteId})}" th:text="${p.lpn}">L</a></td>
           <td><a class="linkcode" th:href="@{'/assets/items/' + ${p.item_id}(siteId=${siteId})}" th:text="${p.sku}">S</a></td>
           <td class="mono" th:text="${p.lot_number ?: '—'}">-</td>
           <td class="mono" th:text="${p.expiration_date ?: '—'}">-</td>

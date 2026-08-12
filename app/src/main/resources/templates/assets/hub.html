@@ -15,6 +15,8 @@
     <a class="acard" th:href="@{/assets/zones(siteId=${siteId})}"><div class="eyebrow">Zones</div><div class="n" th:text="${counts.zones}">0</div><div class="d">areas · temp · policy scope</div></a>
     <a class="acard" th:href="@{/assets/slots(siteId=${siteId})}"><div class="eyebrow">Slots</div><div class="n" th:text="${counts.slots}">0</div><div class="d">dimensions · digits · sequence</div></a>
     <a class="acard" th:href="@{/assets/equipment(siteId=${siteId})}"><div class="eyebrow">Carts &amp; Powered</div><div class="n" th:text="${counts.equipment}">0</div><div class="d">types · capabilities · positions</div></a>
+    <a class="acard" th:href="@{/assets/pallets(siteId=${siteId})}"><div class="eyebrow">Pallets</div><div class="n" th:text="${counts.pallets ?: '·'}">0</div><div class="d">LPN-identified inventory</div></a>
+    <a class="acard" th:href="@{/assets/lots(siteId=${siteId})}"><div class="eyebrow">Lots</div><div class="n" th:text="${counts.lots ?: '·'}">0</div><div class="d">item + lot on hand</div></a>
     <a class="acard" th:href="@{/assets/containers(siteId=${siteId})}"><div class="eyebrow">Totes &amp; Containers</div><div class="n" th:text="${counts.containers}">0</div><div class="d">barcodes · digits · tares</div></a>
   </div>
 </div>

@@ -30,10 +30,12 @@ public class AssetService {
               (SELECT count(*) FROM org_node WHERE parent_id = ? AND level = 'AREA')                         AS zones,
               (SELECT count(*) FROM equipment WHERE site_id = ? AND active)                                  AS equipment,
               (SELECT count(*) FROM container WHERE site_id = ? AND active)                                  AS containers,
-              (SELECT count(*) FROM wave WHERE site_id = ?)                                                  AS waves,
+              (SELECT count(*) FROM inventory WHERE site_id = ? AND lpn IS NOT NULL)                         AS pallets,
+              (SELECT count(*) FROM (SELECT 1 FROM inventory WHERE site_id = ?
+                 AND lot_number IS NOT NULL GROUP BY item_id, lot_number) x)                                 AS lots,
               (SELECT count(*) FROM assignment WHERE site_id = ?
                  AND status NOT IN ('COMPLETE','CANCELLED'))                                                 AS open_assignments
-            """, siteId, siteId, siteId, siteId, siteId, siteId, siteId);
+            """, siteId, siteId, siteId, siteId, siteId, siteId, siteId, siteId);
     }
 
     // ----------------------------- items -----------------------------
@@ -83,7 +85,7 @@ public class AssetService {
                    css_of(l.temp_zone::text) AS css, tag_of(l.temp_zone::text) AS tag,
                    inv.lpn, inv.lot_number, inv.expiration_date, inv.qty, inv.status::text AS status
             FROM inventory inv JOIN location l ON l.location_id = inv.location_id
-            WHERE inv.item_id = ? AND inv.site_id = ? AND inv.status IN ('AVAILABLE','ALLOCATED','PICKED')
+            WHERE inv.item_id = ? AND inv.site_id = ? AND inv.status IN ('AVAILABLE','ALLOCATED')
             ORDER BY l.pick_sequence NULLS LAST
             """, itemId, siteId));
         it.put("faces", jdbc.queryForList("""
@@ -116,7 +118,7 @@ public class AssetService {
                 SELECT i2.item_id, i2.sku::text AS sku
                 FROM inventory v2 JOIN item i2 ON i2.item_id = v2.item_id
                 WHERE v2.location_id = l.location_id
-                  AND v2.status IN ('AVAILABLE','ALLOCATED','PICKED')
+                  AND v2.status IN ('AVAILABLE','ALLOCATED')
                 LIMIT 1) si ON true
             WHERE l.site_id = ? AND l.active """ + " " + filter + " " + """
             GROUP BY l.location_id, a.code, a.org_node_id, ri.item_id, ri.sku, si.item_id, si.sku
@@ -146,7 +148,7 @@ public class AssetService {
             SELECT inv.lpn, i.item_id, i.sku::text AS sku, i.description, inv.lot_number,
                    inv.expiration_date, inv.qty, inv.status::text AS status
             FROM inventory inv JOIN item i ON i.item_id = inv.item_id
-            WHERE inv.location_id = ? AND inv.status IN ('AVAILABLE','ALLOCATED','PICKED')
+            WHERE inv.location_id = ? AND inv.status IN ('AVAILABLE','ALLOCATED')
             ORDER BY inv.expiration_date NULLS LAST
             """, locationId));
         return s;
@@ -192,20 +194,38 @@ public class AssetService {
             FROM equipment WHERE equipment_id = ?
             """, equipmentId);
         e.put("positions", jdbc.queryForList("""
-            SELECT position_no, check_digits FROM equipment_position
-            WHERE equipment_id = ? ORDER BY position_no
-            """, equipmentId));
-        e.put("assignments", jdbc.queryForList("""
-            SELECT a.assignment_id, a.assignment_number, a.assignment_type::text AS assignment_type,
-                   a.status::text AS status, w.wave_number, w.wave_id,
-                   count(t.task_id) AS tasks,
-                   count(t.task_id) FILTER (WHERE t.status = 'COMPLETE') AS done
-            FROM assignment a
+            SELECT ep.position_no, ep.check_digits,
+                   c.container_id, c.barcode, c.container_type::text AS container_type,
+                   o.order_id, o.order_number, w.wave_id, w.wave_number,
+                   COALESCE(sum(t.qty) FILTER (WHERE t.status = 'COMPLETE'), 0) AS confirmed_qty
+            FROM equipment_position ep
+            LEFT JOIN assignment a ON a.equipment_id = ep.equipment_id
+                 AND a.status NOT IN ('COMPLETE','CANCELLED')
+            LEFT JOIN assignment_container ac ON ac.assignment_id = a.assignment_id
+                 AND ac.cart_position = ep.position_no
+            LEFT JOIN container c ON c.container_id = ac.container_id
+            LEFT JOIN customer_order o ON o.order_id = ac.order_id
             LEFT JOIN wave w ON w.wave_id = a.wave_id
             LEFT JOIN assignment_task t ON t.assignment_id = a.assignment_id
-            WHERE a.equipment_id = ?
-            GROUP BY a.assignment_id, w.wave_number, w.wave_id
-            ORDER BY a.created_at DESC LIMIT 20
+                 AND t.cart_position = ep.position_no
+            WHERE ep.equipment_id = ?
+            GROUP BY ep.position_no, ep.check_digits, c.container_id, o.order_id, w.wave_id
+            ORDER BY ep.position_no
+            """, equipmentId));
+        // Operator uses: who had this unit and when. Assignment/wave detail
+        // intentionally omitted — the checkout log is about custody, not work.
+        e.put("uses", jdbc.queryForList("""
+            SELECT ec.checkout_id, u.user_id, u.display_name,
+                   ec.checked_out_at, ec.checked_in_at,
+                   round(EXTRACT(EPOCH FROM (COALESCE(ec.checked_in_at, now()) - ec.checked_out_at)) / 3600.0, 1) AS hours
+            FROM equipment_checkout ec JOIN app_user u ON u.user_id = ec.user_id
+            WHERE ec.equipment_id = ?
+            ORDER BY ec.checked_out_at DESC LIMIT 20
+            """, equipmentId));
+        e.put("openCheckout", jdbc.queryForList("""
+            SELECT ec.checkout_id, u.user_id, u.display_name, ec.checked_out_at
+            FROM equipment_checkout ec JOIN app_user u ON u.user_id = ec.user_id
+            WHERE ec.equipment_id = ? AND ec.checked_in_at IS NULL
             """, equipmentId));
         return e;
     }
@@ -224,14 +244,23 @@ public class AssetService {
                    check_digits, reusable, tare_weight_kg, max_weight_kg, active
             FROM container WHERE container_id = ?
             """, containerId);
-        c.put("trips", jdbc.queryForList("""
-            SELECT ac.assignment_id, a.assignment_number, ac.cart_position, ac.order_id,
-                   o.order_number, a.status::text AS status
+        // Confirmed contents: what has actually been picked into this
+        // container, linked to the order and wave it serves.
+        c.put("contents", jdbc.queryForList("""
+            SELECT i.item_id, i.sku::text AS sku, i.description,
+                   sum(t.qty) AS qty, ac.order_id, o.order_number,
+                   w.wave_id, w.wave_number, ac.cart_position,
+                   a.assignment_id, a.assignment_number
             FROM assignment_container ac
             JOIN assignment a ON a.assignment_id = ac.assignment_id
             JOIN customer_order o ON o.order_id = ac.order_id
+            LEFT JOIN wave w ON w.wave_id = a.wave_id
+            JOIN assignment_task t ON t.assignment_id = ac.assignment_id
+                 AND t.cart_position = ac.cart_position AND t.status = 'COMPLETE'
+            JOIN item i ON i.item_id = t.item_id
             WHERE ac.container_id = ?
-            ORDER BY a.created_at DESC LIMIT 20
+            GROUP BY i.item_id, ac.order_id, o.order_number, w.wave_id, ac.cart_position, a.assignment_id
+            ORDER BY a.created_at DESC, i.sku
             """, containerId));
         return c;
     }
@@ -297,6 +326,112 @@ public class AssetService {
             """, siteId, q);
     }
 
+    // ----------------------------- pallets & lots -----------------------------
+
+    /** Pallets: LPN-identified inventory. Search by LPN prefix. */
+    public List<Map<String, Object>> pallets(UUID siteId, String q) {
+        return jdbc.queryForList("""
+            SELECT inv.inventory_id, inv.lpn, inv.status::text AS status,
+                   inv.qty, inv.original_qty, inv.lot_number, inv.expiration_date,
+                   i.item_id, i.sku::text AS sku, i.description,
+                   l.location_id, l.code AS location_code, l.loc_type::text AS loc_type,
+                   tag_of(l.temp_zone::text) AS tag, css_of(l.temp_zone::text) AS css,
+                   m.manifest_id, m.manifest_number
+            FROM inventory inv
+            JOIN item i ON i.item_id = inv.item_id
+            LEFT JOIN location l ON l.location_id = inv.location_id
+            LEFT JOIN receiving_manifest m ON m.manifest_id = inv.received_from_manifest
+            WHERE inv.site_id = ? AND (? = '' OR inv.lpn ILIKE ? || '%')
+            ORDER BY inv.created_at DESC, inv.lpn LIMIT 60
+            """, siteId, q, q);
+    }
+
+    /** One pallet: lineage, attributes, and everywhere it has been. */
+    public Map<String, Object> pallet(UUID inventoryId) {
+        Map<String, Object> pal = jdbc.queryForMap("""
+            SELECT inv.inventory_id, inv.site_id, inv.lpn, inv.status::text AS status,
+                   inv.qty, inv.original_qty, inv.lot_number, inv.expiration_date,
+                   inv.arrival_date, inv.actual_weight_kg, inv.created_at,
+                   i.item_id, i.sku::text AS sku, i.description,
+                   tag_of(i.temp_zone::text) AS item_tag, css_of(i.temp_zone::text) AS item_css,
+                   l.location_id, l.code AS location_code, l.loc_type::text AS loc_type,
+                   tag_of(l.temp_zone::text) AS tag, css_of(l.temp_zone::text) AS css,
+                   m.manifest_id, m.manifest_number
+            FROM inventory inv
+            JOIN item i ON i.item_id = inv.item_id
+            LEFT JOIN location l ON l.location_id = inv.location_id
+            LEFT JOIN receiving_manifest m ON m.manifest_id = inv.received_from_manifest
+            WHERE inv.inventory_id = ?
+            """, inventoryId);
+        // Location history: movements stitched into stays with dwell per stop.
+        pal.put("history", jdbc.queryForList("""
+            WITH stops AS (
+                SELECT mv.created_at AS arrived,
+                       lead(mv.created_at) OVER (ORDER BY mv.created_at) AS departed,
+                       lt.code AS location_code, lt.loc_type::text AS loc_type,
+                       tag_of(lt.temp_zone::text) AS tag, css_of(lt.temp_zone::text) AS css,
+                       mv.movement_type::text AS how, u.display_name AS by_whom, u.user_id
+                FROM (
+                    SELECT created_at, to_location, movement_type, performed_by FROM inventory_movement
+                    WHERE inventory_id = ?
+                    UNION ALL
+                    SELECT inv.created_at, inv.location_id, 'RECEIVE', NULL
+                    FROM inventory inv WHERE inv.inventory_id = ?
+                      AND inv.received_from_manifest IS NOT NULL
+                ) mv
+                LEFT JOIN location lt ON lt.location_id = mv.to_location
+                LEFT JOIN app_user u ON u.user_id = mv.performed_by
+            )
+            SELECT *, round(EXTRACT(EPOCH FROM (COALESCE(departed, now()) - arrived)) / 3600.0, 1) AS hours
+            FROM stops ORDER BY arrived
+            """, inventoryId, inventoryId));
+        return pal;
+    }
+
+    /** Lots: grouped view — one lot can span pallets (and, in the wild,
+     *  receipts). Keyed by (item, lot) which is the practical identity. */
+    public List<Map<String, Object>> lots(UUID siteId, String q) {
+        return jdbc.queryForList("""
+            SELECT inv.lot_number, i.item_id, i.sku::text AS sku, i.description,
+                   tag_of(i.temp_zone::text) AS tag, css_of(i.temp_zone::text) AS css,
+                   min(inv.expiration_date) AS first_expiry,
+                   count(*) AS pallets, sum(inv.qty) AS qty,
+                   min(inv.arrival_date) AS first_arrival, max(inv.arrival_date) AS last_arrival
+            FROM inventory inv JOIN item i ON i.item_id = inv.item_id
+            WHERE inv.site_id = ? AND inv.lot_number IS NOT NULL
+              AND (? = '' OR inv.lot_number ILIKE ? || '%')
+            GROUP BY inv.lot_number, i.item_id
+            ORDER BY min(inv.expiration_date) NULLS LAST, inv.lot_number LIMIT 60
+            """, siteId, q, q);
+    }
+
+    public Map<String, Object> lot(UUID siteId, UUID itemId, String lotNumber) {
+        Map<String, Object> lot = jdbc.queryForMap("""
+            SELECT i.item_id, i.sku::text AS sku, i.description, ? AS lot_number,
+                   tag_of(i.temp_zone::text) AS tag, css_of(i.temp_zone::text) AS css,
+                   min(inv.expiration_date) AS expiration_date,
+                   count(*) AS pallet_count, sum(inv.qty) AS total_qty,
+                   sum(inv.original_qty) AS original_qty,
+                   min(inv.arrival_date) AS first_arrival, max(inv.arrival_date) AS last_arrival
+            FROM inventory inv JOIN item i ON i.item_id = inv.item_id
+            WHERE inv.site_id = ? AND inv.item_id = ? AND inv.lot_number = ?
+            GROUP BY i.item_id
+            """, lotNumber, siteId, itemId, lotNumber);
+        lot.put("pallets", jdbc.queryForList("""
+            SELECT inv.inventory_id, inv.lpn, inv.status::text AS status,
+                   inv.qty, inv.original_qty, inv.expiration_date, inv.arrival_date,
+                   l.code AS location_code, l.loc_type::text AS loc_type,
+                   tag_of(l.temp_zone::text) AS tag, css_of(l.temp_zone::text) AS css,
+                   m.manifest_id, m.manifest_number
+            FROM inventory inv
+            LEFT JOIN location l ON l.location_id = inv.location_id
+            LEFT JOIN receiving_manifest m ON m.manifest_id = inv.received_from_manifest
+            WHERE inv.site_id = ? AND inv.item_id = ? AND inv.lot_number = ?
+            ORDER BY inv.lpn
+            """, siteId, itemId, lotNumber));
+        return lot;
+    }
+
     // ----------------------------- waves & assignments -----------------------------
 
     public List<Map<String, Object>> waves(UUID siteId) {
@@ -348,7 +483,11 @@ public class AssetService {
             """, waveId));
         w.put("orders", jdbc.queryForList("""
             SELECT o.order_id, o.order_number, o.status::text AS status,
-                   c.code AS customer_code, c.name AS customer_name
+                   c.code AS customer_code, c.name AS customer_name,
+                   EXISTS (SELECT 1 FROM assignment_container ac
+                           JOIN assignment a2 ON a2.assignment_id = ac.assignment_id
+                           WHERE ac.order_id = o.order_id
+                             AND a2.status <> 'CANCELLED') AS on_assignment
             FROM wave_order wo
             JOIN customer_order o ON o.order_id = wo.order_id
             JOIN customer c ON c.customer_id = o.customer_id

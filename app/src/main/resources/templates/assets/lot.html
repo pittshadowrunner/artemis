@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head><title th:text="'Artemis · Lot ' + ${l.lot_number}">Lot</title><th:block th:replace="~{fragments :: headcss}"/></head>
+<body>
+<div th:replace="~{fragments :: topbar('assets')}"></div>
+<div class="apage">
+  <div class="crumbtrail"><a th:href="@{/assets(siteId=${siteId})}">ASSETS</a><span class="sep">›</span>
+    <a th:href="@{/assets/lots(siteId=${siteId})}">LOTS</a><span class="sep">›</span><a th:text="${l.lot_number}">L</a></div>
+  <div class="ahead"><span class="eyebrow">Lot</span><h1 class="mono" th:text="${l.lot_number}">LOT</h1>
+    <span class="placard" th:classappend="${l.css}"><span class="tag" th:text="${l.tag}">T</span></span></div>
+
+  <div class="attrs">
+    <div class="attr"><div class="k">Item</div><div class="v">
+      <a class="linkcode" th:href="@{'/assets/items/' + ${l.item_id}(siteId=${siteId})}" th:text="${l.sku}">S</a>
+      <span style="color:var(--ink-soft);font-size:12px" th:text="' · ' + ${l.description}">d</span></div></div>
+    <div class="attr"><div class="k">Expires</div><div class="v" th:text="${l.expiration_date ?: '—'}">-</div></div>
+    <div class="attr"><div class="k">Pallets</div><div class="v big" th:text="${l.pallet_count}">0</div></div>
+    <div class="attr"><div class="k">Original / Available</div>
+      <div class="v big"><span th:text="${l.original_qty != null} ? ${#numbers.formatDecimal(l.original_qty,1,0)} : '?'">0</span>
+        <span style="color:var(--ink-soft)">→</span> <span th:text="${#numbers.formatDecimal(l.total_qty,1,0)}">0</span></div></div>
+    <div class="attr"><div class="k">Arrivals</div><div class="v mono"
+      th:text="${l.first_arrival == l.last_arrival} ? ${l.first_arrival} : (${l.first_arrival} + ' → ' + ${l.last_arrival})">d</div></div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-h"><h3>Pallets In This Lot</h3><div th:replace="~{fragments :: filterbox}"></div></div>
+    <table><thead><tr><th>LPN</th><th class="num">Avail</th><th class="num">Original</th><th>Expires</th><th>Location</th><th>Manifest</th><th>Status</th></tr></thead>
+      <tbody><tr th:each="h : ${l.pallets}">
+        <td><a class="linkcode" th:href="@{'/assets/pallets/' + ${h.inventory_id}(siteId=${siteId})}" th:text="${h.lpn}">L</a></td>
+        <td class="num" th:text="${#numbers.formatDecimal(h.qty,1,0)}">0</td>
+        <td class="num" th:text="${h.original_qty != null} ? ${#numbers.formatDecimal(h.original_qty,1,0)} : '—'">0</td>
+        <td class="mono" th:text="${h.expiration_date ?: '—'}">-</td>
+        <td><span class="placard" th:if="${h.location_code}" th:classappend="${h.css}">
+            <span class="tag" th:text="${h.loc_type == 'RECEIVING_DOCK'} ? 'DCK' : (${h.loc_type == 'CROSS_DOCK'} ? 'XDK' : (${h.loc_type == 'DROP'} ? 'DRP' : ${h.tag}))">T</span>
+            <span class="code" th:text="${h.location_code}">L</span></span>
+            <span th:unless="${h.location_code}" style="color:var(--ink-soft)">on equipment</span></td>
+        <td><a class="linkcode" th:if="${h.manifest_id}" th:href="@{'/receiving/' + ${h.manifest_id}(siteId=${siteId})}" th:text="${h.manifest_number}">M</a><span th:unless="${h.manifest_id}">—</span></td>
+        <td><span class="pill" th:classappend="${h.status == 'AVAILABLE'} ? 'on'" th:text="${h.status}">A</span></td>
+      </tr></tbody></table>
+  </div>
+</div>
+</body></html>

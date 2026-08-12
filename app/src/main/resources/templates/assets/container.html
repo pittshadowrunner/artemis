@@ -34,16 +34,19 @@
   </details>
 
   <div class="panel">
-    <div class="panel-h"><h3>Trips</h3><span class="eyebrow">Cart positions this tote rode in</span></div>
-    <table><thead><tr><th>Assignment</th><th class="num">Position</th><th>Order</th><th>Status</th></tr></thead>
+    <div class="panel-h"><h3>Confirmed Contents</h3><span class="eyebrow">Picked into this container · linked to order and wave</span></div>
+    <table><thead><tr><th>SKU</th><th>Description</th><th class="num">Qty</th><th class="num">Position</th><th>Order</th><th>Wave</th><th>Assignment</th></tr></thead>
       <tbody>
-        <tr th:each="t : ${c.trips}">
-          <td><a class="linkcode" th:href="@{'/assignments/' + ${t.assignment_id}(siteId=${siteId})}" th:text="${t.assignment_number}">A</a></td>
-          <td class="num" th:text="${t.cart_position ?: '—'}">1</td>
+        <tr th:each="t : ${c.contents}">
+          <td><a class="linkcode" th:href="@{'/assets/items/' + ${t.item_id}(siteId=${siteId})}" th:text="${t.sku}">S</a></td>
+          <td th:text="${t.description}">d</td>
+          <td class="num" th:text="${#numbers.formatDecimal(t.qty,1,0)}">0</td>
+          <td class="num mono" th:text="${t.cart_position}">1</td>
           <td class="mono" th:text="${t.order_number}">O</td>
-          <td><span class="status" th:classappend="${t.status == 'COMPLETE'} ? 'open' : 'progress'" th:text="${t.status}">S</span></td>
+          <td><a class="linkcode" th:if="${t.wave_id}" th:href="@{'/waves/' + ${t.wave_id}(siteId=${siteId})}" th:text="${t.wave_number}">W</a><span th:unless="${t.wave_id}">—</span></td>
+          <td><a class="linkcode" th:href="@{'/assignments/' + ${t.assignment_id}(siteId=${siteId})}" th:text="${t.assignment_number}">A</a></td>
         </tr>
-        <tr th:if="${#lists.isEmpty(c.trips)}"><td colspan="4" style="color:var(--ink-soft)">Never inducted onto a cart.</td></tr>
+        <tr th:if="${#lists.isEmpty(c.contents)}"><td colspan="7" style="color:var(--ink-soft)">Empty — nothing confirmed in yet.</td></tr>
       </tbody></table>
   </div>
 </div>

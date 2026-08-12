@@ -27,8 +27,11 @@ public class AssetController {
     private final AssetService assets;
     private final UiService ui;
     private final CapabilityService caps;
+    private final org.springframework.jdbc.core.JdbcTemplate jdbc;
 
-    public AssetController(AssetService assets, UiService ui, CapabilityService caps) {
+    public AssetController(AssetService assets, UiService ui, CapabilityService caps,
+                           org.springframework.jdbc.core.JdbcTemplate jdbc) {
+        this.jdbc = jdbc;
         this.assets = assets; this.ui = ui; this.caps = caps;
     }
 
@@ -100,6 +103,8 @@ public class AssetController {
     public String equipment(@PathVariable UUID id, @RequestParam(required = false) UUID siteId, Model model) {
         site(siteId, model);
         model.addAttribute("e", assets.equipment(id));
+        model.addAttribute("operators", jdbc.queryForList(
+            "SELECT email::text AS email, display_name FROM app_user WHERE sysadmin = false AND active ORDER BY display_name"));
         return "assets/equipment";
     }
 
@@ -127,16 +132,46 @@ public class AssetController {
         return "receiving";
     }
 
-    /** Pallet lookup by LPN: the receiving output is LPN + captured
-     *  attributes + a warehouse location; this makes it findable. */
-    @GetMapping("/lpn")
-    public String lpn(@RequestParam(required = false) String q,
+    /** Pallets: LPN-identified inventory as a first-class asset. */
+    @GetMapping("/assets/pallets")
+    public String pallets(@RequestParam(required = false) String q,
+                          @RequestParam(required = false) UUID siteId, Model model) {
+        UUID s = site(siteId, model);
+        model.addAttribute("q", q == null ? "" : q.trim());
+        model.addAttribute("pallets", assets.pallets(s, q == null ? "" : q.trim()));
+        return "assets/pallets";
+    }
+
+    @GetMapping("/assets/pallets/{id}")
+    public String pallet(@PathVariable UUID id, @RequestParam(required = false) UUID siteId, Model model) {
+        site(siteId, model);
+        model.addAttribute("p", assets.pallet(id));
+        return "assets/pallet";
+    }
+
+    /** Lots: one lot, possibly many pallets. Keyed (item, lot). */
+    @GetMapping("/assets/lots")
+    public String lots(@RequestParam(required = false) String q,
+                       @RequestParam(required = false) UUID siteId, Model model) {
+        UUID s = site(siteId, model);
+        model.addAttribute("q", q == null ? "" : q.trim());
+        model.addAttribute("lots", assets.lots(s, q == null ? "" : q.trim()));
+        return "assets/lots";
+    }
+
+    @GetMapping("/assets/lots/{itemId}/{lot}")
+    public String lot(@PathVariable UUID itemId, @PathVariable String lot,
                       @RequestParam(required = false) UUID siteId, Model model) {
         UUID s = site(siteId, model);
-        model.addAttribute("q", q == null ? "" : q);
-        model.addAttribute("hits", q == null || q.isBlank()
-                ? java.util.List.of() : assets.lpnSearch(s, q.trim()));
-        return "lpn";
+        model.addAttribute("l", assets.lot(s, itemId, lot));
+        return "assets/lot";
+    }
+
+    /** Old bookmark courtesy: /lpn?q= now lives on the Pallets asset screen. */
+    @GetMapping("/lpn")
+    public String lpn(@RequestParam(required = false) String q,
+                      @RequestParam(required = false) UUID siteId) {
+        return "redirect:/assets/pallets?q=" + (q == null ? "" : q) + "&siteId=" + siteId;
     }
 
     @GetMapping("/waves")

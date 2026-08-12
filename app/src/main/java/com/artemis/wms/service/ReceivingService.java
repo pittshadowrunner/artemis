@@ -127,10 +127,10 @@ public class ReceivingService {
         UUID invId = UUID.randomUUID();
         jdbc.update("""
             INSERT INTO inventory (inventory_id, corporation_id, site_id, lpn, item_id, location_id,
-                qty, lot_number, expiration_date, arrival_date, actual_weight_kg, received_from_manifest)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_DATE, ?, ?)
+                qty, original_qty, lot_number, expiration_date, arrival_date, actual_weight_kg, received_from_manifest)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_DATE, ?, ?)
             """, invId, TenantContext.corp(), siteId, lpn, line.get("item_id"), dockId,
-            qty, lot, exp, actualWeight, manifestId);
+            qty, qty, lot, exp, actualWeight, manifestId);
         for (String s : serials)
             jdbc.update("INSERT INTO inventory_serial (inventory_id, serial_number) VALUES (?, ?)", invId, s);
         jdbc.update("""

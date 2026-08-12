@@ -110,58 +110,18 @@ public class WaveService {
             """, waveId);
 
         List<UUID> assignments = new ArrayList<>();
-        for (int chunk = 0; chunk < orders.size(); chunk += positions) {
-            List<Map<String, Object>> batch = orders.subList(chunk, Math.min(chunk + positions, orders.size()));
-            UUID assignmentId = UUID.randomUUID();
-            jdbc.update("""
-                INSERT INTO assignment (assignment_id, corporation_id, site_id, assignment_type, wave_id, equipment_id, assignment_number)
-                VALUES (?, ?, ?, 'SELECTION', ?, ?, 'A-' || to_char(now(),'YYMMDD') || '-' || lpad(nextval('assignment_number_seq')::text, 5, '0'))
-                """, assignmentId, TenantContext.corp(), siteId, waveId, equipmentId);
-
-            int position = 0;
-            Map<UUID, Integer> orderPosition = new HashMap<>();
-            for (Map<String, Object> o : batch) {
-                position++;
-                UUID orderId = (UUID) o.get("order_id");
-                orderPosition.put(orderId, position);
-                jdbc.update("""
-                    INSERT INTO assignment_container (assignment_id, order_id, cart_position)
-                    VALUES (?, ?, ?)
-                    """, assignmentId, orderId, position);
+        if (equipmentId == null) {
+            // Pooled release: the wave and its orders become RELEASED work,
+            // but no assignments exist yet. Put-to stays blank by definition —
+            // positions only make sense once equipment is known. Assignments
+            // get built later (manual combine now; operator work-request later).
+        } else {
+            for (int chunk = 0; chunk < orders.size(); chunk += positions) {
+                List<Map<String, Object>> batch = orders.subList(chunk, Math.min(chunk + positions, orders.size()));
+                assignments.add(buildOne(siteId, waveId,
+                    batch.stream().map(o -> (UUID) o.get("order_id")).toList(),
+                    equipmentId, shippingContainer));
             }
-
-            // merged tasks across the chunk, sorted by pick_sequence — the walk order
-            List<Map<String, Object>> picks = jdbc.queryForList("""
-                SELECT col.order_id, al.allocation_id, al.inventory_id, al.qty, col.item_id,
-                       inv.location_id, l.code AS loc_code, l.check_digits, l.pick_sequence
-                FROM wave_order wo
-                JOIN customer_order_line col ON col.order_id = wo.order_id
-                JOIN allocation al ON al.order_line_id = col.order_line_id
-                JOIN inventory inv ON inv.inventory_id = al.inventory_id
-                JOIN location l ON l.location_id = inv.location_id
-                WHERE wo.wave_id = ? AND wo.order_id = ANY(?)
-                ORDER BY l.pick_sequence ASC NULLS LAST
-                """, waveId,
-                batch.stream().map(o -> (UUID) o.get("order_id")).toArray(UUID[]::new));
-
-            int seq = 0;
-            for (Map<String, Object> p : picks) {
-                seq++;
-                UUID orderId = (UUID) p.get("order_id");
-                int cartPos = orderPosition.get(orderId);
-                String putDigits = putDigits(equipmentId, cartPos, shippingContainer);
-                String prompt = "Pick " + p.get("qty") + " from "
-                        + String.valueOf(p.get("loc_code")).replace("-", " ")
-                        + ", check " + p.get("check_digits")
-                        + (shippingContainer ? ", put to order container" : ", put to position " + cartPos + ", say " + putDigits);
-                jdbc.update("""
-                    INSERT INTO assignment_task (assignment_id, seq, inventory_id, item_id, from_location,
-                        qty, check_digits, put_check_digits, cart_position, spoken_prompt)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    """, assignmentId, seq, p.get("inventory_id"), p.get("item_id"), p.get("location_id"),
-                    p.get("qty"), p.get("check_digits"), putDigits, cartPos, prompt);
-            }
-            assignments.add(assignmentId);
         }
         jdbc.update("UPDATE wave SET status = 'RELEASED', released_at = now() WHERE wave_id = ?", waveId);
         jdbc.update("""
@@ -201,5 +161,119 @@ public class WaveService {
     private List<UUID> uuidList(Object o) {
         if (o == null) return List.of();
         return ((List<Object>) o).stream().map(x -> UUID.fromString(x.toString())).toList();
+    }
+    /** One selection assignment from an ordered set of orders: containers by
+     *  position, merged tasks in pick-path order. Shared by wave release and
+     *  manual combine. */
+    private UUID buildOne(UUID siteId, UUID waveId, List<UUID> orderIds,
+                          UUID equipmentId, boolean shippingContainer) {
+        UUID assignmentId = UUID.randomUUID();
+        jdbc.update("""
+            INSERT INTO assignment (assignment_id, corporation_id, site_id, assignment_type, wave_id, equipment_id, assignment_number)
+            VALUES (?, ?, ?, 'SELECTION', ?, ?, 'A-' || to_char(now(),'YYMMDD') || '-' || lpad(nextval('assignment_number_seq')::text, 5, '0'))
+            """, assignmentId, TenantContext.corp(), siteId, waveId, equipmentId);
+
+        int position = 0;
+        Map<UUID, Integer> orderPosition = new HashMap<>();
+        for (UUID orderId : orderIds) {
+            position++;
+            orderPosition.put(orderId, position);
+            jdbc.update("""
+                INSERT INTO assignment_container (assignment_id, order_id, cart_position)
+                VALUES (?, ?, ?)
+                """, assignmentId, orderId, position);
+        }
+
+        List<Map<String, Object>> picks = jdbc.queryForList("""
+            SELECT col.order_id, al.allocation_id, al.inventory_id, al.qty, col.item_id,
+                   inv.location_id, l.code AS loc_code, l.check_digits, l.pick_sequence
+            FROM customer_order_line col
+            JOIN allocation al ON al.order_line_id = col.order_line_id
+            JOIN inventory inv ON inv.inventory_id = al.inventory_id
+            JOIN location l ON l.location_id = inv.location_id
+            WHERE col.order_id = ANY(?)
+            ORDER BY l.pick_sequence ASC NULLS LAST
+            """, (Object) orderIds.toArray(UUID[]::new));
+
+        int seq = 0;
+        for (Map<String, Object> p : picks) {
+            seq++;
+            UUID orderId = (UUID) p.get("order_id");
+            int cartPos = orderPosition.get(orderId);
+            String putDigits = putDigits(equipmentId, cartPos, shippingContainer);
+            String prompt = "Pick " + p.get("qty") + " from "
+                    + String.valueOf(p.get("loc_code")).replace("-", " ")
+                    + ", check " + p.get("check_digits")
+                    + (shippingContainer ? ", put to order container" : ", put to position " + cartPos + ", say " + putDigits);
+            jdbc.update("""
+                INSERT INTO assignment_task (assignment_id, seq, inventory_id, item_id, from_location,
+                    qty, check_digits, put_check_digits, cart_position, spoken_prompt)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, assignmentId, seq, p.get("inventory_id"), p.get("item_id"), p.get("location_id"),
+                p.get("qty"), p.get("check_digits"), putDigits, cartPos, prompt);
+        }
+        return assignmentId;
+    }
+
+    /** Manual combine: released orders + chosen equipment -> one assignment,
+     *  optionally dispatched to an operator with an explicit priority. */
+    public Map<String, Object> combine(UUID siteId, List<UUID> orderIds, String equipmentCode,
+                                       String userEmail, Integer priority) {
+        if (orderIds == null || orderIds.isEmpty())
+            throw ApiException.badRequest("Pick at least one released order.");
+        Map<String, Object> eq = jdbc.queryForMap(
+            "SELECT equipment_id, container_positions FROM equipment WHERE site_id = ? AND code = ? AND active",
+            siteId, equipmentCode);
+        UUID equipmentId = (UUID) eq.get("equipment_id");
+        int positions = eq.get("container_positions") == null ? 1 : (Integer) eq.get("container_positions");
+        if (orderIds.size() > positions)
+            throw ApiException.badRequest("That unit has " + positions + " position(s) — pick at most that many orders.");
+
+        Integer notReleased = jdbc.queryForObject("""
+            SELECT count(*) FROM customer_order
+            WHERE order_id = ANY(?) AND status <> 'RELEASED'
+            """, Integer.class, (Object) orderIds.toArray(UUID[]::new));
+        if (notReleased != null && notReleased > 0)
+            throw ApiException.conflict("Only RELEASED orders can be combined into an assignment.");
+        Integer alreadyBuilt = jdbc.queryForObject("""
+            SELECT count(*) FROM assignment_container ac
+            JOIN assignment a ON a.assignment_id = ac.assignment_id
+            WHERE ac.order_id = ANY(?) AND a.status NOT IN ('CANCELLED')
+            """, Integer.class, (Object) orderIds.toArray(UUID[]::new));
+        if (alreadyBuilt != null && alreadyBuilt > 0)
+            throw ApiException.conflict("One of those orders is already on an assignment.");
+
+        UUID waveId = jdbc.queryForObject("""
+            SELECT max(wave_id::text)::uuid FROM wave_order WHERE order_id = ANY(?)
+            """, UUID.class, (Object) orderIds.toArray(UUID[]::new));
+
+        // sort by pick-path start so positions follow the walk
+        List<UUID> ordered = jdbc.queryForList("""
+            SELECT col.order_id
+            FROM customer_order_line col
+            JOIN allocation al ON al.order_line_id = col.order_line_id
+            JOIN inventory inv ON inv.inventory_id = al.inventory_id
+            LEFT JOIN location l ON l.location_id = inv.location_id
+            WHERE col.order_id = ANY(?)
+            GROUP BY col.order_id ORDER BY COALESCE(min(l.pick_sequence), 0)
+            """, UUID.class, (Object) orderIds.toArray(UUID[]::new));
+
+        UUID assignmentId = buildOne(siteId, waveId, ordered, equipmentId, false);
+        jdbc.update("""
+            UPDATE assignment a SET priority = COALESCE(?, sub.p) FROM (
+                SELECT max(CASE WHEN it.temp_zone IN ('FROZEN','DEEP_FROZEN') THEN 8
+                                WHEN it.temp_zone = 'REFRIGERATED' THEN 7 ELSE 5 END) AS p
+                FROM assignment_task t JOIN item it ON it.item_id = t.item_id
+                WHERE t.assignment_id = ?) sub
+            WHERE a.assignment_id = ?
+            """, priority, assignmentId, assignmentId);
+        if (userEmail != null && !userEmail.isBlank()) {
+            jdbc.update("""
+                UPDATE assignment SET assigned_to =
+                    (SELECT user_id FROM app_user WHERE email = ?::citext), status = 'ASSIGNED'
+                WHERE assignment_id = ?
+                """, userEmail.trim(), assignmentId);
+        }
+        return Map.of("assignmentId", assignmentId, "orders", ordered.size());
     }
 }

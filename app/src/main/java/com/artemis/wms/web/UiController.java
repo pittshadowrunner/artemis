@@ -51,19 +51,21 @@ public class UiController {
 
     @GetMapping("/")
     public String operations(@RequestParam(required = false) UUID siteId,
-                             @RequestParam(required = false) String lane, Model model) {
+                             @RequestParam(required = false) String lane,
+                             @RequestParam(required = false) String zone, Model model) {
         caps.require(TenantContext.user(), null, Capabilities.DASHBOARD_VIEW);
         UUID site = resolveSite(siteId, model);
         if (site == null) return "empty";
         model.addAttribute("wave", ui.activeWave(site));
         model.addAttribute("lanes", ui.lanes(site));
-        model.addAttribute("lane", lane);
-        switch (lane == null ? "" : lane) {
+        // Work is browsed by workflow, always — an all-workflows pile isn't useful.
+        String effLane = (lane == null || lane.isBlank()) ? "SELECTION" : lane;
+        model.addAttribute("lane", effLane);
+        model.addAttribute("zone", zone == null ? "" : zone);
+        switch (effLane) {
             case "RECEIVING" -> model.addAttribute("manifests", ui.receivingOpen(site));
             case "SHIPPING"  -> model.addAttribute("awaiting", ui.shippingAwaiting(site));
-            case "PUTAWAY", "REPLENISHMENT", "SELECTION" ->
-                model.addAttribute("tasks", ui.openTasks(site, lane, 20));
-            default -> model.addAttribute("tasks", ui.openTasks(site, 20));
+            default -> model.addAttribute("tasks", ui.openTasks(site, effLane, zone, 20));
         }
         model.addAttribute("expiring", ui.expiringLots(site, 6));
         model.addAttribute("zones", ui.zoneOccupancy(site));

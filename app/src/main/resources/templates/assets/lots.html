@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head><title>Artemis · Lots</title><th:block th:replace="~{fragments :: headcss}"/></head>
+<body>
+<div th:replace="~{fragments :: topbar('assets')}"></div>
+<div class="apage">
+  <div class="crumbtrail"><a th:href="@{/assets(siteId=${siteId})}">ASSETS</a><span class="sep">›</span><a>LOTS</a></div>
+  <div class="ahead"><span class="eyebrow">Assets</span><h1>Lots</h1></div>
+  <form method="get" th:action="@{/assets/lots}" class="inlineform" style="margin-bottom:16px">
+    <input type="hidden" name="siteId" th:value="${siteId}">
+    <input name="q" th:value="${q}" placeholder="Lot number or prefix…" class="filterinput" style="min-width:240px">
+    <button class="btn">Search</button>
+  </form>
+  <div class="panel">
+    <div class="panel-h"><h3>Lots On Hand</h3><span class="eyebrow">Keyed by item + lot · soonest expiry first</span></div>
+    <table><thead><tr><th>Lot</th><th>SKU</th><th>Description</th><th>First Expiry</th><th class="num">Pallets</th><th class="num">Qty</th><th>Arrivals</th></tr></thead>
+      <tbody><tr th:each="l : ${lots}">
+        <td><a class="linkcode" th:href="@{'/assets/lots/' + ${l.item_id} + '/' + ${l.lot_number}(siteId=${siteId})}" th:text="${l.lot_number}">l</a></td>
+        <td><a class="linkcode" th:href="@{'/assets/items/' + ${l.item_id}(siteId=${siteId})}" th:text="${l.sku}">S</a></td>
+        <td th:text="${l.description}">d</td>
+        <td class="mono" th:text="${l.first_expiry ?: '—'}">-</td>
+        <td class="num" th:text="${l.pallets}">0</td>
+        <td class="num" th:text="${#numbers.formatDecimal(l.qty,1,0)}">0</td>
+        <td class="mono" style="font-size:11px"
+            th:text="${l.first_arrival == l.last_arrival} ? ${l.first_arrival} : (${l.first_arrival} + ' → ' + ${l.last_arrival})">d</td>
+      </tr>
+      <tr th:if="${#lists.isEmpty(lots)}"><td colspan="7" style="color:var(--ink-soft)">No lots on hand.</td></tr>
+      </tbody></table>
+  </div>
+</div>
+</body></html>

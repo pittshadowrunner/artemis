@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head><title th:text="'Artemis · ' + ${p.lpn}">Pallet</title><th:block th:replace="~{fragments :: headcss}"/></head>
+<body>
+<div th:replace="~{fragments :: topbar('assets')}"></div>
+<div class="apage">
+  <div class="crumbtrail"><a th:href="@{/assets(siteId=${siteId})}">ASSETS</a><span class="sep">›</span>
+    <a th:href="@{/assets/pallets(siteId=${siteId})}">PALLETS</a><span class="sep">›</span><a th:text="${p.lpn}">L</a></div>
+  <div class="ahead"><span class="eyebrow">Pallet</span><h1 class="mono" th:text="${p.lpn}">LPN</h1>
+    <span class="pill" th:classappend="${p.status == 'AVAILABLE'} ? 'on'" th:text="${p.status}">A</span></div>
+
+  <div class="attrs">
+    <div class="attr"><div class="k">Item</div><div class="v">
+      <a class="linkcode" th:href="@{'/assets/items/' + ${p.item_id}(siteId=${siteId})}" th:text="${p.sku}">S</a>
+      <span style="color:var(--ink-soft);font-size:12px" th:text="' · ' + ${p.description}">d</span></div></div>
+    <div class="attr"><div class="k">Lot</div><div class="v">
+      <a class="linkcode" th:if="${p.lot_number}" th:href="@{'/assets/lots/' + ${p.item_id} + '/' + ${p.lot_number}(siteId=${siteId})}" th:text="${p.lot_number}">l</a>
+      <span th:unless="${p.lot_number}">—</span></div></div>
+    <div class="attr"><div class="k">Expires</div><div class="v" th:text="${p.expiration_date ?: '—'}">-</div></div>
+    <div class="attr"><div class="k">Original / Available</div>
+      <div class="v big"><span th:text="${p.original_qty != null} ? ${#numbers.formatDecimal(p.original_qty,1,0)} : '?'">0</span>
+        <span style="color:var(--ink-soft)">→</span> <span th:text="${#numbers.formatDecimal(p.qty,1,0)}">0</span></div></div>
+    <div class="attr"><div class="k">Catch Weight</div><div class="v" th:text="${p.actual_weight_kg != null} ? (${p.actual_weight_kg} + ' kg') : '—'">-</div></div>
+    <div class="attr"><div class="k">Received</div><div class="v">
+      <span class="mono" th:text="${p.arrival_date ?: '—'}">d</span>
+      <a class="linkcode" th:if="${p.manifest_id}" th:href="@{'/receiving/' + ${p.manifest_id}(siteId=${siteId})}" th:text="' · ' + ${p.manifest_number}">M</a></div></div>
+    <div class="attr"><div class="k">Current Location</div><div class="v">
+      <span class="placard" th:if="${p.location_code}" th:classappend="${p.css}">
+        <span class="tag" th:text="${p.loc_type == 'RECEIVING_DOCK'} ? 'DCK' : (${p.loc_type == 'CROSS_DOCK'} ? 'XDK' : (${p.loc_type == 'DROP'} ? 'DRP' : ${p.tag}))">T</span>
+        <span class="code" th:text="${p.location_code}">L</span></span>
+      <span th:unless="${p.location_code}" th:text="${p.status == 'PICKED'} ? 'On equipment (picked)' : 'In transit'">—</span></div></div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-h"><h3>Location History</h3><span class="eyebrow">Every stop, with dwell</span></div>
+    <table><thead><tr><th>Arrived</th><th>Location</th><th class="num">Hours There</th><th>Movement</th><th>By</th></tr></thead>
+      <tbody>
+        <tr th:each="h : ${p.history}">
+          <td class="mono" style="font-size:11px" th:text="${#dates.format(h.arrived,'MM-dd HH:mm')}">t</td>
+          <td><span class="placard" th:if="${h.location_code}" th:classappend="${h.css}">
+              <span class="tag" th:text="${h.loc_type == 'RECEIVING_DOCK'} ? 'DCK' : (${h.loc_type == 'CROSS_DOCK'} ? 'XDK' : (${h.loc_type == 'DROP'} ? 'DRP' : ${h.tag}))">T</span>
+              <span class="code" th:text="${h.location_code}">L</span></span>
+              <span th:unless="${h.location_code}" style="color:var(--ink-soft)">off-slot (picked to equipment)</span></td>
+          <td class="num mono" th:text="${h.hours} + ' h'">0</td>
+          <td class="mono" style="font-size:11px" th:text="${h.how}">m</td>
+          <td><a class="linkcode" th:if="${h.user_id}" th:href="@{'/operators/' + ${h.user_id}(siteId=${siteId})}" th:text="${h.by_whom}">u</a><span th:unless="${h.user_id}">—</span></td>
+        </tr>
+        <tr th:if="${#lists.isEmpty(p.history)}"><td colspan="5" style="color:var(--ink-soft)">No movements recorded.</td></tr>
+      </tbody></table>
+  </div>
+</div>
+</body></html>

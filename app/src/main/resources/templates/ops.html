@@ -106,6 +106,12 @@
     </div>
 
     <div class="panel" th:if="${tasks != null}">
+      <div style="display:flex;gap:6px;padding:12px 16px 0">
+        <a th:each="z : ${ {'', 'DRY', 'CHL', 'FRZ'} }"
+           th:href="@{/(siteId=${siteId}, lane=${lane}, zone=${z})}"
+           class="pill" th:classappend="${zone == z} ? 'on'"
+           th:text="${z == ''} ? 'ALL ZONES' : ${z}">Z</a>
+      </div>
       <div class="panel-h">
         <h3 th:text="${lane != null} ? 'Open Tasks · ' + ${lane} : 'Open Tasks'">Open Tasks</h3>
         <div style="display:flex;gap:12px;align-items:center">
@@ -114,18 +120,21 @@
         </div>
       </div>
       <table>
-        <thead><tr><th>Seq</th><th>Assignment</th><th>Type</th><th>From</th><th>To</th><th>Item / LPN</th><th>Qty</th>
+        <thead><tr><th>Priority</th><th>Assignment</th><th>Type</th><th>From</th><th>To</th><th>Item / LPN</th><th>Qty</th>
           <th th:if="${lane == 'PUTAWAY'}">Waiting</th><th>Check Digits</th><th>Status</th></tr></thead>
         <tbody>
           <tr th:each="t : ${tasks}">
-            <td class="mono" th:text="${#numbers.formatInteger(t.seq, 3)}">001</td>
+            <td class="mono" style="font-weight:600" th:text="'P' + ${t.priority}">P5</td>
             <td><a class="linkcode" th:href="@{'/assignments/' + ${t.assignment_id}(siteId=${siteId})}"
                   th:text="${t.assignment_number}">A</a></td>
             <td><span class="type-chip" th:text="${t.assignment_type == 'REPLENISHMENT'} ? 'REPLEN' : ${t.assignment_type}">TYPE</span></td>
             <td><span class="placard" th:classappend="${t.from_css}"><span class="tag" th:text="${t.from_tag}">TAG</span><span class="code" th:text="${t.from_code}">LOC</span></span></td>
             <td><span class="placard" th:if="${t.to_code != null}" th:classappend="${t.to_css}"><span class="tag" th:text="${t.to_tag}">TAG</span><span class="code" th:text="${t.to_code}">LOC</span></span>
                 <span th:if="${t.to_code == null}" style="color:var(--ink-soft)">—</span></td>
-            <td th:utext="${t.item} + (${t.lot_number != null} ? ' <span class=&quot;mono&quot; style=&quot;color:var(--ink-soft)&quot;>· LOT ' + ${t.lot_number} + '</span>' : (${t.lpn != null} ? ' <span class=&quot;mono&quot; style=&quot;color:var(--ink-soft)&quot;>· LPN ' + ${t.lpn} + '</span>' : ''))">Item</td>
+            <td><span th:text="${t.item}">Item</span>
+                <a class="linkcode mono" style="font-size:11px" th:if="${t.inventory_id}"
+                   th:href="@{'/assets/pallets/' + ${t.inventory_id}(siteId=${siteId})}"
+                   th:text="'· ' + ${t.lpn}">L</a></td>
             <td class="mono" th:text="${#numbers.formatDecimal(t.qty,1,0)} + ' CS'">0</td>
             <td th:if="${lane == 'PUTAWAY'}" class="mono"
                 th:style="${t.wait_hours != null and t.wait_hours > 4} ? 'color:var(--danger);font-weight:600' : ''"
@@ -159,6 +168,6 @@
   </aside>
 </div>
 
-<footer>Snapshot on load · <span th:text="${asOf}">now</span> · Backed by the same views as /api/v1/metrics — the UI is just another client.</footer>
+<footer>Snapshot on load · <span th:text="${asOf}">now</span></footer>
 </body>
 </html>

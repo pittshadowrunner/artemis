@@ -26,14 +26,13 @@
     </form>
   </details>
   <div class="panel"><div class="panel-h"><h3>Fleet</h3><div th:replace="~{fragments :: filterbox}"></div></div><table>
-    <thead><tr><th>Code</th><th>Type</th><th>Check Digits</th><th class="num">Positions</th><th>Capabilities</th><th>Carried LPN</th><th>Status</th></tr></thead>
+    <thead><tr><th>Code</th><th>Type</th><th>Check Digits</th><th class="num">Positions</th><th>Capabilities</th><th>Status</th></tr></thead>
     <tbody><tr th:each="e : ${equipment}">
       <td><a class="linkcode" th:href="@{'/assets/equipment/' + ${e.equipment_id}(siteId=${siteId})}" th:text="${e.code}">C</a></td>
       <td class="mono" style="font-size:11px" th:text="${e.equipment_type}">CART</td>
       <td class="check"><b th:text="${e.check_digits ?: '—'}">00</b></td>
       <td class="num" th:text="${e.container_positions ?: '—'}">0</td>
       <td class="mono" style="font-size:11px" th:text="${e.capabilities != null} ? ${#strings.arrayJoin(e.capabilities, ', ')} : '—'">—</td>
-      <td class="mono" th:text="${e.lpn ?: '—'}">—</td>
       <td><span class="pill" th:classappend="${e.active} ? 'on' : 'off'" th:text="${e.active} ? 'ACTIVE' : 'RETIRED'">A</span></td>
     </tr>
     <tr th:if="${#lists.isEmpty(equipment)}"><td colspan="7" style="color:var(--ink-soft)">No equipment registered — <span class="mono">POST /api/v1/equipment</span>.</td></tr>

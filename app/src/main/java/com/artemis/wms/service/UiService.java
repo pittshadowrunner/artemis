@@ -81,8 +81,12 @@ public class UiService {
     }
 
     public List<Map<String, Object>> openTasks(UUID siteId, String type, int limit) {
+        return openTasks(siteId, type, null, limit);
+    }
+
+    public List<Map<String, Object>> openTasks(UUID siteId, String type, String zone, int limit) {
         return jdbc.queryForList("""
-            SELECT t.seq, a.assignment_id, a.assignment_number,
+            SELECT a.priority, a.assignment_id, a.assignment_number,
                    a.assignment_type::text AS assignment_type, t.status::text AS status,
                    lf.code  AS from_code,
                    CASE lf.loc_type::text WHEN 'RECEIVING_DOCK' THEN 'DCK' WHEN 'DROP' THEN 'DRP'
@@ -97,7 +101,7 @@ public class UiService {
                         WHEN lt.loc_type::text = 'DROP' THEN 'DRP'
                         ELSE tag_of(lt.temp_zone::text) END AS to_tag,
                    COALESCE(css_of(lt.temp_zone::text), '') AS to_css,
-                   COALESCE(it.description, '') AS item, i.lpn, i.lot_number, t.qty,
+                   COALESCE(it.description, '') AS item, i.inventory_id, i.lpn, i.lot_number, t.qty,
                    COALESCE(t.put_check_digits, t.check_digits) AS say_digits,
                    round(EXTRACT(EPOCH FROM (now() - a.created_at)) / 3600.0, 1) AS wait_hours
             FROM assignment_task t
@@ -112,8 +116,13 @@ public class UiService {
                 case "REPLENISHMENT" -> "REPLENISHMENT";
                 case "SELECTION" -> "SELECTION";
                 default -> throw new IllegalArgumentException("bad lane");
+            } + "' ") + " " + (zone == null || zone.isBlank() ? "" : " AND it.temp_zone = '" + switch (zone) {
+                case "DRY" -> "AMBIENT";
+                case "CHL" -> "REFRIGERATED";
+                case "FRZ" -> "FROZEN";
+                default -> null;
             } + "' ") + " " + """
-            ORDER BY lf.pick_sequence ASC NULLS LAST, t.seq
+            ORDER BY a.priority DESC, lf.pick_sequence ASC NULLS LAST, t.seq
             LIMIT ?
             """, siteId, limit);
     }

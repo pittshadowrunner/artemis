@@ -115,18 +115,18 @@ public class SelectionService {
             pickedRecord = UUID.randomUUID();
             jdbc.update("""
                 INSERT INTO inventory (inventory_id, corporation_id, site_id, lpn, item_id, location_id,
-                    qty, status, lot_number, expiration_date, arrival_date, actual_weight_kg)
-                SELECT ?, corporation_id, site_id, lpn || '-P' || substr(?::text, 1, 4), item_id, location_id,
-                    ?, 'PICKED', lot_number, expiration_date, arrival_date, actual_weight_kg
+                    qty, original_qty, status, lot_number, expiration_date, arrival_date, actual_weight_kg)
+                SELECT ?, corporation_id, site_id, lpn || '-P' || substr(?::text, 1, 4), item_id, NULL,
+                    ?, ?, 'PICKED', lot_number, expiration_date, arrival_date, actual_weight_kg
                 FROM inventory WHERE inventory_id = ?
-                """, pickedRecord, pickedRecord, pickedQty, inventoryId);
+                """, pickedRecord, pickedRecord, pickedQty, pickedQty, inventoryId);
             jdbc.update("""
                 UPDATE inventory SET qty = qty - ?, status = 'AVAILABLE', updated_at = now()
                 WHERE inventory_id = ?
                 """, pickedQty, inventoryId);
         } else {
             pickedRecord = inventoryId;
-            jdbc.update("UPDATE inventory SET status = 'PICKED', updated_at = now() WHERE inventory_id = ?", inventoryId);
+            jdbc.update("UPDATE inventory SET status = 'PICKED', location_id = NULL, updated_at = now() WHERE inventory_id = ?", inventoryId);
         }
         jdbc.update("""
             INSERT INTO inventory_movement (inventory_id, from_location, qty, movement_type, performed_by, assignment_id)
