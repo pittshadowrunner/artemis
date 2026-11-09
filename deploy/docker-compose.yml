@@ -1,4 +1,6 @@
-# Artemis WMS — LAN-only beta stack
+# Artemis WMS — LAN-only tinker stack (Portainer Git stack, build from source)
+# No Caddy, no Watchtower, no public exposure: the app binds to the NAS's
+# LAN address only. Rebuild = Portainer "Pull and redeploy".
 services:
   db:
     image: postgres:16
@@ -9,6 +11,8 @@ services:
       POSTGRES_PASSWORD: ${DB_PASSWORD}
     volumes:
       - pgdata:/var/lib/postgresql/data
+    networks:
+      - artemis_net
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d wms"]
       interval: 10s
@@ -16,10 +20,10 @@ services:
       retries: 5
 
   app:
-    image: ghcr.io/${GHCR_OWNER}/artemis-wms:latest
+    build:
+      context: ./app            # adjust if the Dockerfile lives at repo root
+      dockerfile: Dockerfile
     restart: unless-stopped
-    ports:
-      - "8085:8080"
     depends_on:
       db:
         condition: service_healthy
@@ -27,10 +31,14 @@ services:
       DB_URL: jdbc:postgresql://db:5432/wms
       DB_USER: ${DB_USER}
       DB_PASSWORD: ${DB_PASSWORD}
-      SPRING_PROFILES_ACTIVE: local-auth
-      MAILGUN_API_KEY: ${MAILGUN_API_KEY:-}
-      MAILGUN_DOMAIN: ${MAILGUN_DOMAIN:-}
-      MAILGUN_FROM: ${MAILGUN_FROM:-alerts@artemis.local}
+      SPRING_PROFILES_ACTIVE: local-auth   # LAN sandbox: no IdP, use admin@artemis.local
+    ports:
+      - "192.168.1.5:8085:8080"            # LAN interface only — not reachable from outside
+    networks:
+      - artemis_net
+
+networks:
+  artemis_net:
 
 volumes:
   pgdata:
