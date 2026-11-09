@@ -2,7 +2,7 @@
 
 ## Stack (locked)
 
-Java 21 LTS + Spring Boot 3.3 packaged as WAR on Tomcat 10.1 (or embedded Tomcat — see Decision 1), PostgreSQL 16, Caddy 2 for automatic HTTPS, Docker Compose managed through Portainer, GitHub + GitHub Actions for CI (builds the app image, pushes to GHCR, Watchtower pulls updates daily). Flyway for schema migrations so the database evolves through versioned SQL in the repo. Mailgun for transactional email (verification, password reset).
+Java 21 LTS + Spring Boot 3.3 packaged as WAR on Tomcat 10.1 (or embedded Tomcat — see Decision 1), PostgreSQL 16, Caddy 2 for automatic HTTPS, Docker Compose managed through Portainer as a Git stack (Portainer clones the repo and builds the image on the host — no container registry), GitHub Actions for CI (build + test only). Flyway for schema migrations so the database evolves through versioned SQL in the repo. Mailgun for transactional email (verification, password reset).
 
 ## Architecture principles
 
@@ -45,7 +45,7 @@ Java 21 LTS + Spring Boot 3.3 packaged as WAR on Tomcat 10.1 (or embedded Tomcat
 ```
 wms/
 ├── db/            # Flyway migrations (schema.sql becomes V1__init.sql)
-├── deploy/        # docker-compose.yml, Caddyfile, .env.example
+├── docker-compose.yml, Dockerfile.caddy, Caddyfile   # at repo root
 ├── app/           # Spring Boot service (M1)
 ├── scripts/       # beta API push scripts (locations, inventory)
 └── docs/

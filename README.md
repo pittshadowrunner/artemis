@@ -27,11 +27,14 @@ balances → receive → putaway → order → allocate → wave → pick → dr
 ## Repo layout
 
 ```
-db/        Flyway migrations V1–V8 (also packaged into the app)
+db/        Flyway migrations V1–V17 (also packaged into the app)
 app/       Spring Boot service (pom.xml, Dockerfile)
-deploy/    docker-compose.yml, Caddyfile, .env.example
 scripts/   smoke-test.sh — full e2e beta scenario against a live instance
 docs/      API contracts, design notes, UI mockups, upload templates
+
+docker-compose.yml   Portainer Git stack (root, like the other stacks)
+Dockerfile.caddy     bakes Caddyfile into an image
+Caddyfile            standalone edge config (parked behind the "edge" profile)
 ```
 
 ## Run locally
@@ -47,11 +50,58 @@ curl -u admin@artemis.local:admin localhost:8080/api/v1/notifications/count
 
 ## Deploy
 
-`deploy/` is a Portainer-ready compose stack: Postgres 16, the app image from
-GHCR, Caddy (automatic HTTPS), Watchtower (daily image pulls). Copy
-`.env.example` → `.env`, set the domain and secrets, `docker compose up -d`.
-CI (`.github/workflows/ci.yml`) builds, tests against a Postgres service
-container, and pushes `ghcr.io/<owner>/artemis-wms`.
+A Portainer **Git stack**, deployed exactly like sweetkeepsake, trapleague and
+squires-site: Portainer clones this repo with a fine-grained GitHub token and
+**builds the image on the host**. There is no container registry in the loop,
+so the only GitHub credential involved is the repo read token.
+
+Portainer → Stacks → Add stack → Repository:
+
+| | |
+|---|---|
+| Repository URL | this repo |
+| Compose path | `docker-compose.yml` |
+| Authentication | the same fine-grained token as the other stacks (Contents: Read) |
+
+Environment variables (Portainer's env var table — **not** a `.env` file):
+
+```
+DB_PASSWORD      required, do not leave the compose default
+MAILGUN_API_KEY
+MAILGUN_DOMAIN   mail.squiresenterprisesllc.com
+MAILGUN_FROM     Artemis WMS <artemis@mail.squiresenterprisesllc.com>
+```
+
+Leave `COMPOSE_PROFILES` unset. The `caddy` service is parked behind the
+`edge` profile because the squires stack owns 80/443 for the whole host —
+same pattern as trapleague and sweetkeepsake.
+
+`edge_net` must already exist on the host (it does). `artemis-app` joins it,
+so the day you want the app public, the only change is one block in the
+squires stack's Caddyfile:
+
+```
+wms.squiresenterprisesllc.com {
+    tls {$ACME_EMAIL}
+    reverse_proxy artemis-app:8080
+    import hardening
+    request_body {
+        max_size 50MB
+    }
+}
+```
+
+plus the DNS A record for `wms`. Until then the app is reachable only from
+inside Docker — uncomment the temporary `ports: "8081:8080"` mapping in the
+compose file if you want to hit it from the LAN while testing.
+
+**Updating**: edit, push, redeploy the stack. Portainer re-pulls the repo and
+rebuilds the image. The first build downloads the Maven dependency tree
+(several minutes, ~1 GB of layer cache); later builds reuse it unless
+`pom.xml` changes.
+
+CI (`.github/workflows/ci.yml`) builds and tests against a Postgres service
+container and verifies the runtime image builds. It publishes nothing.
 
 ## Milestones
 
