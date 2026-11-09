@@ -1,26 +1,45 @@
 spring:
   application:
     name: artemis-wms
-  datasource:
-    url: ${DB_URL:jdbc:postgresql://localhost:5432/wms}
-    username: ${DB_USER:wms}
-    password: ${DB_PASSWORD:wms}
   flyway:
     enabled: true
-    baseline-on-migrate: true
   servlet:
     multipart:
       max-file-size: 50MB
       max-request-size: 50MB
+
+server:
+  port: 8080
+  forward-headers-strategy: native   # behind Caddy
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
 springdoc:
   api-docs:
     path: /api-docs
   swagger-ui:
     path: /api-docs/ui
+
 artemis:
-  mailgun:
-    api-key: ${MAILGUN_API_KEY:}
-    domain: ${MAILGUN_DOMAIN:}
-    from: ${MAILGUN_FROM:alerts@artemis-wms.local}
-  replen:
-    scan-fixed-delay-ms: 60000
+  db:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/artemis}
+    user: ${DB_USER:artemis_app}
+    password: ${DB_PASSWORD:artemis}
+    pool-size: ${DB_POOL_SIZE:10}
+  bootstrap:
+    # First boot only: if no users exist, create this platform sysadmin.
+    sysadmin-email: ${BOOTSTRAP_SYSADMIN_EMAIL:}
+    sysadmin-password: ${BOOTSTRAP_SYSADMIN_PASSWORD:}
+  mail:
+    mailgun-api-key: ${MAILGUN_API_KEY:}
+    mailgun-domain: ${MAILGUN_DOMAIN:}
+    from: ${MAIL_FROM:Artemis WMS <artemis@mail.squiresenterprisesllc.com>}
+    drain-fixed-delay-ms: 30000

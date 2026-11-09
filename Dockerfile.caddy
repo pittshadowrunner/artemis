@@ -1,4 +1,0 @@
-# Caddy config baked into the image — no single-file bind mounts, which
-# is the same workaround the other stacks use for the NAS filesystem.
-FROM caddy:2-alpine
-COPY Caddyfile /etc/caddy/Caddyfile

@@ -1,0 +1,9 @@
+<html xmlns:th="http://www.thymeleaf.org" th:replace="~{layout :: page(~{::title}, ~{::main})}">
+<head><title>Notifications — Artemis WMS</title></head>
+<body><main>
+  <h1>Notifications<small th:text="|${unread} unread|"></small></h1>
+  <form th:action="@{/ui/notifications/read-all}" method="post" class="subnav"><button class="secondary" type="submit">Mark all read</button></form>
+  <div class="panel"><table>
+    <tr th:each="n : ${notifications}" th:style="${n.read_at == null} ? 'font-weight:600'"><td class="small nowrap muted" th:text="${fmt.dt(n.created_at, 'MM-dd HH:mm')}"></td><td th:text="${n.title}"></td><td th:text="${n.body}"></td><td><a th:if="${n.link}" th:href="${n.link}">open</a></td></tr></table>
+    <p class="empty" th:if="${#lists.isEmpty(notifications)}">Nothing yet.</p></div>
+</main></body></html>

@@ -1,0 +1,13 @@
+<html xmlns:th="http://www.thymeleaf.org" th:replace="~{layout :: page(~{::title}, ~{::main})}">
+<head><title>Items — Artemis WMS</title></head>
+<body><main>
+  <h1>Items<small th:text="|${#lists.size(items)} shown|"></small></h1>
+  <form th:action="@{/items}" method="get" class="inline" style="margin-bottom:1rem"><input name="q" th:value="${q}" placeholder="SKU or description"><button type="submit" class="secondary">Search</button></form>
+  <div class="panel"><table><tr><th>SKU</th><th>Description</th><th>Zone</th><th>Pack</th><th>Tracking</th><th>Vel</th><th>Base</th></tr>
+    <tr th:each="i : ${items}"><td><a th:href="@{/items/{s}(s=${i.sku})}" class="loc" th:text="${i.sku}"></a></td><td th:text="${i.description}"></td>
+      <td><span class="tag" th:classappend="${#strings.toLowerCase(i.temp_zone) == 'frozen'} ? 'frozen' : (${#strings.toLowerCase(i.temp_zone) == 'refrigerated'} ? 'chill')" th:text="${i.zone_tag}"></span></td>
+      <td class="small" th:text="|${i.case_pack_qty != null ? i.case_pack_qty + '/CS' : ''} ${i.pallet_ti != null ? i.pallet_ti + '×' + i.pallet_hi : ''}|"></td>
+      <td class="small" th:text="|${i.lot_tracked ? 'lot ' : ''}${i.expiry_tracked ? 'expiry ' : ''}${i.serial_tracked ? 'serial ' : ''}${i.catch_weight ? 'catch-wt' : ''}|"></td>
+      <td th:text="${i.velocity_class}"></td><td class="mono small" th:text="${i.base_item_sku}"></td></tr></table>
+    <p class="empty" th:if="${#lists.isEmpty(items)}">No items — load with <code>ops/artemis import</code> or <code>POST /api/v1/items/upload</code>.</p></div>
+</main></body></html>

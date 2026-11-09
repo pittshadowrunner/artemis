@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+# Artemis WMS operator CLI — a thin wrapper over the API. Nothing here touches
+# the database directly: no psql, no docker cp, no UUID hunting.
+#
+#   ARTEMIS_URL   base URL           (default http://localhost:8085)
+#   ARTEMIS_USER  login email        (default sysadmin@artemis.local)
+#   ARTEMIS_PASS  password           (prompted if unset)
+#   ARTEMIS_CORP  corporation id     (sysadmins only; selects the tenant)
+#
+#   artemis import <file.yaml>            apply a declarative document (idempotent)
+#   artemis me                            who am I, which tenant, which grants
+#   artemis corporations                  list tenants (sysadmin)
+#   artemis sites                         list sites in the current tenant
+#   artemis wipe <corpId> [operations|all]  wipe tenant data (sysadmin; confirms with corp code)
+#   artemis get <path>                    GET any /api/v1 path, e.g. get lpn/PLT-0001
+#   artemis post <path> <json>            POST any /api/v1 path
+set -euo pipefail
+URL="${ARTEMIS_URL:-http://localhost:8085}"
+USER="${ARTEMIS_USER:-sysadmin@artemis.local}"
+if [ -z "${ARTEMIS_PASS:-}" ]; then read -rsp "Password for $USER: " ARTEMIS_PASS; echo; fi
+CORP_HDR=()
+[ -n "${ARTEMIS_CORP:-}" ] && CORP_HDR=(-H "X-Artemis-Corporation: $ARTEMIS_CORP")
+
+pretty() { if command -v jq >/dev/null 2>&1; then jq .; else cat; echo; fi; }
+call() { # method path [curl args...]
+  local m="$1" p="$2"; shift 2
+  curl -sS -u "$USER:$ARTEMIS_PASS" "${CORP_HDR[@]}" -X "$m" "$URL/api/v1/$p" "$@"
+}
+
+cmd="${1:-}"; shift || true
+case "$cmd" in
+  import)
+    f="${1:?usage: artemis import <file.yaml>}"
+    call POST import -H "Content-Type: application/yaml" --data-binary "@$f" | pretty ;;
+  me)            call GET users/me | pretty ;;
+  corporations)  call GET org/corporations | pretty ;;
+  sites)         call GET org/sites | pretty ;;
+  wipe)
+    id="${1:?usage: artemis wipe <corpId> [operations|all]}"; scope="${2:-operations}"
+    code=$(call GET "org/$id" | sed -n 's/.*"code":"\([^"]*\)".*/\1/p')
+    echo "About to wipe scope=$scope for corporation $code ($id)."
+    read -rp "Type the corporation code to confirm: " confirm
+    call DELETE "admin/tenants/$id/data?scope=$scope&confirm=$confirm" | pretty ;;
+  get)           call GET "${1:?path}" | pretty ;;
+  post)          body="${2:-}"; [ -z "$body" ] && body='{}'
+                 call POST "${1:?path}" -H "Content-Type: application/json" -d "$body" | pretty ;;
+  *) sed -n '2,20p' "$0"; exit 1 ;;
+esac

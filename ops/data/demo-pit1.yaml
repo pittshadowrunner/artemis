@@ -1,0 +1,96 @@
+# Demo dataset for PIT1 — dates are relative (today+N) so the file never ages out.
+# — customers, items across three temp zones, racking,
+# docks, equipment, opening balances and an inbound manifest. Apply after
+# hierarchy.example.yaml. Re-applying is safe.
+corporation: { code: SQE, name: Squires Enterprises LLC }
+
+customers:
+  - { code: GIANT-EAGLE-012, name: 'Giant Eagle #012', city: Canonsburg, stateProvince: PA, routeCode: R1, stopSequence: 1, minShelfLifeDays: 10 }
+  - { code: SHOP-N-SAVE-07, name: "Shop 'n Save #07", city: Washington, stateProvince: PA, routeCode: R1, stopSequence: 2 }
+  - { code: PRIMANTI-STRIP, name: 'Primanti Bros — Strip District', city: Pittsburgh, stateProvince: PA, routeCode: R2, stopSequence: 1, minShelfLifeDays: 5 }
+
+items:
+  - { sku: DRY-1001, description: Heinz Ketchup 20oz, tempZone: AMBIENT, casePackQty: 12, palletTi: 10, palletHi: 5, velocityClass: A, weightKg: 0.62 }
+  - { sku: DRY-1002, description: Barilla Penne 1lb, tempZone: AMBIENT, casePackQty: 20, palletTi: 8, palletHi: 6, velocityClass: A, weightKg: 0.45 }
+  - { sku: DRY-1003, description: Peanut Butter 16oz, tempZone: AMBIENT, casePackQty: 12, palletTi: 10, palletHi: 5, velocityClass: B, allergens: [PEANUT] }
+  - { sku: DRY-1004, description: Basmati Rice 10lb, tempZone: AMBIENT, casePackQty: 4, palletTi: 6, palletHi: 6, velocityClass: C, weightKg: 4.54 }
+  - { sku: CHL-2001, description: Whole Milk 1gal, tempZone: REFRIGERATED, casePackQty: 4, palletTi: 12, palletHi: 4, velocityClass: A, expiryTracked: true, lotTracked: true, shelfLifeDays: 21, dateLabel: SELL_BY, allergens: [MILK] }
+  - { sku: CHL-2002, description: Cheddar Block 5lb, tempZone: REFRIGERATED, casePackQty: 6, palletTi: 10, palletHi: 5, velocityClass: B, expiryTracked: true, lotTracked: true, shelfLifeDays: 90, catchWeight: true, nominalWeightKg: 2.27, allergens: [MILK] }
+  - { sku: CHL-2003, description: Greek Yogurt 32oz, tempZone: REFRIGERATED, casePackQty: 6, palletTi: 12, palletHi: 5, velocityClass: A, expiryTracked: true, lotTracked: true, shelfLifeDays: 45, dateLabel: USE_BY }
+  - { sku: FRZ-3001, description: Chicken Breast 40lb, tempZone: FROZEN, casePackQty: 1, palletTi: 8, palletHi: 6, velocityClass: A, expiryTracked: true, lotTracked: true, shelfLifeDays: 365, catchWeight: true, nominalWeightKg: 18.14 }
+  - { sku: FRZ-3002, description: French Fries 6/5lb, tempZone: FROZEN, casePackQty: 6, palletTi: 7, palletHi: 6, velocityClass: A, expiryTracked: true, shelfLifeDays: 540 }
+  - { sku: FRZ-3003, description: Ice Cream Vanilla 3gal, tempZone: FROZEN, casePackQty: 1, palletTi: 9, palletHi: 5, velocityClass: B, expiryTracked: true, lotTracked: true, shelfLifeDays: 270, allergens: [MILK] }
+
+sites:
+  - site: PIT1
+    locations:
+      - { code: DOCK-R1, locType: RECEIVING_DOCK }
+      - { code: DOCK-R2, locType: RECEIVING_DOCK }
+      - { code: DOCK-S1, locType: SHIPPING_DOCK }
+      - { code: DROP-01, locType: DROP }
+      - { code: DROP-02, locType: DROP }
+      - { code: STAGE-01, locType: STAGING }
+      # pick faces: a STANDARD slot with replenSku set (the racks below keep these fields)
+      - { code: D-A-1-01-A, replenSku: DRY-1001, replenMinQty: 10, replenTriggerQty: 20, replenMaxQty: 40 }
+      - { code: D-A-1-02-A, replenSku: DRY-1002, replenMinQty: 10, replenTriggerQty: 20, replenMaxQty: 60 }
+      - { code: C-A-1-03-A, tempZone: REFRIGERATED, replenSku: CHL-2001, replenMinQty: 12, replenTriggerQty: 24, replenMaxQty: 48 }
+      - { code: F-A-1-03-A, tempZone: FROZEN, replenSku: FRZ-3001, replenMinQty: 8, replenTriggerQty: 16, replenMaxQty: 48 }
+    racks:                                       # Zone-Aisle-Level-Column-Slot → sequence derived
+      - { zone: D, aisles: [A, B], levels: 1-3, columns: 1-6, slots: [A, B], tempZone: AMBIENT, area: DRY, rackType: SELECTIVE }
+      - { zone: C, aisles: [A], levels: 1-2, columns: 1-6, slots: [A, B], tempZone: REFRIGERATED, area: COOLER, rackType: SELECTIVE }
+      - { zone: F, aisles: [A], levels: 1-2, columns: 1-6, slots: [A, B], tempZone: FROZEN, area: FREEZER, rackType: SELECTIVE }
+    equipment:
+      - { code: CART-01, type: CART, positions: 6, capabilities: [COLD_RATED] }
+      - { code: CART-02, type: CART, positions: 6 }
+      - { code: PJ-01, type: PALLET_JACK }
+      - { code: REACH-01, type: REACH_TRUCK, capabilities: [LIFT_HIGH, COLD_RATED] }
+    containers:
+      - { barcode: TOTE-0001, type: TOTE }
+      - { barcode: TOTE-0002, type: TOTE }
+      - { barcode: TOTE-0003, type: TOTE }
+    inventory:
+      - { lpn: PLT-0001, sku: DRY-1001, location: D-A-2-01-A, qty: 50 }
+      - { lpn: PLT-0002, sku: DRY-1001, location: D-A-3-01-A, qty: 50 }
+      - { lpn: PLT-0003, sku: DRY-1002, location: D-A-2-02-A, qty: 48 }
+      - { lpn: PLT-0004, sku: DRY-1003, location: D-B-2-01-A, qty: 50 }
+      - { lpn: PLT-0005, sku: DRY-1004, location: D-B-2-02-A, qty: 36 }
+      - { lpn: PLT-0101, sku: CHL-2001, location: C-A-2-01-A, qty: 48, lot: L24091, expirationDate: today+15 }
+      - { lpn: PLT-0102, sku: CHL-2001, location: C-A-2-02-A, qty: 48, lot: L24098, expirationDate: today+22 }
+      - { lpn: PLT-0103, sku: CHL-2002, location: C-A-2-03-A, qty: 50, lot: CH-7781, expirationDate: today+81, actualWeightKg: 114.2 }
+      - { lpn: PLT-0104, sku: CHL-2003, location: C-A-2-04-A, qty: 60, lot: GY-0402, expirationDate: today+40 }
+      - { lpn: PLT-0201, sku: FRZ-3001, location: F-A-2-01-A, qty: 48, lot: CB-2210, expirationDate: today+220, actualWeightKg: 872.5 }
+      - { lpn: PLT-0202, sku: FRZ-3002, location: F-A-2-02-A, qty: 42, expirationDate: today+400 }
+      - { lpn: PLT-0203, sku: FRZ-3003, location: F-A-2-03-A, qty: 45, lot: IC-991, expirationDate: today+180 }
+      # pick-face stock (PF-0101 is short-dated on purpose: 8 days left)
+      - { lpn: PF-0001, sku: DRY-1001, location: D-A-1-01-A, qty: 12 }
+      - { lpn: PF-0002, sku: DRY-1002, location: D-A-1-02-A, qty: 40 }
+      - { lpn: PF-0101, sku: CHL-2001, location: C-A-1-03-A, qty: 30, lot: L24085, expirationDate: today+8 }
+      - { lpn: PF-0201, sku: FRZ-3001, location: F-A-1-03-A, qty: 20, lot: CB-2200, expirationDate: today+190, actualWeightKg: 363.0 }
+      - { lpn: PLT-0999, sku: FRZ-3001, location: D-A-2-05-A, qty: 10, lot: X, expirationDate: today+100, actualWeightKg: 1 }   # deliberately wrong zone → should be rejected
+    manifests:
+      - manifestNumber: MAN-260917-01
+        carrier: Estes
+        trailer: T-4471
+        expectedDate: today
+        lines:
+          - { sku: DRY-1001, expectedQty: 100 }
+          - { sku: CHL-2001, expectedQty: 96 }
+          - { sku: FRZ-3001, expectedQty: 48 }
+    orders:
+      - orderNumber: ORD-1001
+        customer: GIANT-EAGLE-012          # needs 10 days shelf life → strict FEFO milk gets bypassed
+        requestedShipDate: today+1
+        lines: [{ sku: DRY-1001, qty: 8 }, { sku: CHL-2001, qty: 10 }, { sku: FRZ-3001, qty: 5 }]
+      - orderNumber: ORD-1002
+        customer: SHOP-N-SAVE-07
+        requestedShipDate: today+2
+        lines: [{ sku: DRY-1002, qty: 6 }, { sku: CHL-2003, qty: 4 }]
+      - orderNumber: ORD-1003
+        customer: PRIMANTI-STRIP
+        rush: true
+        requestedShipDate: today+1
+        lines: [{ sku: FRZ-3002, qty: 6 }, { sku: FRZ-3001, qty: 3 }]
+      - orderNumber: ORD-1004
+        customer: GIANT-EAGLE-012
+        requestedShipDate: today+3
+        lines: [{ sku: DRY-1001, qty: 5 }, { sku: DRY-1004, qty: 2 }]

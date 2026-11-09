@@ -1,0 +1,42 @@
+<html xmlns:th="http://www.thymeleaf.org" th:replace="~{layout :: page(~{::title}, ~{::main})}">
+<head><title th:text="|${a.assignment_number} — Artemis WMS|"></title></head>
+<body><main>
+  <h1><span th:text="${a.assignment_number}">A</span><small th:text="|${a.assignment_type} · ${site.code} ${a.wave_number != null ? '· ' + a.wave_number : ''} ${a.equipment != null ? '· ' + a.equipment : ''}|"></small>
+    <span class="tag" th:if="${a.temp_zone}" th:classappend="${#strings.toLowerCase(a.temp_zone) == 'frozen'} ? 'frozen' : (${#strings.toLowerCase(a.temp_zone) == 'refrigerated'} ? 'chill')" th:text="${a.temp_zone}"></span>
+    <span class="status" th:classappend="${a.status}" th:text="${a.status}"></span> <span class="pri" th:classappend="'p' + ${a.priority}" th:text="${a.priority}"></span></h1>
+  <div class="subnav">
+    <form th:action="@{/ui/assignments/{id}/assign(id=${a.assignment_id})}" method="post" class="inline" th:if="${a.status != 'COMPLETE' and a.status != 'CANCELLED'}">
+      <input type="hidden" name="back" th:value="|/assignments/${a.assignment_id}|">
+      <select name="userId"><option value="">Unassigned</option><option th:each="u : ${eligible}" th:value="${u.user_id}" th:selected="${u.user_id == a.assigned_to}" th:text="|${u.display_name} (${u.open_work} open)|"></option></select>
+      <input name="priority" type="number" min="1" max="10" class="small" th:value="${a.priority}" title="priority">
+      <button type="submit" class="secondary">Dispatch</button>
+      <span class="muted small" th:if="${a.reassigned_count > 0}" th:text="|reassigned ${a.reassigned_count}×|"></span>
+    </form>
+    <form th:if="${a.assignment_type == 'SELECTION' and a.status == 'COMPLETE' and !#lists.isEmpty(a.containers) and a.containers[0].dropped_at == null}" th:action="@{/ui/assignments/{id}/drop(id=${a.assignment_id})}" method="post" class="inline">
+      <select name="dropLocation"><option th:each="d : ${dropLocations}" th:if="${d.loc_type == 'DROP' or d.loc_type == 'STAGING' or d.loc_type == 'SHIPPING_DOCK'}" th:value="${d.code}" th:text="|${d.code} (${d.loc_type})|"></option></select>
+      <button type="submit">Drop</button></form>
+    <a th:if="${a.wave_number}" th:href="@{/sites/{s}/waves(s=${site.org_node_id})}">← Waves</a><a th:href="@{/sites/{s}/board(s=${site.org_node_id})}">← Board</a>
+  </div>
+  <div class="panel" th:if="${!#lists.isEmpty(a.containers)}" style="margin-bottom:1rem"><h2>Cart positions</h2>
+    <table><tr><th class="num">Pos</th><th>Put check</th><th>Order</th><th>Customer</th><th>Zone</th><th>Container</th><th>Dropped</th></tr>
+      <tr th:each="c : ${a.containers}"><td class="num" th:text="${c.cart_position}"></td><td class="mono" th:text="${c.put_check_digits}"></td><td class="loc" th:text="${c.order_number}"></td><td th:text="${c.customer}"></td><td th:text="${c.temp_zone}"></td><td class="mono" th:text="${c.inducted_lpn ?: c.tote ?: '—'}"></td><td class="small" th:text="${c.dropped_at != null ? fmt.dt(c.dropped_at, 'MM-dd HH:mm') : ''}"></td></tr></table></div>
+  <div class="panel"><h2>Tasks</h2>
+    <table><tr><th>#</th><th>Prompt</th><th>LPN</th><th class="num">Qty</th><th>Verify</th></tr>
+      <tr th:each="t : ${a.tasks}">
+        <td th:text="${t.seq}"></td>
+        <td><span class="prompt" th:text="${t.spoken_prompt}"></span><br><span class="small muted" th:text="|${t.sku} · ${t.description}|"></span></td>
+        <td><a th:href="@{/lpn(q=${t.lpn})}" class="mono" th:text="${t.lpn}"></a></td><td class="num" th:text="${t.qty}"></td>
+        <td>
+          <span class="status COMPLETE" th:if="${t.status == 'COMPLETE'}" th:text="|done ${t.to_location ?: ''}|"></span>
+          <form th:if="${t.status == 'OPEN' and a.assignment_type == 'SELECTION'}" th:action="@{/ui/selection/tasks/{id}/pick(id=${t.task_id})}" method="post" class="inline">
+            <input type="hidden" name="assignmentId" th:value="${a.assignment_id}">
+            <input name="checkDigits" class="digits" placeholder="slot" autocomplete="off" required><input name="putCheckDigits" class="digits" placeholder="put" autocomplete="off" required><input name="qty" type="number" step="any" class="small" placeholder="qty" title="blank = full"><button type="submit">Pick</button></form>
+          <form th:if="${t.status == 'OPEN' and a.assignment_type == 'PUTAWAY'}" th:action="@{/ui/putaway/tasks/{id}/complete(id=${t.task_id})}" method="post" class="inline">
+            <input type="hidden" name="assignmentId" th:value="${a.assignment_id}">
+            <input name="checkDigits" class="digits" placeholder="chk" autocomplete="off"><button type="submit">Put</button>
+            <input name="overrideLocation" class="mono small" placeholder="override slot"><input name="overrideReason" placeholder="reason" style="width:9rem"></form>
+          <form th:if="${t.status == 'OPEN' and a.assignment_type == 'REPLENISHMENT'}" th:action="@{/ui/replen/tasks/{id}/complete(id=${t.task_id})}" method="post" class="inline">
+            <input type="hidden" name="assignmentId" th:value="${a.assignment_id}">
+            <input name="checkDigits" class="digits" placeholder="chk" autocomplete="off" required><button type="submit">Replenish</button></form>
+        </td></tr></table></div>
+</main></body></html>

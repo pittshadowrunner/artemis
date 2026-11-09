@@ -1,0 +1,9 @@
+<html xmlns:th="http://www.thymeleaf.org" th:replace="~{layout :: page(~{::title}, ~{::main})}">
+<head><title th:text="|${site.code} alerts — Artemis WMS|"></title></head>
+<body><main>
+  <h1><span th:text="${site.name}">Site</span><small>open alerts</small></h1>
+  <div class="panel"><table><tr><th>Severity</th><th>Type</th><th>Message</th><th>Area</th><th>When</th><th></th></tr>
+    <tr th:each="a : ${alerts}"><td><span class="sev" th:classappend="${a.severity}" th:text="${a.severity}"></span></td><td th:text="${a.alert_type}"></td><td th:text="${a.message}"></td><td th:text="${a.area ?: 'site'}"></td><td class="small nowrap" th:text="${fmt.dt(a.created_at, 'MM-dd HH:mm')}"></td>
+      <td><form th:action="@{/ui/alerts/{id}/ack(id=${a.alert_id})}" method="post"><input type="hidden" name="back" th:value="|/sites/${site.org_node_id}/alerts|"><button class="secondary" type="submit">Acknowledge</button></form></td></tr></table>
+    <p class="empty" th:if="${#lists.isEmpty(alerts)}">Nothing open.</p></div>
+</main></body></html>

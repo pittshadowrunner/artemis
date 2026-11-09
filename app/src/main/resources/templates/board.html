@@ -1,0 +1,80 @@
+<html xmlns:th="http://www.thymeleaf.org" th:replace="~{layout :: page(~{::title}, ~{::main})}">
+<head><title th:text="|${site.code} board — Artemis WMS|"></title></head>
+<body><main>
+  <h1><span th:text="${site.name}">Site</span><small th:text="|${site.code} · ops board|"></small></h1>
+  <div class="grid c4" style="margin-bottom:1rem">
+    <div class="panel tight stat"><b th:text="${counts.manifests}">0</b><span>open manifests</span></div>
+    <div class="panel tight stat" th:classappend="${counts.on_dock > 0} ? 'warn'"><b th:text="${counts.on_dock}">0</b><span>pallets on dock</span></div>
+    <div class="panel tight stat"><b th:text="${counts.putaway}">0</b><span>putaway tasks</span></div>
+    <div class="panel tight stat"><b th:text="${counts.selection}">0</b><span>selection assignments</span></div>
+    <div class="panel tight stat" th:classappend="${counts.faces_low > 0} ? 'warn'"><b th:text="${counts.faces_low}">0</b><span>faces under trigger</span></div>
+    <div class="panel tight stat"><b th:text="${counts.open_orders}">0</b><span>open orders</span></div>
+    <div class="panel tight stat"><b th:text="${counts.ready_to_ship}">0</b><span>ready to ship</span></div>
+    <div class="panel tight stat" th:classappend="${counts.critical > 0} ? 'crit' : (${counts.alerts > 0} ? 'warn')"><b th:text="${counts.alerts}">0</b><span>open alerts</span></div>
+  </div>
+
+  <div class="grid c3">
+    <section>
+      <h2>Receiving</h2>
+      <div class="lane">
+        <div class="card" th:each="m : ${manifests}">
+          <div class="head"><a th:href="@{/receiving/{id}(id=${m.manifest_id})}" th:text="${m.manifest_number}"></a><span class="status" th:classappend="${m.status}" th:text="${m.status}"></span></div>
+          <div class="meta" th:text="|${m.carrier ?: '—'} · ${m.received_qty ?: 0} / ${m.expected_qty} (${m.pct_complete ?: 0}%)|"></div>
+        </div>
+        <p class="empty" th:if="${#lists.isEmpty(manifests)}">Nothing inbound.</p>
+      </div>
+    </section>
+
+    <section th:replace="~{board :: lane('Putaway', ${putaway}, ${eligible['PUTAWAY']})}"></section>
+    <section th:replace="~{board :: lane('Selection', ${selection}, ${eligible['SELECTION']})}"></section>
+
+    <section>
+      <h2>Replenishment</h2>
+      <form th:action="@{/ui/sites/{s}/replen/run(s=${site.org_node_id})}" method="post" class="inline" style="margin-bottom:.6rem">
+        <button type="submit" class="secondary">Run replenishment</button>
+        <span class="muted small" th:text="|${#lists.size(pressure)} face(s) under trigger|"></span>
+      </form>
+      <div class="lane">
+        <div class="card" th:each="p : ${pressure}" th:classappend="${#strings.toLowerCase(p.temp_zone) == 'frozen' or #strings.toLowerCase(p.temp_zone) == 'deep_frozen'} ? 'frozen' : (${#strings.toLowerCase(p.temp_zone) == 'refrigerated'} ? 'chill')">
+          <div class="head"><span class="loc" th:text="${p.location_code}"></span><span class="pri" th:classappend="${p.on_hand == 0} ? 'p9'" th:text="${p.on_hand == 0 ? 'EMPTY' : p.on_hand}"></span></div>
+          <div class="meta" th:text="|${p.sku} · trigger ${p.replen_trigger_qty} · max ${p.replen_max_qty} · in flight ${p.in_flight}|"></div>
+        </div>
+      </div>
+      <div class="lane" style="margin-top:.6rem" th:replace="~{board :: cards(${replen}, ${eligible['REPLENISHMENT']})}"></div>
+    </section>
+
+    <section>
+      <h2>Alerts</h2>
+      <div class="lane">
+        <div class="card" th:each="a : ${alerts}">
+          <div class="head"><span class="sev" th:classappend="${a.severity}" th:text="${a.alert_type}"></span>
+            <form th:action="@{/ui/alerts/{id}/ack(id=${a.alert_id})}" method="post" class="inline"><input type="hidden" name="back" th:value="|/sites/${site.org_node_id}/board|"><button class="secondary" type="submit">Ack</button></form></div>
+          <div class="meta" th:text="${a.message}"></div>
+          <div class="small muted" th:text="|${a.area ?: 'site'} · ${fmt.dt(a.created_at, 'MM-dd HH:mm')}|"></div>
+        </div>
+        <p class="empty" th:if="${#lists.isEmpty(alerts)}">Quiet.</p>
+      </div>
+    </section>
+  </div>
+
+  <!-- fragments -->
+  <section th:fragment="lane(title, items, people)" th:remove="${title == null} ? all : none">
+    <h2 th:text="${title}">Lane</h2>
+    <div th:replace="~{board :: cards(${items}, ${people})}"></div>
+  </section>
+  <div class="lane" th:fragment="cards(items, people)" th:remove="${items == null} ? all : none">
+    <div class="card" th:each="a : ${items}" th:classappend="${a.css}">
+      <div class="head"><a th:href="@{/assignments/{id}(id=${a.assignment_id})}" th:text="${a.assignment_number}"></a>
+        <span><span class="tag" th:classappend="${a.css}" th:text="${a.tag}"></span> <span class="pri" th:classappend="'p' + ${a.priority}" th:text="${a.priority}"></span></span></div>
+      <div class="meta" th:text="|${a.done}/${a.tasks} tasks · ${a.lpns ?: ''} ${a.wave_number != null ? '· ' + a.wave_number : ''} ${a.equipment != null ? '· ' + a.equipment : ''}|"></div>
+      <div class="meta" th:if="${a.destinations}" th:text="|→ ${a.destinations}|"></div>
+      <form th:action="@{/ui/assignments/{id}/assign(id=${a.assignment_id})}" method="post" class="inline">
+        <input type="hidden" name="back" th:value="|/sites/${site.org_node_id}/board|">
+        <select name="userId"><option value="" th:text="${a.assigned_to ?: 'Unassigned'}"></option>
+          <option th:each="u : ${people}" th:value="${u.user_id}" th:text="|${u.display_name} (${u.open_work} open)|"></option></select>
+        <button type="submit" class="secondary">Dispatch</button>
+      </form>
+    </div>
+    <p class="empty" th:if="${#lists.isEmpty(items)}">No open work.</p>
+  </div>
+</main></body></html>

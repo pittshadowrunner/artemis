@@ -1,0 +1,11 @@
+<html xmlns:th="http://www.thymeleaf.org" th:replace="~{layout :: page(~{::title}, ~{::main})}">
+<head><title>Platform — Artemis WMS</title></head>
+<body><main>
+  <h1>Platform <small>tenants</small></h1>
+  <div class="panel">
+    <table><tr><th>Code</th><th>Name</th><th>Created</th><th>Corporation id</th></tr>
+      <tr th:each="c : ${corporations}"><td class="loc" th:text="${c.code}"></td><td th:text="${c.name}"></td><td class="small muted" th:text="${fmt.dt(c.created_at, 'yyyy-MM-dd')}"></td><td><code th:text="${c.org_node_id}"></code></td></tr>
+    </table>
+    <p class="muted small">You're the platform sysadmin. To work inside a tenant, send <code>X-Artemis-Corporation</code> from the CLI (<code>ARTEMIS_CORP=…</code>) or sign in as a tenant user. Create tenants with <code>ops/artemis import</code>.</p>
+  </div>
+</main></body></html>

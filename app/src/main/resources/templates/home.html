@@ -1,0 +1,13 @@
+<html xmlns:th="http://www.thymeleaf.org" th:replace="~{layout :: page(~{::title}, ~{::main})}">
+<head><title>Sites — Artemis WMS</title></head>
+<body><main>
+  <h1>Sites</h1>
+  <div class="grid c3">
+    <a class="panel" th:each="s : ${sites}" th:href="@{/sites/{id}/board(id=${s.site_id})}" style="color:inherit">
+      <div class="loc" th:text="${s.code}">PIT1</div>
+      <div th:text="${s.name}">Pittsburgh DC</div>
+      <div class="muted small" th:text="|${s.city}, ${s.state_province} · ${s.region}|"></div>
+    </a>
+  </div>
+  <p class="empty" th:if="${#lists.isEmpty(sites)}">No sites yet — import a hierarchy with <code>ops/artemis import</code>.</p>
+</main></body></html>

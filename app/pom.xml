@@ -7,24 +7,26 @@
   <parent>
     <groupId>org.springframework.boot</groupId>
     <artifactId>spring-boot-starter-parent</artifactId>
-    <version>3.3.13</version>
+    <version>4.1.1</version>
     <relativePath/>
   </parent>
 
   <groupId>com.artemis</groupId>
   <artifactId>artemis-wms</artifactId>
-  <version>0.5.0</version>
+  <version>2.0.0-cycle3</version>
   <name>Artemis WMS</name>
-  <description>Cloud-native warehouse management system</description>
 
   <properties>
     <java.version>21</java.version>
+    <springdoc.version>3.1.1</springdoc.version>
+    <poi.version>5.4.1</poi.version>
+    <commons-csv.version>1.14.1</commons-csv.version>
   </properties>
 
   <dependencies>
     <dependency>
       <groupId>org.springframework.boot</groupId>
-      <artifactId>spring-boot-starter-web</artifactId>
+      <artifactId>spring-boot-starter-webmvc</artifactId>
     </dependency>
     <dependency>
       <groupId>org.springframework.boot</groupId>
@@ -32,7 +34,7 @@
     </dependency>
     <dependency>
       <groupId>org.springframework.boot</groupId>
-      <artifactId>spring-boot-starter-thymeleaf</artifactId>
+      <artifactId>spring-boot-starter-flyway</artifactId>
     </dependency>
     <dependency>
       <groupId>org.springframework.boot</groupId>
@@ -47,8 +49,12 @@
       <artifactId>spring-boot-starter-validation</artifactId>
     </dependency>
     <dependency>
-      <groupId>org.flywaydb</groupId>
-      <artifactId>flyway-core</artifactId>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-thymeleaf</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-actuator</artifactId>
     </dependency>
     <dependency>
       <groupId>org.flywaydb</groupId>
@@ -60,20 +66,23 @@
       <scope>runtime</scope>
     </dependency>
     <dependency>
+      <groupId>tools.jackson.dataformat</groupId>
+      <artifactId>jackson-dataformat-yaml</artifactId>
+    </dependency>
+    <dependency>
       <groupId>org.springdoc</groupId>
       <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
-      <version>2.6.0</version>
+      <version>${springdoc.version}</version>
     </dependency>
-    <!-- CSV/XLSX row sources for bulk uploads -->
     <dependency>
       <groupId>org.apache.poi</groupId>
       <artifactId>poi-ooxml</artifactId>
-      <version>5.2.5</version>
+      <version>${poi.version}</version>
     </dependency>
     <dependency>
       <groupId>org.apache.commons</groupId>
       <artifactId>commons-csv</artifactId>
-      <version>1.11.0</version>
+      <version>${commons-csv.version}</version>
     </dependency>
     <dependency>
       <groupId>org.springframework.boot</groupId>
@@ -83,6 +92,7 @@
   </dependencies>
 
   <build>
+    <finalName>artemis-wms</finalName>
     <plugins>
       <plugin>
         <groupId>org.springframework.boot</groupId>

@@ -1,0 +1,20 @@
+<html xmlns:th="http://www.thymeleaf.org" th:replace="~{layout :: page(~{::title}, ~{::main})}">
+<head><title th:text="|${item.sku} — Artemis WMS|"></title></head>
+<body><main>
+  <h1><span th:text="${item.sku}">SKU</span><small th:text="${item.description}"></small></h1>
+  <div class="subnav"><a th:href="@{/items}">← Items</a></div>
+  <div class="grid c3">
+    <div class="panel"><h2>Handling</h2><table>
+      <tr><th>Temp zone</th><td th:text="${item.temp_zone}"></td></tr><tr><th>UOM</th><td th:text="${item.uom}"></td></tr>
+      <tr><th>Tracking</th><td th:text="|${item.lot_tracked ? 'lot ' : ''}${item.expiry_tracked ? 'expiry ' : ''}${item.serial_tracked ? 'serial ' : ''}${item.catch_weight ? 'catch-weight' : ''}|"></td></tr>
+      <tr><th>Shelf life</th><td th:text="|${item.shelf_life_days ?: '—'} days · label ${item.date_label}|"></td></tr>
+      <tr><th>Min at receipt / ship</th><td th:text="|${item.min_shelf_life_receipt_days ?: '—'} / ${item.min_shelf_life_ship_days ?: '—'} days|"></td></tr>
+      <tr><th>Weight</th><td th:text="|${item.weight_kg ?: '—'} kg ${item.catch_weight ? '(nominal ' + item.nominal_weight_kg + ')' : ''}|"></td></tr>
+      <tr><th>Hazmat</th><td th:text="${item.hazmat_class ?: '—'}"></td></tr><tr><th>Allergens</th><td th:text="${item.allergens != null ? #strings.listJoin(item.allergens, ', ') : '—'}"></td></tr></table></div>
+    <div class="panel"><h2>Packaging</h2><table>
+      <tr><th>Case pack</th><td th:text="${item.case_pack_qty ?: '—'}"></td></tr><tr><th>Ti × Hi</th><td th:text="|${item.pallet_ti ?: '—'} × ${item.pallet_hi ?: '—'}|"></td></tr>
+      <tr><th>GTIN each / case</th><td class="mono small" th:text="|${item.gtin_each ?: '—'} / ${item.gtin_case ?: '—'}|"></td></tr>
+      <tr><th>Velocity</th><td th:text="${item.velocity_class ?: '—'}"></td></tr><tr><th>Base item</th><td class="mono" th:text="${item.base_item_sku ?: '—'}"></td></tr></table>
+      <h2 style="margin-top:1rem">UOM tiers</h2><table><tr th:each="u : ${item.uoms}"><td class="mono" th:text="${u.code}"></td><td th:text="|= ${u.qty} ${u.of_code}|"></td></tr></table></div>
+  </div>
+</main></body></html>

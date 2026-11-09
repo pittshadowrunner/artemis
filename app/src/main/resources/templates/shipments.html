@@ -1,0 +1,25 @@
+<html xmlns:th="http://www.thymeleaf.org" th:replace="~{layout :: page(~{::title}, ~{::main})}">
+<head><title th:text="|${site.code} shipping — Artemis WMS|"></title></head>
+<body><main>
+  <h1><span th:text="${site.name}">Site</span><small>shipping</small></h1>
+  <div class="grid c2">
+    <div class="panel">
+      <table><tr><th>Shipment</th><th>Customer</th><th>Carrier</th><th>Status</th><th class="num">Orders</th><th>Shipped</th></tr>
+        <tr th:each="s : ${shipments}"><td><a th:href="@{/shipments/{id}(id=${s.shipment_id})}" class="loc" th:text="${s.shipment_number}"></a></td><td th:text="${s.customer_code}"></td><td th:text="${s.carrier}"></td><td><span class="status" th:classappend="${s.status}" th:text="${s.status}"></span></td><td class="num" th:text="${s.orders}"></td><td class="small" th:text="${s.shipped_at != null ? fmt.dt(s.shipped_at, 'MM-dd HH:mm') : ''}"></td></tr></table>
+      <p class="empty" th:if="${#lists.isEmpty(shipments)}">No shipments.</p>
+    </div>
+    <div class="panel">
+      <h2>Build a shipment</h2>
+      <p class="muted small">One customer per shipment; only DROPPED orders qualify. The packing list is generated from what was picked.</p>
+      <form th:action="@{/ui/sites/{s}/shipments(s=${site.org_node_id})}" method="post">
+        <div class="row"><label>Customer code<input name="customer" required></label><label>Carrier<input name="carrier"></label><label>Trailer<input name="trailer"></label>
+          <label>Dock<select name="dock"><option value="">—</option><option th:each="d : ${docks}" th:if="${d.loc_type == 'SHIPPING_DOCK'}" th:value="${d.code}" th:text="${d.code}"></option></select></label></div>
+        <h2>Ready orders</h2>
+        <table><tr><th></th><th>Order</th><th>Customer</th><th>Route</th><th>Ship</th></tr>
+          <tr th:each="o : ${ready}"><td><input type="checkbox" name="orderNumbers" th:value="${o.order_number}"></td><td class="loc" th:text="${o.order_number}"></td><td th:text="${o.customer_code}"></td><td th:text="|${o.route_code ?: ''} ${o.stop_sequence != null ? '#' + o.stop_sequence : ''}|"></td><td th:text="${o.requested_ship_date}"></td></tr></table>
+        <p class="empty" th:if="${#lists.isEmpty(ready)}">Nothing dropped yet.</p>
+        <button type="submit" style="margin-top:.6rem">Create shipment &amp; packing list</button>
+      </form>
+    </div>
+  </div>
+</main></body></html>

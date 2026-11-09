@@ -1,135 +1,198 @@
 # Artemis WMS
 
-Cloud-native warehouse management system. Java 21 · Spring Boot 3.3 (embedded
-Tomcat) · PostgreSQL 16 · Flyway · Caddy 2 · Docker Compose · GitHub Actions.
+Multi-tenant warehouse management. API-first: the web UI and voice are just clients.
+Java 21 · Spring Boot 4.1 · PostgreSQL 16 · Thymeleaf · deployed as a Portainer Git stack.
 
-**This build compiles and runs** — validated end-to-end against live
-PostgreSQL 16: the full beta scenario (org → items → locations → opening
-balances → receive → putaway → order → allocate → wave → pick → drop → ship
-→ replenish) passes via `scripts/smoke-test.sh`.
+**v2.0 (September 2026)** is a ground-up rebuild of the V1–V17 codebase. Same decisions,
+none of the residue: three domain migrations instead of seventeen chronological ones,
+package-by-feature instead of `service/` and `web/` buckets, and one declarative import
+instead of the psql/curl/`docker cp` staging scripts.
 
-## Architecture
-
-- **API-first.** Everything under `/api/v1/`; OpenAPI docs at `/api-docs`.
-  The web UI is just another client; voice is another. No side doors.
-- **Multi-tenant hard silo.** `corporation_id` on every tenant row +
-  Postgres RLS backstop (`SET app.current_corp` per connection via
-  `TenantAwareDataSource`). Run the app as a non-superuser DB role in
-  production so RLS is enforced.
-- **RBAC, highest-wins.** Grants = (user, org node, role); resolution walks
-  ancestors via `effective_role()` / `effective_capabilities()` in SQL.
-- **OIDC-first.** "IdP authenticates, app authorizes." Per-tenant IdP registry
-  (V4). Local password login exists only behind the `local-auth` Spring
-  profile — dev/test convenience, absent in production.
-- **Assignments as the universal work unit**, tasks sequenced by
-  `pick_sequence`, voice-native (`check_digits` + `spoken_prompt` both sides).
-
-## Repo layout
+## Repository layout
 
 ```
-db/        Flyway migrations V1–V17 (also packaged into the app)
-app/       Spring Boot service (pom.xml, Dockerfile)
-scripts/   smoke-test.sh — full e2e beta scenario against a live instance
-docs/      API contracts, design notes, UI mockups, upload templates
-
-docker-compose.yml   Portainer Git stack (root, like the other stacks)
-Dockerfile.caddy     bakes Caddyfile into an image
-Caddyfile            standalone edge config (parked behind the "edge" profile)
+docker-compose.yml     the stack: db + app (+ caddy behind the "edge" profile)
+.env.example           every variable the stack reads
+app/                   Spring Boot application (own Dockerfile, built on the host)
+  src/main/resources/db/migration/
+    V1__foundation.sql       org hierarchy, identity, RBAC, policy cascade, alerts, RLS
+    V2__master_data.sql      customers, items + UOM tiers, locations, equipment, containers
+    V3__inventory_inbound.sql pallets, movement journal, receiving, assignments, directed putaway
+    V4__outbound.sql         orders, zone orders, waves, allocation, selection, shipments, packing lists
+    V5__replenishment.sql    replen pressure, rotation-correct sourcing, pallet split lineage
+  src/main/java/com/artemis/wms/
+    platform/    ApiException, error handler, BulkResult, Values, RowSource (CSV/XLSX)
+    tenancy/     TenantContext, TenantAwareDataSource (binds RLS per connection), TenantFilter
+    identity/    SecurityConfig, AccessService (capability checks), users & grants, bootstrap
+    org/         hierarchy, policy cascade
+    dataimport/  the declarative import, admin wipe
+    masterdata/  items, locations (+ rack generation), customers, equipment, containers
+    inventory/   opening balances, LPN lookup with journal
+    inbound/     receiving, directed putaway
+    outbound/    orders, waves (plan/release), allocation, selection (pick/induct/drop), shipping
+    replen/      pressure, run, split-on-complete
+    work/        DispatchService — role capability + trained-workflow allowance gate
+    ui/          Thymeleaf pages (UiController reads, UiActionController posts); templates under resources/templates
+    alerts/      alerts, bells, Mailgun outbox drain
+caddy/                 Caddyfile baked into the image (no single-file bind mounts on the NAS)
+db/                    postgres:16 with the non-superuser app role baked in
+ops/
+  artemis              operator CLI (curl + jq over the API)
+  smoke.sh             end-to-end test against an empty stack (80 checks: API flows + every UI page)
+  data/hierarchy.example.yaml   corporation, regions, sites, areas, policies, users, grants
+  data/demo-pit1.yaml           customers, items, racking + pick faces, equipment, balances, a manifest, orders (dates are relative: today+N)
+  data/templates/*.csv          upload templates
+.github/workflows/ci.yml   build + test only; the NAS builds its own images
 ```
 
-## Run locally
+## Deploying (Portainer Git stack)
+
+Same pattern as the other Squires Enterprises stacks: Portainer clones this repo and builds
+the images on the host. No registry, no Watchtower, no unattended restarts.
+
+1. Create the stack from this repo, `docker-compose.yml` at the root.
+2. Set the variables from `.env.example`. `DB_PASSWORD` is the **app** role; the Postgres
+   superuser is `POSTGRES_ADMIN_*` and the app never uses it — that's what makes Row Level
+   Security actually enforce (superusers bypass RLS).
+3. `BOOTSTRAP_SYSADMIN_EMAIL/PASSWORD` create the platform sysadmin on the **first boot with an
+   empty user table only**. There is no hard-coded admin account.
+4. `edge_net` must already exist (the shared edge Caddy owns 80/443). The app also publishes
+   `APP_PORT` (default 8085) for LAN access. Enable the `edge` profile only if you want this
+   stack's own Caddy in the mix.
+5. On a rebuild, dump the `artemis_pgdata` volume — migrations are clean-slate and Flyway will
+   refuse to run over a schema from an older jar.
+
+Rotating the DB password later needs `ALTER ROLE artemis_app PASSWORD '...'` *and* the env var.
+
+## First data: the declarative import
+
+Everything the old `demo-seed.sh` / `demo-big.sh` / `demo-big-pre.sql` did is now one document
+applied through the API. Sections run in dependency order and every section **upserts by
+code**, so you can edit and re-apply freely. Each row commits alone: a bad pallet never rolls
+back a good rack, and the response tells you exactly which rows failed and why.
 
 ```bash
-createdb wms
-cd app
-DB_URL=jdbc:postgresql://localhost:5432/wms mvn spring-boot:run \
-  -Dspring-boot.run.profiles=local-auth
-# Flyway migrates V1–V8; local-auth seeds admin@artemis.local / admin
-curl -u admin@artemis.local:admin localhost:8080/api/v1/notifications/count
+export ARTEMIS_URL=http://nas:8085
+ARTEMIS_USER=sysadmin@artemis.local ARTEMIS_PASS=... ops/artemis import ops/data/hierarchy.example.yaml
+ARTEMIS_USER=tom@squiresenterprisesllc.com ARTEMIS_PASS=... ops/artemis import ops/data/demo-pit1.yaml
 ```
 
-## Deploy
+Only a sysadmin can create a `corporation:`; a tenant ADMIN (capability `DATA_IMPORT`) applies
+everything else inside their own tenant. A sysadmin acting inside a tenant sets
+`ARTEMIS_CORP=<corporation id>` (the `X-Artemis-Corporation` header).
 
-A Portainer **Git stack**, deployed exactly like sweetkeepsake, trapleague and
-squires-site: Portainer clones this repo with a fine-grained GitHub token and
-**builds the image on the host**. There is no container registry in the loop,
-so the only GitHub credential involved is the repo read token.
-
-Portainer → Stacks → Add stack → Repository:
-
-| | |
-|---|---|
-| Repository URL | this repo |
-| Compose path | `docker-compose.yml` |
-| Authentication | the same fine-grained token as the other stacks (Contents: Read) |
-
-Environment variables (Portainer's env var table — **not** a `.env` file):
-
-```
-DB_PASSWORD      required, do not leave the compose default
-MAILGUN_API_KEY
-MAILGUN_DOMAIN   mail.squiresenterprisesllc.com
-MAILGUN_FROM     Artemis WMS <artemis@mail.squiresenterprisesllc.com>
-```
-
-Leave `COMPOSE_PROFILES` unset. The `caddy` service is parked behind the
-`edge` profile because the squires stack owns 80/443 for the whole host —
-same pattern as trapleague and sweetkeepsake.
-
-`edge_net` must already exist on the host (it does). `artemis-app` joins it,
-so the day you want the app public, the only change is one block in the
-squires stack's Caddyfile:
-
-```
-wms.squiresenterprisesllc.com {
-    tls {$ACME_EMAIL}
-    reverse_proxy artemis-app:8080
-    import hardening
-    request_body {
-        max_size 50MB
-    }
-}
+```yaml
+corporation: { code: SQE, name: Squires Enterprises LLC }
+regions:
+  - code: NE
+    sites:
+      - code: PIT1
+        name: Pittsburgh DC
+        policy: { rotation: FIFO, minShelfLifeReceiptDays: 30, allowItemMixing: false }
+        areas:
+          - { code: FREEZER, policy: { rotation: FEFO } }     # area overrides site, field by field
+users:
+  - { email: tom@…, displayName: Tom, password: …, grants: [{ node: SQE, role: ADMIN }] }
+  - { email: j.okafor@…, displayName: J. Okafor, workflows: [RECEIVING, PUTAWAY], grants: [{ node: PIT1, role: OPERATOR }] }
+customers: [ … ]
+items:     [ { sku, description, tempZone, casePackQty, palletTi, palletHi, lotTracked, expiryTracked, shelfLifeDays, catchWeight, nominalWeightKg, … } ]
+sites:
+  - site: PIT1
+    locations: [ { code: DOCK-R1, locType: RECEIVING_DOCK }, … ]
+    racks:     [ { zone: F, aisles: [A], levels: 1-2, columns: 1-6, slots: [A, B], tempZone: FROZEN, area: FREEZER } ]
+    equipment: [ { code: CART-01, type: CART, positions: 6 } ]
+    containers:[ { barcode: TOTE-0001, type: TOTE } ]
+    inventory: [ { lpn: PLT-0201, sku: FRZ-3001, location: F-A-2-01-A, qty: 48, lot: CB-2210, expirationDate: 2027-05-01, actualWeightKg: 872.5 } ]
+    manifests: [ { manifestNumber: MAN-260917-01, carrier: Estes, lines: [{ sku: FRZ-3001, expectedQty: 48 }] } ]
+    orders:    [ { orderNumber: ORD-1001, customer: GIANT-EAGLE-012, rush: false, requestedShipDate: 2026-09-21, lines: [{ sku: CHL-2001, qty: 10 }] } ]
 ```
 
-plus the DNS A record for `wms`. Until then the app is reachable only from
-inside Docker — uncomment the temporary `ports: "8081:8080"` mapping in the
-compose file if you want to hit it from the LAN while testing.
+Other CLI commands: `me`, `sites`, `corporations`, `get <path>`, `post <path> <json>`,
+`wipe <corpId> [operations|all]` (sysadmin; confirms with the corporation code).
+CSV/XLSX uploads still exist for items, locations and opening balances (`/upload` endpoints,
+templates under `ops/data/templates/`).
 
-**Updating**: edit, push, redeploy the stack. Portainer re-pulls the repo and
-rebuilds the image. The first build downloads the Maven dependency tree
-(several minutes, ~1 GB of layer cache); later builds reuse it unless
-`pom.xml` changes.
+## The web UI
 
-CI (`.github/workflows/ci.yml`) builds and tests against a Postgres service
-container and verifies the runtime image builds. It publishes nothing.
+Server-rendered Thymeleaf over the same services the API uses — a page can never do something the
+API can't, and a domain rejection shows as a plain sentence in a flash bar. Sign in at `/login`
+(local-auth) and you land on the site's **ops board**: receiving, putaway, selection and
+replenishment lanes with priority and zone tags, dispatch selects that only list operators
+**trained for that workflow**, pressure on pick faces, and open alerts. From there:
 
-## Milestones
+- **Racking** — placards per zone/aisle: check digits, SKU, quantity, pick faces marked PF.
+- **LPN lookup** (search box in the header) — the pallet and its full journal with dwell.
+- **Receiving** → manifest → receive-a-pallet form (directed putaway comes back in the flash).
+- **Orders**, **Waves** (plan form, release with a cart), **Assignments** (pick / put / replenish
+  with check digits, drop), **Shipping** (build from DROPPED orders, printable packing list).
+- **Dashboard** — receiving/shipping today, pick-face velocity, expiry risk, labor, dock dwell.
+- **Items**, **Customers**, **Org** (tree with effective policy, per-node policy editor), **Users**
+  (create, allowances, grants), the alert bell and **Notifications**.
 
-| | |
-|---|---|
-| M1 | Identity & tenancy — org CRUD, grants, capability enforcement |
-| M2 | Master data — customers, items (two-pass base links), locations (bulk / serpentine generate / CSV+XLSX upload), hard-validated opening balances |
-| M3 | Inbound — manifests, dock-enforced capture, min-shelf-life rejection at receipt, directed putaway (`directed_putaway_slot`), check-digit verified completion |
-| M4 | Outbound — allocation (rotation cascade + freshness bypass with `ROTATION_BYPASS` alert), 8 wave types, cart batching, both-side verified selection, LPN split, packing list from picked reality |
-| M5 | Replenishment — trigger scan over `v_replen_pressure`, slot-to-slot assignments, `REPLEN_CRITICAL` → bell + email outbox escalation |
-| UI | Server-rendered operator UI (Thymeleaf): `/` operations board, `/metrics` dashboards — mockup-faithful, snapshot-on-load, DASHBOARD_VIEW-gated |
-| M6 (partial) | Equipment registry (`POST /equipment` — enables batch-cart release), labor dispatch (`POST /assignments/{id}/assign` feeds `v_labor_productivity`), platform console at `/admin` with sysadmin REST (`/api/v1/admin/*`) |
-| Asset screens | Linkable asset registry: hub → Items / Zones / Slots / Carts & Powered / Totes / Waves, list → detail everywhere, Wave → Assignment → pick-line graph; V10 adds assignment numbers, datetime wave numbers, slot dimensions, equipment capabilities, calculated ABC item velocity (`v_item_velocity`, trailing 30d) |
-| Mutations & lifecycle | Create/edit forms on every asset screen (items, slots, equipment, containers) + action buttons (plan/release wave, assign/reassign, attach tote, replen scan); V11 assignment lifecycle: PENDING → ASSIGNED → REASSIGNED → IN PROGRESS → COMPLETE with reassignment audit (count + previous assignee), 4s live-status polling on the assignment screen; pick lines resolve the full put address (equipment type + code + position + tote with authoritative digits) |
-| V12 | Slot conventions + tiered UOMs: one item per slot and item-temp-zone authority enforced by DB trigger on STORAGE/PICK_FACE (docks/drops/staging exempt; directed putaway defaults to no mixing); AMB placards standardize to DRY; slots list links its 1:1 item; check-digit labels cleaned up ("say" phrasing removed); `item_uom` tiered hierarchy (1 CS = 4 EA, 1 PL = 40 CS, add tiers from the item screen) with each-equivalents, backfilled from case pack and Ti×Hi |
-| V13–V14 | STANDARD locations: STORAGE + PICK_FACE consolidate into one type — pick-face is a *role* (a slot with a replen item), because customers pick in three dimensions from anywhere; naming convention `Zone-Aisle-Level-Column-Slot` (e.g. `C-B-2-04-A`) with **pick sequence derived from the name** by DB trigger (aisle → column → slot → level); docks/drops carry no sequence; assignment **priority becomes 1–10** (CHECK + default 5) and is zone-aware at creation — selection FRZ 8 / CHL 7 / DRY 5 from the coldest item, putaway 7/6/4, replen 9 critical else 8/7/6 — editable P1–P10 on the assignment screen; **Operators** get their own top tab (people, not assets): profile with trained-workflow allowances, personal labor metrics, work history, linked from assignments/waves/metrics; waves leave the Assets hub (operational, future-purged; assets are near-permanent physical entities); directed putaway retargets STANDARD reserve slots |
-| V15 | Receiving as a linkable document: manifests carry `arrived_at`/`closed_at`; `/receiving/{id}` shows lines with progress and the **Pallets Produced** panel — the output of receiving is an inbound LPN + captured attributes (SKU, lot, expiry, qty, catch weight) + a warehouse location (dock or xdock); pallet lookup at `/lpn` (plus topbar search) resolves LPN → attributes → location placard → source manifest; putaway lane shows dock **dwell** (Waiting column, red past 4 h); items auto-tier CS/PL UOMs on create |
-| V16 | Pallets + Lots as first-class operational records: `/assets/pallets` (search by LPN — the topbar search moved here) shows original vs available qty, item link, and full location history with dwell durations from the movement journal; `/assets/lots` groups (item, lot) across pallets — one lot can span receipts in the wild, so the model allows it; LPN anywhere links to the pallet screen; equipment **Operator Uses** replaces trips (custody: who, out, in — no assignment linkage) with checkout/checkin; equipment positions show container contents linked to order and wave; **Orders master** at `/orders` with date/customer filters and the manual workflow: roll unreleased orders → wave, release a wave (equipment optional — put positions stay blank until dispatch assigns them), combine released orders into an assignment, assign + prioritize to an operator; ops board filters are workflow-specific with a temp-zone filter, tasks show Priority not Seq; picked quantities leave the slot and ride the assignment/equipment; assignment header drops item-level fields (multi-item reality); items/fleet/slots screens decluttered (calculated velocity only, no carried LPN, no Seq column) |
-| V17 | **Zone Orders**: a customer order is customer-shaped, an assignment is zone-shaped — `zone_order` is the join, spawned automatically at allocation (one per order per temp zone); waves carry a zone designation and attach only matching slices, so every assignment is single-zone by construction; wave planner (zone select + unreleased zone orders) lives on the Waves screen, assignment builder on the ops Selection lane; order detail (`/orders/{id}`: Ship To, lines, zone-order table w/ wave/assignment/operator/priority links) and customer detail (`/customers/{id}`: address, phone, delivery window, shelf-life rule, order history); Selection lane shows assignment-level rows (task columns don't apply to multi-item assignments); Run Scan and lane subtexts removed — replen scans arrive via API; location placards linked on ops tasks, receiving pallets, and pallet history |
-| Ops navigation | Clickable workstream lanes filter the board: Put Away / Replen / Selection filter the task table, Receiving swaps in open manifests, Shipping swaps in orders awaiting load; task table renamed "Open Tasks" (one row per task) with an explicit Assignment column so multi-item selection assignments aren't misread; scoped filter boxes on every list panel (ops, assets, waves, wave assignments, pick lines) |
-| V9 | Platform SYSADMIN tier — corporation creation and platform admin locked to `app_user.sysadmin`; tenant admin roles propagate downward via grants as before |
+Dispatch is gated twice: the dispatcher's role capability for that workflow, and the operator's
+trained-workflow allowance (`users[].workflows` in the import). Untrained operators don't appear in
+the select and are refused by the API with a reason.
 
-## Auth tiers
+## Conventions baked into the schema
 
-- **SYSADMIN** (platform): flag on the user, not a grant. Creates corporations,
-  future home of IdP/platform administration. Never reachable from tenant roles.
-  local-auth seeds `sysadmin@artemis.local / sysadmin` (fresh installs) and
-  grandfathers `admin@artemis.local` on existing dev databases (V9).
-- **Tenant admins** (corporation → district → site → area): grants at org nodes,
-  highest-wins resolution walks ancestors — a corporation ADMIN grant covers
-  every site beneath it.
+- **Hierarchy** Corporation → District Region → Site Location → Area. Nesting is a trigger,
+  so a wrong parent is a 409, never a corrupt tree.
+- **RBAC** roles are data (ADMIN, SUPERVISOR, OPERATOR, READ_ONLY seeded); a grant attaches a
+  role at a node; effective role = highest rank across the ancestry. Sysadmin is a flag on the
+  user — platform tier, never a grant, invisible to tenants.
+- **Tenancy** every tenant table carries `corporation_id`, RLS is `FORCE`d, and the app binds
+  the caller's corporation on every connection checkout. Sysadmins without a selected tenant
+  get `app.platform_admin = on`; inside a tenant they are scoped like anyone else.
+- **Policies** set at Site or Area; nearest non-null value wins per field. Rotation falls back
+  to FEFO for expiry-tracked items, FIFO otherwise.
+- **Locations** one racking type, `STANDARD`; pick-face is a role (`replen_item_id` set).
+  Names are `Zone-Aisle-Level-Column-Slot`; the pick sequence and check digits derive from the
+  name by trigger. One item per slot and item-temp-zone-is-authoritative are enforced on
+  `inventory` writes; docks, drops and staging are exempt.
+- **Items** CS and PL UOM tiers derive from `case_pack_qty` / `pallet_ti × pallet_hi`.
+  Expiry-tracked items need `shelf_life_days` or a `date_label`; catch-weight needs a nominal.
+- **Assignments** the universal work unit; priority 1–10 with zone-aware defaults
+  (frozen > chilled > dry); reassignment is tracked, not overwritten; rollup by trigger.
+- **Receiving** a document with a timeline. One receipt = one LPN; lot/expiry/serial/
+  catch-weight capture enforced at the dock; minimum-shelf-life-at-receipt sends product back
+  on the truck; every pallet spawns a directed putaway task (consolidate → velocity → travel).
+- **Putaway** check-digit verified; supervisor override needs a reason and is journaled as
+  `PUTAWAY_OVERRIDE`.
+- **Zone Orders** (order × temp zone) derive from the lines by trigger and are the unit of
+  outbound work. A wave is single-zone by construction: the database refuses a zone order that
+  doesn't match the wave's zone, so frozen never waits on dry.
+- **Waves** RUSH, SHIP_URGENCY, CARRIER_CUTOFF, ROUTE (reverse stop order), PROXIMITY,
+  SINGLE_CUSTOMER, ZONE (area filter). Release allocates, then cuts SELECTION assignments sized
+  to the cart's positions; tasks walk the pick path with slot digits and put-position digits.
+- **Allocation** pick faces first, then reserve in rotation order. When the customer's, the
+  site's or the item's shelf-life term (strictest wins) disqualifies the strict-rotation pallet,
+  the next qualifying pallet is taken, the row is marked `bypass`, and a ROTATION_BYPASS alert
+  goes to the area so the team knows older stock is sitting.
+- **Selection** both sides check-digit verified; short picks release the remainder for
+  re-allocation; a pallet picked to zero is PICKED, never deleted. Drop is per assignment to a
+  DROP/STAGING/dock location; an order is DROPPED once every zone is down.
+- **Shipping** one customer per shipment, DROPPED orders only; the packing list is generated
+  from what was picked (LPN, lot, expiry), not from what was ordered.
+- **Replenishment** faces at or under trigger get work from the rotation-correct reserve pallet
+  (`replen_source`), sized to max. Empty face = priority 9 + REPLEN_CRITICAL alert. Completing
+  a partial move splits the pallet: `PLT-0001` → `PLT-0001.1` at the face, lineage kept.
+- **Alerts** producers insert one `system_alert` row; a trigger fans out bells to everyone
+  whose effective role carries `DASHBOARD_VIEW`, and CRITICAL alerts also to the email outbox,
+  drained through the shared Mailgun domain (`artemis@mail.squiresenterprisesllc.com`).
+
+## API
+
+OpenAPI at `/api-docs` (UI at `/api-docs/ui`). Basic auth under the `local-auth` profile;
+OIDC per tenant otherwise. Everything is under `/api/v1`:
+`org`, `users`, `import`, `items`, `customers`, `sites/{siteId}/locations|equipment|containers|inventory|receiving|putaway/tasks|alerts`,
+`sites/{siteId}/orders|waves|assignments|shipments|replen/pressure|replen/run`,
+`receiving/{id}`, `putaway/tasks/{id}/complete`, `waves/{id}/release`, `assignments/{id}/assign|induct|drop`,
+`selection/tasks/{id}/pick`, `replen/tasks/{id}/complete`, `shipments/{id}/ship`, `lpn/{lpn}`,
+`notifications`, `admin/tenants/{id}/data`.
+
+## Roadmap
+
+- ~~Cycle 2~~ outbound + replenishment — done (v2.0.0-cycle2).
+- **Cycle 3** the Thymeleaf UI (ops board, racking placards, LPN lookup, org tree, alerts bell,
+  dashboards); operator allowance gating on dispatch.
+- **Later** VoiceLink dialog endpoints, OIDC group → grant sync, custom roles portal.

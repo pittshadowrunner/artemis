@@ -1,33 +1,30 @@
-<!DOCTYPE html>
-<html lang="en" xmlns:th="http://www.thymeleaf.org">
-<head><title>Artemis · Pallet Lookup</title><th:block th:replace="~{fragments :: headcss}"/></head>
-<body>
-<div th:replace="~{fragments :: topbar('ops')}"></div>
-<div class="apage">
-  <div class="ahead"><span class="eyebrow">Pallet Lookup</span><h1>Find by LPN</h1></div>
-  <form method="get" th:action="@{/lpn}" class="inlineform" style="margin-bottom:20px">
-    <input type="hidden" name="siteId" th:value="${siteId}">
-    <input name="q" th:value="${q}" placeholder="LPN or prefix…" class="filterinput" style="min-width:260px" autofocus>
-    <button class="btn">Look Up</button>
-  </form>
-  <div class="panel" th:if="${!#lists.isEmpty(hits)}">
-    <div class="panel-h"><h3>Pallets</h3><span class="eyebrow" th:text="${#lists.size(hits)} + ' match(es)'">n</span></div>
-    <table><thead><tr><th>LPN</th><th>SKU</th><th>Lot</th><th>Expires</th><th class="num">Qty</th><th>Location</th><th>Manifest</th><th>Status</th></tr></thead>
-      <tbody><tr th:each="h : ${hits}">
-        <td class="mono" style="font-weight:600" th:text="${h.lpn}">L</td>
-        <td><a class="linkcode" th:href="@{'/assets/items/' + ${h.item_id}(siteId=${siteId})}" th:text="${h.sku}">S</a></td>
-        <td class="mono" th:text="${h.lot_number ?: '—'}">-</td>
-        <td class="mono" th:text="${h.expiration_date ?: '—'}">-</td>
-        <td class="num" th:text="${#numbers.formatDecimal(h.qty,1,0)}">0</td>
-        <td><a th:if="${h.location_id}" th:href="@{'/assets/slots/' + ${h.location_id}(siteId=${siteId})}">
-            <span class="placard" th:classappend="${h.css}">
-              <span class="tag" th:text="${h.loc_type == 'RECEIVING_DOCK'} ? 'DCK' : (${h.loc_type == 'CROSS_DOCK'} ? 'XDK' : (${h.loc_type == 'DROP'} ? 'DRP' : ${h.tag}))">T</span>
-              <span class="code" th:text="${h.location_code}">L</span></span></a></td>
-        <td><a class="linkcode" th:if="${h.manifest_id}" th:href="@{'/receiving/' + ${h.manifest_id}(siteId=${siteId})}" th:text="${h.manifest_number}">M</a>
-            <span th:unless="${h.manifest_id}" style="color:var(--ink-soft)">—</span></td>
-        <td><span class="pill" th:classappend="${h.status == 'AVAILABLE'} ? 'on'" th:text="${h.status}">A</span></td>
-      </tr></tbody></table>
+<html xmlns:th="http://www.thymeleaf.org" th:replace="~{layout :: page(~{::title}, ~{::main})}">
+<head><title>LPN lookup — Artemis WMS</title></head>
+<body><main>
+  <h1>LPN lookup</h1>
+  <form th:action="@{/lpn}" method="get" class="inline" style="margin-bottom:1rem"><input name="q" th:value="${q}" placeholder="PLT-0001" class="mono" autofocus><button type="submit">Look up</button></form>
+  <div class="grid c2" th:if="${pallet}">
+    <div class="panel">
+      <h2>Pallet</h2>
+      <table>
+        <tr><th>LPN</th><td class="loc" th:text="${pallet.lpn}"></td></tr>
+        <tr><th>Item</th><td><a th:href="@{/items/{s}(s=${pallet.sku})}" th:text="${pallet.sku}"></a> <span class="tag" th:classappend="${#strings.toLowerCase(pallet.temp_zone) == 'frozen'} ? 'frozen' : (${#strings.toLowerCase(pallet.temp_zone) == 'refrigerated'} ? 'chill')" th:text="${pallet.zone_tag}"></span><br><span class="muted" th:text="${pallet.description}"></span></td></tr>
+        <tr><th>Location</th><td><span class="loc" th:text="${pallet.location ?: 'in transit'}"></span> <span class="muted small" th:if="${pallet.check_digits}" th:text="|check ${pallet.check_digits}|"></span></td></tr>
+        <tr><th>Status</th><td><span class="status" th:classappend="${pallet.status}" th:text="${pallet.status}"></span></td></tr>
+        <tr><th>Quantity</th><td th:text="|${pallet.qty} of ${pallet.original_qty} at birth|"></td></tr>
+        <tr><th>Lot / expiry</th><td th:text="|${pallet.lot_number ?: '—'} / ${pallet.expiration_date ?: '—'}|"></td></tr>
+        <tr><th>Arrived</th><td th:text="|${pallet.arrival_date} ${pallet.manifest_number != null ? '· manifest ' + pallet.manifest_number : ''}|"></td></tr>
+        <tr th:if="${pallet.actual_weight_kg}"><th>Weight</th><td th:text="|${pallet.actual_weight_kg} kg|"></td></tr>
+        <tr th:if="${!#lists.isEmpty(pallet.serials)}"><th>Serials</th><td class="mono small" th:text="${#strings.listJoin(pallet.serials, ', ')}"></td></tr>
+      </table>
+    </div>
+    <div class="panel">
+      <h2>Journal</h2>
+      <table><tr><th>When</th><th>Move</th><th>From → To</th><th class="num">Qty</th><th>By</th><th>Dwell</th></tr>
+        <tr th:each="h : ${pallet.history}">
+          <td class="small nowrap" th:text="${fmt.dt(h.created_at, 'MM-dd HH:mm')}"></td><td><span class="status" th:text="${h.movement_type}"></span></td>
+          <td class="loc" th:text="|${h.from_location ?: '·'} → ${h.to_location ?: '·'}|"></td><td class="num" th:text="${h.qty}"></td>
+          <td class="small" th:text="|${h.performed_by ?: ''} ${h.assignment_number != null ? h.assignment_number : ''}|"></td><td class="small muted" th:text="${h.dwell ?: ''}"></td></tr></table>
+    </div>
   </div>
-  <div th:if="${q != '' and #lists.isEmpty(hits)}" style="color:var(--ink-soft)">No pallet matches '<span th:text="${q}"></span>' at this site.</div>
-</div>
-</body></html>
+</main></body></html>

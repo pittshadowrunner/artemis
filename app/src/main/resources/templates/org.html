@@ -1,0 +1,10 @@
+<html xmlns:th="http://www.thymeleaf.org" th:replace="~{layout :: page(~{::title}, ~{::main})}">
+<head><title>Organization — Artemis WMS</title></head>
+<body><main>
+  <h1>Organization</h1>
+  <p class="muted small">Corporation → District Region → Site Location → Area. Policies are declared at Site or Area; the effective column shows what actually applies after the cascade.</p>
+  <div class="panel"><table class="tree"><tr><th>Node</th><th>Level</th><th>Name</th><th>Declared rotation</th><th>Effective rotation</th><th class="num">Receipt days</th><th class="num">Ship days</th><th></th></tr>
+    <tr th:each="n : ${tree}"><td th:classappend="'d' + ${n.depth}"><span class="loc" th:text="${n.code}"></span></td><td class="small muted" th:text="${n.level}"></td><td th:text="|${n.name} ${n.city != null ? '· ' + n.city : ''}|"></td>
+      <td th:text="${n.declared_rotation ?: ''}"></td><td th:text="${n.eff_rotation ?: '(default)'}"></td><td class="num" th:text="${n.eff_receipt_days ?: ''}"></td><td class="num" th:text="${n.eff_ship_days ?: ''}"></td>
+      <td><a th:if="${n.level == 'SITE_LOCATION' or n.level == 'AREA'}" th:href="@{/org/{id}/policy(id=${n.org_node_id})}">policy</a> <a th:if="${n.level == 'SITE_LOCATION'}" th:href="@{/sites/{id}/board(id=${n.org_node_id})}">board</a></td></tr></table></div>
+</main></body></html>

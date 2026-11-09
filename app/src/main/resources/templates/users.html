@@ -1,0 +1,30 @@
+<html xmlns:th="http://www.thymeleaf.org" th:replace="~{layout :: page(~{::title}, ~{::main})}">
+<head><title>Users — Artemis WMS</title></head>
+<body><main>
+  <h1>Users &amp; grants</h1>
+  <div class="grid c2">
+    <div class="panel"><table><tr><th>Name</th><th>Email</th><th>Grants</th><th>Trained for</th><th>Last login</th></tr>
+      <tr th:each="u : ${users}"><td th:text="${u.display_name}"></td><td class="small" th:text="${u.email}"></td>
+        <td class="small"><span th:each="g : ${u.grants}" style="display:block" th:text="|${g.node} · ${g.role}|"></span></td>
+        <td class="small" th:text="${#strings.listJoin(u.trained_workflows, ', ')}"></td><td class="small muted" th:text="${u.last_login_at != null ? fmt.dt(u.last_login_at, 'yyyy-MM-dd') : '—'}"></td></tr></table></div>
+    <div>
+      <div class="panel" style="margin-bottom:1rem"><h2>Create or update a user</h2>
+        <form th:action="@{/ui/users}" method="post">
+          <div class="row"><label>Email<input name="email" type="email" required></label><label>Display name<input name="displayName" required></label><label>Password (local auth)<input name="password" type="password"></label></div>
+          <label>Trained workflows (operator allowances)</label>
+          <div style="display:flex;gap:1rem;flex-wrap:wrap;margin:.3rem 0 .8rem"><label th:each="w : ${workflows}" style="flex-direction:row;align-items:center;gap:.3rem"><input type="checkbox" name="workflows" th:value="${w}"> <span th:text="${w}"></span></label></div>
+          <div class="row"><label>Grant at<select name="grantNode"><option value="">(none now)</option><option th:each="n : ${tree}" th:value="${n.org_node_id}" th:text="|${n.path} (${n.level})|"></option></select></label>
+            <label>Role<select name="grantRole"><option>READ_ONLY</option><option>OPERATOR</option><option>SUPERVISOR</option><option>ADMIN</option></select></label></div>
+          <button type="submit">Save user</button>
+        </form></div>
+      <div class="panel"><h2>Add a grant</h2>
+        <form th:action="@{/ui/users/grant}" method="post" class="inline">
+          <input name="email" type="email" placeholder="email" required>
+          <select name="orgNodeId"><option th:each="n : ${tree}" th:value="${n.org_node_id}" th:text="|${n.path} (${n.level})|"></option></select>
+          <select name="role"><option>READ_ONLY</option><option>OPERATOR</option><option>SUPERVISOR</option><option>ADMIN</option></select>
+          <button type="submit">Grant</button>
+        </form>
+        <p class="muted small" style="margin-top:.6rem">Highest rank across the ancestry wins: an ADMIN grant at the corporation outranks READ_ONLY at a site.</p></div>
+    </div>
+  </div>
+</main></body></html>

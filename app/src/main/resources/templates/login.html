@@ -1,0 +1,13 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head><meta charset="utf-8"><title>Sign in — Artemis WMS</title><link rel="stylesheet" th:href="@{/css/artemis.css}"></head>
+<body><div class="login"><div class="panel">
+  <h1>Artemis <span style="color:var(--accent)">WMS</span></h1>
+  <div class="flash error" th:if="${param.error}">Email or password didn't match.</div>
+  <div class="flash ok" th:if="${param.logout}">Signed out.</div>
+  <form th:action="@{/login}" method="post">
+    <label>Email<input name="username" type="email" autofocus required></label>
+    <label>Password<input name="password" type="password" required></label>
+    <button type="submit">Sign in</button>
+  </form>
+</div></div></body></html>

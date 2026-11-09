@@ -1,0 +1,33 @@
+<html xmlns:th="http://www.thymeleaf.org" th:replace="~{layout :: page(~{::title}, ~{::main})}">
+<head><title th:text="|${site.code} dashboard — Artemis WMS|"></title></head>
+<body><main>
+  <h1><span th:text="${site.name}">Site</span><small>dashboard</small></h1>
+  <div class="grid c4" style="margin-bottom:1rem">
+    <div class="panel tight stat" th:each="o : ${d.orders}"><b th:text="${o.n}"></b><span th:text="|orders ${o.status}|"></span></div>
+  </div>
+  <div class="grid c2">
+    <div class="panel"><h2>Receiving today</h2>
+      <table><tr><th>Manifest</th><th>Status</th><th class="num">Rec / exp</th><th class="num">%</th><th>Arrived</th><th>Closed</th></tr>
+        <tr th:each="m : ${d.receivingToday}"><td><a th:href="@{/receiving/{id}(id=${m.manifest_id})}" class="loc" th:text="${m.manifest_number}"></a></td><td><span class="status" th:classappend="${m.status}" th:text="${m.status}"></span></td><td class="num" th:text="|${m.received_qty ?: 0}/${m.expected_qty ?: 0}|"></td><td class="num" th:text="${m.pct_complete ?: 0}"></td><td class="small" th:text="${m.arrived_at != null ? fmt.dt(m.arrived_at, 'HH:mm') : ''}"></td><td class="small" th:text="${m.closed_at != null ? fmt.dt(m.closed_at, 'HH:mm') : ''}"></td></tr></table>
+      <p class="empty" th:if="${#lists.isEmpty(d.receivingToday)}">Nothing today.</p></div>
+    <div class="panel"><h2>Shipping</h2>
+      <table><tr><th>Shipment</th><th>Customer</th><th>Status</th><th class="num">Orders</th><th class="num">Ready</th></tr>
+        <tr th:each="s : ${d.shipping}"><td><a th:href="@{/shipments/{id}(id=${s.shipment_id})}" class="loc" th:text="${s.shipment_number}"></a></td><td th:text="${s.customer_code}"></td><td><span class="status" th:classappend="${s.status}" th:text="${s.status}"></span></td><td class="num" th:text="${s.orders}"></td><td class="num" th:text="${s.orders_ready}"></td></tr></table>
+      <p class="empty" th:if="${#lists.isEmpty(d.shipping)}">Nothing today.</p></div>
+    <div class="panel"><h2>Pick-face velocity · 30 days</h2>
+      <table><tr><th>Face</th><th>SKU</th><th class="num">Lines</th><th class="num">Cases</th><th class="num">Active days</th></tr>
+        <tr th:each="v : ${d.velocity}"><td class="loc" th:text="${v.location_code}"></td><td th:text="${v.sku}"></td><td class="num" th:text="${v.lines_30d}"></td><td class="num" th:text="${v.cases_30d}"></td><td class="num" th:text="${v.active_days_30d}"></td></tr></table></div>
+    <div class="panel"><h2>Expiry risk · ≤ 30 days</h2>
+      <table><tr><th>SKU</th><th>Lot</th><th>Expires</th><th class="num">Days</th><th class="num">Qty</th></tr>
+        <tr th:each="e : ${d.expiry}"><td th:text="${e.sku}"></td><td th:text="${e.lot_number}"></td><td th:text="${e.expiration_date}"></td><td class="num" th:classappend="${e.days_remaining <= 7} ? 'sev CRITICAL'" th:text="${e.days_remaining}"></td><td class="num" th:text="${e.qty}"></td></tr></table>
+      <p class="empty" th:if="${#lists.isEmpty(d.expiry)}">Nothing close to date.</p></div>
+    <div class="panel"><h2>Labor · 7 days</h2>
+      <table><tr><th>Operator</th><th>Work</th><th class="num">Tasks</th><th class="num">Cases</th></tr>
+        <tr th:each="l : ${d.labor}"><td th:text="${l.display_name}"></td><td th:text="${l.assignment_type}"></td><td class="num" th:text="${l.tasks}"></td><td class="num" th:text="${l.cases}"></td></tr></table>
+      <p class="empty" th:if="${#lists.isEmpty(d.labor)}">No completed work yet.</p></div>
+    <div class="panel"><h2>Dock dwell</h2>
+      <table><tr><th>LPN</th><th>SKU</th><th>Dock</th><th>Dwell</th></tr>
+        <tr th:each="w : ${d.dwell}"><td><a th:href="@{/lpn(q=${w.lpn})}" class="mono" th:text="${w.lpn}"></a></td><td th:text="${w.sku}"></td><td class="loc" th:text="${w.dock_code}"></td><td th:text="${w.dwell}"></td></tr></table>
+      <p class="empty" th:if="${#lists.isEmpty(d.dwell)}">Dock is clear.</p></div>
+  </div>
+</main></body></html>

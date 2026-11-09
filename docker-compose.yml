@@ -1,105 +1,73 @@
-# Artemis WMS — Portainer Git stack.
+# Artemis WMS — build-from-source stack (Portainer Git stack).
 #
-# Same shape as the sweetkeepsake / trapleague / squires stacks:
-#   * images are BUILT from this repo on the host (no registry, no GHCR)
-#   * Caddy config is baked into an image (no single-file bind mounts)
-#   * this stack's own Caddy is parked behind the "edge" profile — the
-#     squires stack owns 80/443 for the whole host
-#   * artemis-app joins edge_net so the edge Caddy can resolve it by name
+#   db     Postgres 16 with the non-superuser app role baked in
+#   app    Spring Boot, built from ./app on the host
+#   caddy  app-level HTTPS; parked behind the "edge" profile because the
+#          shared edge Caddy on edge_net owns 80/443 for every stack
 #
-# Portainer: Stacks -> Add stack -> Repository, compose path docker-compose.yml.
-# Repo credential = the same fine-grained GitHub token the other stacks use.
-#
-# Environment variables to set in Portainer:
-#   DB_PASSWORD      Postgres password (required — do not leave the default)
-#   MAILGUN_API_KEY  Mailgun private API key
-#   MAILGUN_DOMAIN   mail.squiresenterprisesllc.com
-#   MAILGUN_FROM     Artemis WMS <artemis@mail.squiresenterprisesllc.com>
-#   ACME_EMAIL       only needed if you ever run this stack's own Caddy
-#   COMPOSE_PROFILES leave UNSET (do not set to "edge")
+# Networks: artemis_net (private) + edge_net (shared, external).
+# No registry pulls, no Watchtower, no unattended production restarts.
 
 services:
   db:
-    image: postgres:16
-    container_name: artemis-db
-    hostname: artemis-db
+    build: ./db
+    image: artemis-db:local
+    restart: unless-stopped
     environment:
-      POSTGRES_DB: wms
-      POSTGRES_USER: ${DB_USER:-wms}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-changeme}
+      POSTGRES_DB: artemis
+      POSTGRES_USER: ${POSTGRES_ADMIN_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_ADMIN_PASSWORD:?set POSTGRES_ADMIN_PASSWORD}
+      APP_DB_USER: ${DB_USER:-artemis_app}
+      APP_DB_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD}
     volumes:
-      - ar_pgdata:/var/lib/postgresql/data
+      - artemis_pgdata:/var/lib/postgresql/data
+    networks: [artemis_net]
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-wms} -d wms"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_ADMIN_USER:-postgres} -d artemis"]
       interval: 10s
       timeout: 5s
-      retries: 5
-    networks: [default]
-    restart: unless-stopped
+      retries: 6
 
-  # Built from ./app on the host. Flyway migrates V1-V17 on startup.
-  # Not published to the host — the edge Caddy reaches it over edge_net.
   app:
-    build:
-      context: ./app
-      dockerfile: Dockerfile
-    container_name: artemis-app
-    hostname: artemis-app
+    build: ./app
+    image: artemis-app:local
+    restart: unless-stopped
     depends_on:
       db:
         condition: service_healthy
     environment:
-      DB_URL: jdbc:postgresql://artemis-db:5432/wms
-      DB_USER: ${DB_USER:-wms}
-      DB_PASSWORD: ${DB_PASSWORD:-changeme}
+      DB_URL: jdbc:postgresql://db:5432/artemis
+      DB_USER: ${DB_USER:-artemis_app}
+      DB_PASSWORD: ${DB_PASSWORD}
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-local-auth}
+      BOOTSTRAP_SYSADMIN_EMAIL: ${BOOTSTRAP_SYSADMIN_EMAIL:-}
+      BOOTSTRAP_SYSADMIN_PASSWORD: ${BOOTSTRAP_SYSADMIN_PASSWORD:-}
       MAILGUN_API_KEY: ${MAILGUN_API_KEY:-}
-      MAILGUN_DOMAIN: ${MAILGUN_DOMAIN:-}
-      MAILGUN_FROM: ${MAILGUN_FROM:-alerts@artemis-wms.local}
-      SPRING_PROFILES_ACTIVE: local-auth   # dev/test only — NEVER in production
-    expose:
-      - "8080"
-    # Uncomment for LAN-only testing before the edge Caddy route exists.
-    # 8080 is free on the host today, but 8081 keeps it obviously temporary.
-     ports:
-       - "8085:8080"
-    networks: [default, edge]
-    restart: unless-stopped
-
-  # Parked. Only starts if COMPOSE_PROFILES=edge, which it should not be —
-  # squires-site's Caddy is THE edge for this host. Kept so the stack can
-  # still stand alone (dev box, migration, squires stack down for surgery).
-  caddy:
-    profiles: ["edge"]
-    build:
-      context: .
-      dockerfile: Dockerfile.caddy
-    container_name: artemis-caddy
-    depends_on:
-      - app
-    environment:
-      ACME_EMAIL: ${ACME_EMAIL:-CHANGE_ME_IN_PORTAINER}
-      WMS_DOMAIN: ${WMS_DOMAIN:-wms.squiresenterprisesllc.com}
+      MAILGUN_DOMAIN: ${MAILGUN_DOMAIN:-mail.squiresenterprisesllc.com}
+      MAIL_FROM: ${MAIL_FROM:-Artemis WMS <artemis@mail.squiresenterprisesllc.com>}
     ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ar_caddy_data:/data
-      - ar_caddy_config:/config
-    networks: [default, edge]
+      - "${APP_PORT:-8085}:8080"     # LAN access without going through the edge
+    networks: [artemis_net, edge_net]
+
+  caddy:
+    build: ./caddy
+    image: artemis-caddy:local
     restart: unless-stopped
+    profiles: ["edge"]
+    environment:
+      WMS_DOMAIN: ${WMS_DOMAIN:-wms.squiresenterprisesllc.com}
+    depends_on: [app]
+    volumes:
+      - artemis_caddy_data:/data
+      - artemis_caddy_config:/config
+    networks: [artemis_net, edge_net]
+
+networks:
+  artemis_net:
+  edge_net:
+    external: true
 
 volumes:
-  ar_pgdata:
-  ar_caddy_data:
-  ar_caddy_config:
-
-# default: this stack's private network (app <-> db).
-# edge: the neutral shared network owned by no stack, where the squires
-# edge Caddy finds artemis-app by hostname.
-networks:
-  default:
-    name: artemis_net
-    driver: bridge
-  edge:
-    name: edge_net
-    external: true
+  artemis_pgdata:
+  artemis_caddy_data:
+  artemis_caddy_config:

@@ -1,0 +1,30 @@
+<html xmlns:th="http://www.thymeleaf.org" th:replace="~{layout :: page(~{::title}, ~{::main})}">
+<head><title th:text="|${site.code} waves — Artemis WMS|"></title></head>
+<body><main>
+  <h1><span th:text="${site.name}">Site</span><small>waves</small></h1>
+  <div class="grid c2">
+    <div class="panel">
+      <table><tr><th>Wave</th><th>Type</th><th>Zone</th><th>Status</th><th class="num">Zone orders</th><th class="num">Assignments</th><th class="num">Tasks</th></tr>
+        <tr th:each="w : ${waves}"><td><a th:href="@{/waves/{id}(id=${w.wave_id})}" class="loc" th:text="${w.wave_number}"></a></td><td th:text="${w.wave_type}"></td>
+          <td><span class="tag" th:classappend="${#strings.toLowerCase(w.temp_zone) == 'frozen'} ? 'frozen' : (${#strings.toLowerCase(w.temp_zone) == 'refrigerated'} ? 'chill')" th:text="${w.temp_zone}"></span></td>
+          <td><span class="status" th:classappend="${w.status}" th:text="${w.status}"></span></td><td class="num" th:text="${w.zone_orders}"></td><td class="num" th:text="${w.assignments}"></td><td class="num" th:text="|${w.tasks_complete}/${w.tasks}|"></td></tr></table>
+      <p class="empty" th:if="${#lists.isEmpty(waves)}">No waves yet.</p>
+    </div>
+    <div class="panel">
+      <h2>Plan a wave</h2>
+      <p class="muted small">A wave is one temp zone. Leave filters blank to take every open zone order of that zone in the type's own order.</p>
+      <form th:action="@{/ui/sites/{s}/waves(s=${site.org_node_id})}" method="post">
+        <div class="row">
+          <label>Type<select name="type"><option th:each="t : ${ {'SHIP_URGENCY','RUSH','PROXIMITY','CARRIER_CUTOFF','ROUTE','SINGLE_CUSTOMER','ZONE'} }" th:value="${t}" th:text="${t}"></option></select></label>
+          <label>Temp zone<select name="tempZone"><option>AMBIENT</option><option>REFRIGERATED</option><option>FROZEN</option><option>DEEP_FROZEN</option><option>CONTROLLED_AMBIENT</option><option>HEATED</option></select></label>
+          <label>Batch size<input name="batchSize" type="number" min="1" max="24" value="6"></label><label>Max orders<input name="maxOrders" type="number"></label>
+        </div>
+        <div class="row">
+          <label>Route code<input name="routeCode"></label><label>Customer code<input name="customer"></label><label>Carrier cutoff<input name="cutoff" type="datetime-local"></label><label>Area<input name="area"></label>
+        </div>
+        <label>Specific order numbers (comma-separated, optional)<input name="orderNumbers"></label>
+        <button type="submit" style="margin-top:.6rem">Plan</button>
+      </form>
+    </div>
+  </div>
+</main></body></html>

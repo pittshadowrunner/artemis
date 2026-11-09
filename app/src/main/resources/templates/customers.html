@@ -1,0 +1,9 @@
+<html xmlns:th="http://www.thymeleaf.org" th:replace="~{layout :: page(~{::title}, ~{::main})}">
+<head><title>Customers — Artemis WMS</title></head>
+<body><main>
+  <h1>Customers</h1>
+  <form th:action="@{/customers}" method="get" class="inline" style="margin-bottom:1rem"><input name="q" th:value="${q}" placeholder="code or name"><button type="submit" class="secondary">Search</button></form>
+  <div class="panel"><table><tr><th>Code</th><th>Name</th><th>City</th><th>Route / stop</th><th class="num">Min shelf life</th><th>Carrier</th></tr>
+    <tr th:each="c : ${customers}"><td class="loc" th:text="${c.code}"></td><td th:text="${c.name}"></td><td th:text="|${c.city ?: ''} ${c.state_province ?: ''}|"></td><td th:text="|${c.route_code ?: ''} ${c.stop_sequence != null ? '#' + c.stop_sequence : ''}|"></td><td class="num" th:text="${c.min_shelf_life_days ?: '—'}"></td><td th:text="${c.preferred_carrier ?: ''}"></td></tr></table>
+    <p class="empty" th:if="${#lists.isEmpty(customers)}">No customers.</p></div>
+</main></body></html>

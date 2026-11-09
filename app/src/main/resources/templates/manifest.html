@@ -1,0 +1,36 @@
+<html xmlns:th="http://www.thymeleaf.org" th:replace="~{layout :: page(~{::title}, ~{::main})}">
+<head><title th:text="|${manifest.manifest_number} — Artemis WMS|"></title></head>
+<body><main>
+  <h1><span th:text="${manifest.manifest_number}">MAN</span><small th:text="|${manifest.carrier ?: ''} · ${site.code}|"></small> <span class="status" th:classappend="${manifest.status}" th:text="${manifest.status}"></span></h1>
+  <div class="subnav">
+    <form th:if="${manifest.status == 'EXPECTED'}" th:action="@{/ui/receiving/{id}/arrive(id=${manifest.manifest_id})}" method="post"><button type="submit">Trailer arrived</button></form>
+    <form th:if="${manifest.status == 'ARRIVED' or manifest.status == 'RECEIVING'}" th:action="@{/ui/receiving/{id}/close(id=${manifest.manifest_id})}" method="post"><button type="submit" class="secondary">Close manifest</button></form>
+    <a th:href="@{/sites/{s}/receiving(s=${site.org_node_id})}">← Receiving</a>
+  </div>
+  <div class="grid c2">
+    <div class="panel">
+      <h2>Lines</h2>
+      <table><tr><th>#</th><th>SKU</th><th class="num">Expected</th><th class="num">Received</th><th class="num">Rejected</th></tr>
+        <tr th:each="l : ${manifest.lines}"><td th:text="${l.line_number}"></td><td><span class="loc" th:text="${l.sku}"></span><br><span class="muted small" th:text="${l.description}"></span></td><td class="num" th:text="${l.expected_qty}"></td><td class="num" th:text="${l.received_qty}"></td><td class="num" th:text="${l.rejected_qty}"></td></tr></table>
+      <h2 style="margin-top:1rem">Pallets received</h2>
+      <table><tr><th>LPN</th><th>SKU</th><th>Lot / expiry</th><th class="num">Qty</th><th>At</th><th>Status</th></tr>
+        <tr th:each="p : ${manifest.pallets}"><td><a th:href="@{/lpn(q=${p.lpn})}" class="loc" th:text="${p.lpn}"></a></td><td th:text="${p.sku}"></td><td th:text="|${p.lot_number ?: '—'} / ${p.expiration_date ?: '—'}|"></td><td class="num" th:text="${p.qty}"></td><td class="loc" th:text="${p.location}"></td><td><span class="status" th:classappend="${p.status}" th:text="${p.status}"></span></td></tr></table>
+      <p class="empty" th:if="${#lists.isEmpty(manifest.pallets)}">Nothing received yet.</p>
+    </div>
+    <div class="panel" th:if="${manifest.status == 'ARRIVED' or manifest.status == 'RECEIVING'}">
+      <h2>Receive a pallet</h2>
+      <p class="muted small">One pallet per receipt. Lot, expiry, serials and scale weight are required where the item demands them; short shelf life is rejected at the dock.</p>
+      <form th:action="@{/ui/receiving/{id}/pallet(id=${manifest.manifest_id})}" method="post">
+        <div class="row">
+          <label>Line<select name="lineNumber"><option th:each="l : ${manifest.lines}" th:value="${l.line_number}" th:text="|${l.line_number} · ${l.sku} (${l.received_qty}/${l.expected_qty})|"></option></select></label>
+          <label>LPN<input name="lpn" class="mono" required></label><label>Qty<input name="qty" type="number" step="any" required></label>
+        </div>
+        <div class="row">
+          <label>Lot<input name="lot"></label><label>Expiration<input name="expirationDate" type="date"></label><label>Scale kg<input name="actualWeightKg" type="number" step="0.001"></label><label>Dock<input name="dock" class="mono" placeholder="default"></label>
+        </div>
+        <label>Serials (comma-separated)<input name="serials"></label>
+        <button type="submit" style="margin-top:.6rem">Receive &amp; direct putaway</button>
+      </form>
+    </div>
+  </div>
+</main></body></html>

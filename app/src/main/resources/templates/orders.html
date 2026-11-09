@@ -1,42 +1,26 @@
-<!DOCTYPE html>
-<html lang="en" xmlns:th="http://www.thymeleaf.org">
-<head><title>Artemis · Orders</title><th:block th:replace="~{fragments :: headcss}"/></head>
-<body>
-<div th:replace="~{fragments :: topbar('orders')}"></div>
-<div class="apage">
-  <div th:replace="~{fragments :: flashbar}"></div>
-  <div class="ahead"><span class="eyebrow">Demand</span><h1>Orders</h1></div>
-
-  <form method="get" th:action="@{/orders}" class="inlineform" style="margin-bottom:16px;flex-wrap:wrap;gap:8px">
-    <input type="hidden" name="siteId" th:value="${siteId}">
-    <input name="customer" th:value="${customer}" placeholder="Customer name or code…" class="filterinput" style="min-width:200px">
-    <input type="date" name="from" th:value="${from}" class="filterinput">
-    <input type="date" name="to" th:value="${to}" class="filterinput">
-    <select name="status" class="filterinput">
-      <option value="" th:selected="${status == ''}">Any status</option>
-      <option th:each="st : ${ {'NEW','ALLOCATED','RELEASED','PICKING','PICKED','SHIPPED'} }"
-              th:value="${st}" th:text="${st}" th:selected="${status == st}">S</option>
-    </select>
-    <button class="btn">Filter</button>
-  </form>
-
-  <div class="panel">
-    <div class="panel-h"><h3>Orders</h3><span class="eyebrow">Waving lives on the Waves screen · assignment building on the Selection lane</span></div>
-    <table><thead><tr><th>Order</th><th>Customer</th><th>Route</th><th class="num">Lines</th><th class="num">Ordered</th><th class="num">Picked</th><th>Created</th><th>Status</th></tr></thead>
-      <tbody>
-        <tr th:each="o : ${orders}">
-          <td><a class="linkcode" style="font-weight:600" th:href="@{'/orders/' + ${o.order_id}(siteId=${siteId})}" th:text="${o.order_number}">O</a></td>
-          <td><a class="linkcode" th:href="@{'/customers/' + ${o.customer_id}(siteId=${siteId})}" th:text="${o.customer_name} + ' (' + ${o.customer_code} + ')'">c</a></td>
-          <td class="mono" th:text="${o.route_code ?: '—'}">r</td>
-          <td class="num" th:text="${o.lines}">0</td>
-          <td class="num" th:text="${#numbers.formatDecimal(o.ordered_qty,1,0)}">0</td>
-          <td class="num" th:text="${#numbers.formatDecimal(o.picked_qty,1,0)}">0</td>
-          <td class="mono" style="font-size:11px" th:text="${#dates.format(o.created_at,'MM-dd HH:mm')}">t</td>
-          <td><span class="pill" th:classappend="${o.status == 'RELEASED' or o.status == 'ALLOCATED'} ? 'on'" th:text="${o.status}">S</span></td>
-        </tr>
-        <tr th:if="${#lists.isEmpty(orders)}"><td colspan="8" style="color:var(--ink-soft)">No orders match the filter.</td></tr>
-      </tbody></table>
+<html xmlns:th="http://www.thymeleaf.org" th:replace="~{layout :: page(~{::title}, ~{::main})}">
+<head><title th:text="|${site.code} orders — Artemis WMS|"></title></head>
+<body><main>
+  <h1><span th:text="${site.name}">Site</span><small>orders</small></h1>
+  <div class="subnav"><a th:href="@{/sites/{s}/orders(s=${site.org_node_id})}" th:classappend="${status == null} ? 'on'">All</a>
+    <a th:each="st : ${ {'NEW','ALLOCATED','PICKING','PICKED','DROPPED','SHIPPED'} }" th:href="@{/sites/{s}/orders(s=${site.org_node_id}, status=${st})}" th:classappend="${status == st} ? 'on'" th:text="${st}"></a></div>
+  <div class="grid c2">
+    <div class="panel" style="grid-column:span 1">
+      <table><tr><th>Order</th><th>Customer</th><th>Ship</th><th>Zones</th><th>Status</th><th class="num">Lines</th><th class="num">Picked</th></tr>
+        <tr th:each="o : ${orders}"><td><a th:href="@{/orders/{id}(id=${o.order_id})}" class="loc" th:text="${o.order_number}"></a> <span class="pri p9" th:if="${o.rush}">RUSH</span></td><td th:text="${o.customer_code}"></td><td th:text="${o.requested_ship_date}"></td>
+          <td class="small" th:text="|${o.zones} (${o.zones_waved} waved, ${o.zones_dropped} dropped)|"></td><td><span class="status" th:classappend="${o.status}" th:text="${o.status}"></span></td><td class="num" th:text="${o.lines}"></td><td class="num" th:text="|${o.picked_qty}/${o.ordered_qty}|"></td></tr></table>
+      <p class="empty" th:if="${#lists.isEmpty(orders)}">No orders.</p>
+    </div>
+    <div class="panel">
+      <h2>New order</h2>
+      <form th:action="@{/ui/sites/{s}/orders(s=${site.org_node_id})}" method="post">
+        <div class="row"><label>Order #<input name="orderNumber" required></label>
+          <label>Customer<select name="customer"><option th:each="c : ${customers}" th:value="${c.code}" th:text="|${c.code} — ${c.name}|"></option></select></label>
+          <label>Ship date<input name="requestedShipDate" type="date"></label><label>Priority<input name="priority" type="number" min="1" max="10" value="5"></label></div>
+        <label>Lines — <code>SKU qty</code> per row<textarea name="lines" rows="4" class="mono"></textarea></label>
+        <label style="flex-direction:row;align-items:center;gap:.5rem;margin-top:.5rem"><input type="checkbox" name="rush" value="true"> Rush</label>
+        <button type="submit" style="margin-top:.6rem">Create</button>
+      </form>
+    </div>
   </div>
-
-</div>
-</body></html>
+</main></body></html>

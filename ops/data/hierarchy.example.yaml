@@ -1,0 +1,61 @@
+# Artemis WMS — declarative tenant definition.
+#   ARTEMIS_PASS=... ops/artemis import ops/data/hierarchy.example.yaml
+# Idempotent: every section upserts by code, so edit and re-apply freely.
+# A sysadmin can create the corporation; a tenant ADMIN applies everything else.
+
+corporation:
+  code: SQE
+  name: Squires Enterprises LLC
+  city: Canonsburg
+  stateProvince: PA
+  country: US
+  timezone: America/New_York
+
+regions:
+  - code: NE
+    name: Northeast
+    sites:
+      - code: PIT1
+        name: Pittsburgh DC
+        city: Pittsburgh
+        stateProvince: PA
+        policy:                      # site level; areas override field by field
+          rotation: FIFO
+          minShelfLifeReceiptDays: 30
+          minShelfLifeShipDays: 14
+          allowLotMixing: false
+          allowItemMixing: false
+        areas:
+          - code: DRY
+            name: Dry Grocery
+          - code: COOLER
+            name: Cooler
+            policy: { rotation: FEFO, expiryAlertDays: 7 }
+          - code: FREEZER
+            name: Freezer
+            policy: { rotation: FEFO, expiryAlertDays: 14 }
+
+users:
+  - email: tom@squiresenterprisesllc.com
+    displayName: Tom Squires
+    password: change-me
+    grants:
+      - { node: SQE, role: ADMIN }          # corporation-wide admin
+  - email: supervisor@pit1.local
+    displayName: PIT1 Supervisor
+    password: change-me
+    workflows: [RECEIVING, PUTAWAY, REPLENISHMENT, SELECTION, SHIPPING]
+    grants:
+      - { node: PIT1, role: SUPERVISOR }
+  - email: m.alvarez@pit1.local
+    displayName: M. Alvarez
+    password: change-me
+    workflows: [SELECTION, REPLENISHMENT]
+    grants:
+      - { node: PIT1, role: OPERATOR }
+  - email: j.okafor@pit1.local
+    displayName: J. Okafor
+    password: change-me
+    workflows: [RECEIVING, PUTAWAY]
+    grants:
+      - { node: PIT1, role: OPERATOR }

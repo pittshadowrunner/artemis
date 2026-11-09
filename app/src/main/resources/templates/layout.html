@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org" th:fragment="page(title, content)">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title th:replace="${title}">Artemis WMS</title>
+  <link rel="stylesheet" th:href="@{/css/artemis.css}">
+</head>
+<body>
+<header class="top">
+  <a class="brand" th:href="@{/}">Artemis <span>WMS</span></a>
+  <nav th:if="${siteId != null}">
+    <a th:href="@{/sites/{s}/board(s=${siteId})}">Board</a>
+    <a th:href="@{/sites/{s}/racking(s=${siteId})}">Racking</a>
+    <a th:href="@{/sites/{s}/receiving(s=${siteId})}">Receiving</a>
+    <a th:href="@{/sites/{s}/orders(s=${siteId})}">Orders</a>
+    <a th:href="@{/sites/{s}/waves(s=${siteId})}">Waves</a>
+    <a th:href="@{/sites/{s}/shipments(s=${siteId})}">Shipping</a>
+    <a th:href="@{/sites/{s}/dashboard(s=${siteId})}">Dashboard</a>
+  </nav>
+  <nav>
+    <a th:href="@{/items}">Items</a>
+    <a th:href="@{/customers}">Customers</a>
+    <a th:href="@{/org}">Org</a>
+    <a th:href="@{/users}">Users</a>
+  </nav>
+  <span class="spacer"></span>
+  <form class="lpn" th:action="@{/lpn}" method="get"><input name="q" placeholder="LPN lookup…" th:value="${q}"></form>
+  <a class="bell" th:href="@{/notifications}" title="Notifications">&#128276;<b th:if="${unread > 0}" th:text="${unread}">0</b></a>
+  <span class="who" th:if="${me != null}" th:text="${me.email()}">user</span>
+  <form th:action="@{/logout}" method="post" style="margin:0"><button class="secondary" type="submit" style="color:var(--head-ink);border-color:#3d4c5b">Sign out</button></form>
+</header>
+<main>
+  <div class="flash ok" th:if="${ok}" th:text="${ok}"></div>
+  <div class="flash error" th:if="${error}" th:text="${error}"></div>
+  <div th:replace="${content}"></div>
+</main>
+</body>
+</html>
