@@ -10,7 +10,6 @@
 
 services:
   db:
-    build: ./db
     image: artemis-db:local
     restart: unless-stopped
     environment:
@@ -29,7 +28,6 @@ services:
       retries: 6
 
   app:
-    build: ./app
     image: artemis-app:local
     restart: unless-stopped
     depends_on:
@@ -50,7 +48,6 @@ services:
     networks: [artemis_net, edge_net]
 
   caddy:
-    build: ./caddy
     image: artemis-caddy:local
     restart: unless-stopped
     profiles: ["edge"]
