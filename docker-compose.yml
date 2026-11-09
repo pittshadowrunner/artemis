@@ -55,13 +55,13 @@ services:
       MAILGUN_API_KEY: ${MAILGUN_API_KEY:-}
       MAILGUN_DOMAIN: ${MAILGUN_DOMAIN:-}
       MAILGUN_FROM: ${MAILGUN_FROM:-alerts@artemis-wms.local}
-      # SPRING_PROFILES_ACTIVE: local-auth   # dev/test only — NEVER in production
+      SPRING_PROFILES_ACTIVE: local-auth   # dev/test only — NEVER in production
     expose:
       - "8080"
     # Uncomment for LAN-only testing before the edge Caddy route exists.
     # 8080 is free on the host today, but 8081 keeps it obviously temporary.
-    # ports:
-    #   - "8081:8080"
+     ports:
+       - "8085:8080"
     networks: [default, edge]
     restart: unless-stopped
 
