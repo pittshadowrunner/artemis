@@ -47,12 +47,13 @@ public class ImportService {
     private final InventoryService inventory;
     private final ReceivingService receiving;
     private final OrderService orders;
+    private final com.artemis.wms.platform.BulkLoads loads;
 
     public ImportService(JdbcTemplate jdbc, AccessService access, OrgService org, PolicyService policy, UserService users,
                          CustomerService customers, ItemService items, LocationService locations, EquipmentService equipment,
-                         InventoryService inventory, ReceivingService receiving, OrderService orders) {
+                         InventoryService inventory, ReceivingService receiving, OrderService orders, com.artemis.wms.platform.BulkLoads loads) {
         this.jdbc = jdbc; this.access = access; this.org = org; this.policy = policy; this.users = users; this.customers = customers;
-        this.items = items; this.locations = locations; this.equipment = equipment; this.inventory = inventory; this.receiving = receiving; this.orders = orders;
+        this.items = items; this.locations = locations; this.equipment = equipment; this.inventory = inventory; this.receiving = receiving; this.orders = orders; this.loads = loads;
     }
 
     public Map<String, Object> apply(Map<String, Object> doc) {
@@ -76,7 +77,11 @@ public class ImportService {
             corp = access.requireTenant();
         }
         access.require(corp, Capabilities.DATA_IMPORT);
+        // Unattended jobs keep out of the tenant until the load is done.
+        return loads.during(corp, () -> sections(doc, corp, report));
+    }
 
+    private Map<String, Object> sections(Map<String, Object> doc, UUID corp, Map<String, Object> report) {
         // 2. hierarchy
         BulkResult orgResult = new BulkResult();
         for (Map<String, Object> region : maps(doc.get("regions"))) {

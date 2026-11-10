@@ -27,6 +27,9 @@ public class ReplenService {
     private final AlertService alerts;
     public ReplenService(JdbcTemplate jdbc, AccessService access, AlertService alerts) { this.jdbc = jdbc; this.access = access; this.alerts = alerts; }
 
+    /** Above this many starved faces in one scan, raise a single site alert instead of one each. */
+    static final int NO_SOURCE_ROLLUP = 20;
+
     public List<Map<String, Object>> pressure(UUID siteId) {
         return jdbc.queryForList("SELECT * FROM v_replen_pressure WHERE site_id = ? AND on_hand + in_flight <= replen_trigger_qty ORDER BY (on_hand + in_flight) / NULLIF(replen_trigger_qty, 0), location_code", siteId);
     }
@@ -47,17 +50,13 @@ public class ReplenService {
     public Map<String, Object> cut(UUID siteId, UUID corp) {
         int created = 0, noSource = 0;
         List<String> tasks = new ArrayList<>();
+        List<Map<String, Object>> starved = new ArrayList<>();
         for (Map<String, Object> face : pressure(siteId)) {
             UUID faceId = (UUID) face.get("location_id");
             List<Map<String, Object>> src = jdbc.queryForList("SELECT * FROM replen_source(?)", faceId);
             BigDecimal onHand = (BigDecimal) face.get("on_hand"), inFlight = (BigDecimal) face.get("in_flight");
             boolean critical = onHand.signum() == 0 && inFlight.signum() == 0;
-            if (src.isEmpty()) {
-                noSource++;
-                alerts.raiseOnce(siteId, (UUID) face.get("area_id"), "REPLEN_NO_SOURCE", critical ? "CRITICAL" : "WARNING",
-                    "Face " + face.get("location_code") + " (" + face.get("sku") + ") is at " + onHand.stripTrailingZeros().toPlainString() + " with no reserve stock to pull from.", "ITEM", (UUID) face.get("item_id"));
-                continue;
-            }
+            if (src.isEmpty()) { starved.add(face); continue; }
             Map<String, Object> s = src.get(0);
             BigDecimal max = (BigDecimal) face.get("replen_max_qty");
             BigDecimal need = (max == null ? (BigDecimal) face.get("replen_trigger_qty") : max).subtract(onHand).subtract(inFlight);
@@ -78,6 +77,21 @@ public class ReplenService {
                 "Pick face " + face.get("location_code") + " (" + face.get("sku") + ") is empty — replenishment " + jdbc.queryForObject("SELECT assignment_number FROM assignment WHERE assignment_id = ?", String.class, assignmentId) + " cut at priority 9.", "ITEM", (UUID) face.get("item_id"));
             created++;
             tasks.add(prompt);
+        }
+        // Faces with nothing to pull from. An item the building has never held is a face still being
+        // set up, not an exception; and a building-wide shortage is one alert, not one per face.
+        if (!starved.isEmpty()) {
+            Set<UUID> everStocked = new HashSet<>(jdbc.queryForList("SELECT DISTINCT item_id FROM inventory WHERE site_id = ?", UUID.class, siteId));
+            starved.removeIf(f -> !everStocked.contains((UUID) f.get("item_id")));
+            noSource = starved.size();
+            if (noSource > NO_SOURCE_ROLLUP) {
+                alerts.raiseOnce(siteId, null, "REPLEN_NO_SOURCE", "CRITICAL",
+                    noSource + " pick faces are under their trigger with no reserve stock to pull from. The dashboard lists them under \"Pick faces under trigger\".", "SITE", siteId);
+            } else for (Map<String, Object> face : starved) {
+                BigDecimal onHand = (BigDecimal) face.get("on_hand");
+                alerts.raiseOnce(siteId, (UUID) face.get("area_id"), "REPLEN_NO_SOURCE", onHand.signum() == 0 && ((BigDecimal) face.get("in_flight")).signum() == 0 ? "CRITICAL" : "WARNING",
+                    "Face " + face.get("location_code") + " (" + face.get("sku") + ") is at " + onHand.stripTrailingZeros().toPlainString() + " with no reserve stock to pull from.", "ITEM", (UUID) face.get("item_id"));
+            }
         }
         return Map.of("created", created, "noSource", noSource, "tasks", tasks);
     }

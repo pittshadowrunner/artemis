@@ -99,18 +99,36 @@ items:     [ { sku, description, tempZone, casePackQty, palletTi, palletHi, lotT
 sites:
   - site: PIT1
     locations: [ { code: DOCK-R1, locType: RECEIVING_DOCK }, … ]
-    racks:     [ { zone: F, aisles: [A], levels: 1-2, columns: 1-6, slots: [A, B], tempZone: FROZEN, area: FREEZER } ]
+    racks:     [ { zone: F, aisles: 1-1, levels: 1-2, columns: 1-6, slots: [A, B], tempZone: FROZEN, area: FREEZER } ]
     equipment: [ { code: CART-01, type: CART, positions: 6 } ]
     containers:[ { barcode: TOTE-0001, type: TOTE } ]
-    inventory: [ { lpn: PLT-0201, sku: FRZ-3001, location: F-A-2-01-A, qty: 48, lot: CB-2210, expirationDate: 2027-05-01, actualWeightKg: 872.5 } ]
-    manifests: [ { manifestNumber: MAN-260917-01, carrier: Estes, lines: [{ sku: FRZ-3001, expectedQty: 48 }] } ]
-    orders:    [ { orderNumber: ORD-1001, customer: GIANT-EAGLE-012, rush: false, requestedShipDate: 2026-09-21, lines: [{ sku: CHL-2001, qty: 10 }] } ]
+    inventory: [ { lpn: PLT-0201, sku: '023700016584', location: F-01-2-01-A, qty: 48, lot: CB-2210, expirationDate: 2027-05-01, actualWeightKg: 872.5 } ]
+    manifests: [ { manifestNumber: MAN-260917-01, carrier: Estes, lines: [{ sku: '023700016584', expectedQty: 48 }] } ]
+    orders:    [ { orderNumber: ORD-1001, customer: GIANT-EAGLE-012, rush: false, requestedShipDate: 2026-09-21, lines: [{ sku: '070732001217', qty: 10 }] } ]
 ```
 
 Other CLI commands: `me`, `sites`, `corporations`, `get <path>`, `post <path> <json>`,
 `wipe <corpId> [operations|all]` (sysadmin; confirms with the corporation code).
 CSV/XLSX uploads still exist for items, locations and opening balances (`/upload` endpoints,
 templates under `ops/data/templates/`).
+
+## The mega dataset
+
+`ops/data/mega/` is a fully stocked building to tinker in: 10,192 items, 100 Pittsburgh-area
+customers, 25,480 rack slots (five levels; 60 dry aisles, 24 chill, 20 freezer), 23,610
+pallets, 80 pieces of equipment, 45 people, 240 open orders and 12 inbound manifests.
+
+```
+ops/artemis wipe <corporation id> all          # only if the tenant already exists (sysadmin)
+SYSADMIN_USER=admin@artemis.local SYSADMIN_PASS=... ops/data/mega/load.sh
+```
+
+It loads five files in order and prints what each created; allow several minutes (every row is
+validated like any other write). Items are identified by a 12-digit **UPC-A** — in YAML a UPC must
+be quoted (`sku: '013000004664'`) or it is read as a number and loses its leading zero. Brands and
+UPCs are invented; customers are real places with illustrative addresses and fictional phone
+numbers. Every password is `change-me`. `generate.py` rebuilds the files if you want a different
+shape.
 
 ## The web UI
 
@@ -128,8 +146,10 @@ manifest, shipment, customer, operator or equipment unit opens that thing's page
 - **Board** — lanes in floor order: Receiving → Putaway → Replenishment → Selection → Shipping,
   with zone filter chips, priority, and dispatch selects that only list operators **trained for
   that workflow**.
-- **Locations** — racking placards per zone/aisle (each cell links to its slot and its item), plus
-  docks, drops and staging. A **slot** page shows what's in it, what's headed to or from it, and
+- **Locations** — each temperature zone with its fill level; open a zone for its aisles, an aisle
+  for its placards (each cell links to its slot and its item). **Inbound** (receiving docks, cross-dock,
+  inbound staging) and **Outbound staging** (drops, staging lanes, shipping docks) are their own
+  screens. A **slot** page shows what's in it, what's headed to or from it, and
   its move history.
 - **Pallets** / **Lots** — original vs on-hand quantity, where each pallet is and where it's
   directed, every stop with dwell, the orders it's promised to.
@@ -186,8 +206,9 @@ the select and are refused by the API with a reason.
 - **Policies** set at Site or Area; nearest non-null value wins per field. Rotation falls back
   to FEFO for expiry-tracked items, FIFO otherwise.
 - **Locations** one racking type, `STANDARD`; pick-face is a role (`replen_item_id` set).
-  Names are `Zone-Aisle-Level-Column-Slot`; the pick sequence and check digits derive from the
-  name by trigger. One item per slot and item-temp-zone-is-authoritative are enforced on
+  Slot names are `Zone-Aisle-Level-Column-Slot` (`D-07-3-12-B`); the zone is the temperature zone
+  and aisles are simply numbered within it. The pick sequence (zone → aisle → column → slot →
+  level) and check digits derive from the name by trigger. Docks, drops and staging lanes carry a **flow** instead — inbound or outbound. One item per slot and item-temp-zone-is-authoritative are enforced on
   `inventory` writes; docks, drops and staging are exempt.
 - **Items** CS and PL UOM tiers derive from `case_pack_qty` / `pallet_ti × pallet_hi`.
   Expiry-tracked items need `shelf_life_days` or a `date_label`; catch-weight needs a nominal.
@@ -238,5 +259,7 @@ OIDC per tenant otherwise. Everything is under `/api/v1`:
   / operator / equipment pages, scheduled replenishment, separate page and API sign-in — done.
 - ~~Cycle 5~~ picked stock rides on the unit as inventory, selection assignments built by hand,
   work handed out on request — done.
+- ~~Cycle 6~~ location subscreens (zone → aisle, inbound, outbound staging), numbered aisles, UPC
+  item ids, the mega dataset — done.
 - **Next** permanent vs operational asset split.
 - **Later** VoiceLink dialog endpoints, OIDC group → grant sync, custom roles portal.

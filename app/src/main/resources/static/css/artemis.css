@@ -109,3 +109,21 @@ form.getwork { align-items: center; gap: .6rem; flex-wrap: wrap; }
 .card.build { display: flex; flex-direction: column; gap: .45rem; border-style: dashed; }
 .card.build .pickrow { display: flex; flex-direction: row; align-items: flex-start; gap: .45rem; text-transform: none; letter-spacing: 0; font-size: .86rem; color: var(--ink); font-weight: 400; }
 .card.build .pickrow input { margin-top: .2rem; width: auto; }
+
+/* locations: area → zone → aisle */
+nav.loctabs { display: flex; flex-wrap: wrap; align-items: center; gap: .3rem .35rem; margin: 0 0 1rem; padding-bottom: .7rem; border-bottom: 1px solid var(--line); }
+nav.loctabs a { padding: .28rem .65rem; border: 1px solid var(--line); border-radius: 999px; text-decoration: none; color: var(--ink); font-size: .84rem; background: var(--panel, #fff); white-space: nowrap; }
+nav.loctabs a.on { background: var(--ink); color: #fff; border-color: var(--ink); }
+nav.loctabs .grp { margin-left: .7rem; font-size: .72rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); display: inline-flex; align-items: center; gap: .3rem; }
+.fill { display: inline-block; width: 5.5rem; height: .5rem; border-radius: 999px; background: var(--line); overflow: hidden; vertical-align: middle; }
+.fill i { display: block; height: 100%; background: var(--ok); }
+.warn { color: var(--crit); font-weight: 600; }
+.aisles { display: grid; grid-template-columns: repeat(auto-fill, minmax(11.5rem, 1fr)); gap: .5rem; margin: .6rem 0 1rem; }
+a.aisle { display: flex; flex-direction: column; gap: .25rem; padding: .55rem .7rem; border: 1px solid var(--line); border-radius: .5rem; text-decoration: none; color: var(--ink); background: var(--panel, #fff); }
+a.aisle .fill { width: 100%; }
+a.aisle.on { border-color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink); }
+.rackscroll { overflow-x: auto; }
+.pager { margin-left: auto; display: inline-flex; gap: .6rem; align-items: center; }
+td .fill { width: 3.4rem; }
+td:has(> .fill) { white-space: nowrap; }
+.panel:has(> table) { overflow-x: auto; }

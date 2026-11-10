@@ -86,8 +86,26 @@ public class UiController {
     }
 
     @GetMapping("/sites/{siteId}/racking")
-    public String racking(@PathVariable UUID siteId, Model m) {
-        m.addAttribute("site", q.site(siteId)); m.addAttribute("zones", q.racking(siteId)); m.addAttribute("docks", q.docks(siteId));
+    public String racking(@PathVariable UUID siteId, @RequestParam(required = false) String zone,
+                          @RequestParam(required = false) String aisle, @RequestParam(required = false) String view, Model m) {
+        m.addAttribute("site", q.site(siteId));
+        List<Map<String, Object>> zones = q.locationZones(siteId);
+        List<Map<String, Object>> docks = q.docks(siteId);
+        m.addAttribute("zones", zones);
+        m.addAttribute("inbound", docks.stream().filter(d -> "INBOUND".equals(d.get("flow"))).toList());
+        m.addAttribute("outbound", docks.stream().filter(d -> "OUTBOUND".equals(d.get("flow"))).toList());
+        String v = upper(view), zn = upper(zone);
+        m.addAttribute("view", "INBOUND".equals(v) || "OUTBOUND".equals(v) ? v : null);
+        m.addAttribute("aisle", upper(aisle));
+        if (zn != null) {
+            Map<String, Object> z = zones.stream().filter(r -> zn.equals(r.get("zone"))).findFirst()
+                .orElseThrow(() -> com.artemis.wms.platform.ApiException.notFound("No zone " + zn + " at this site."));
+            m.addAttribute("here", z);
+            m.addAttribute("aisles", q.locationAisles(siteId, zn));
+            // One aisle at a time once a zone is too big to draw whole.
+            boolean small = ((Number) z.get("slots")).intValue() <= 600;
+            if (aisle != null || small) m.addAttribute("racks", q.racking(siteId, zn, upper(aisle)));
+        }
         return "racking";
     }
 
@@ -188,7 +206,12 @@ public class UiController {
 
     // ---- master data
     @GetMapping("/items")
-    public String itemsPage(@RequestParam(required = false) String q, Model m) { m.addAttribute("items", look.items(str(q))); m.addAttribute("q", q); return "items"; }
+    public String itemsPage(@RequestParam(required = false) String q, @RequestParam(required = false) String zone, @RequestParam(defaultValue = "1") int page, Model m) {
+        int total = look.itemCount(str(q), upper(zone)), pages = Math.max(1, (total + Lookup.ITEM_PAGE - 1) / Lookup.ITEM_PAGE), p = Math.min(Math.max(1, page), pages);
+        m.addAttribute("items", look.items(str(q), upper(zone), p)); m.addAttribute("q", q); m.addAttribute("zone", upper(zone));
+        m.addAttribute("total", total); m.addAttribute("page", p); m.addAttribute("pages", pages);
+        return "items";
+    }
     @GetMapping("/items/{sku}")
     public String item(@PathVariable String sku, Model m) {
         Map<String, Object> it = items.get(sku); m.addAttribute("item", it); m.addAttribute("ctx", look.itemContext((UUID) it.get("item_id"))); return "item";

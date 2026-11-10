@@ -33,7 +33,7 @@ check "an empty manifest can't be closed" "409" "$(./artemis post receiving/$MAN
 check "short-dated milk rejected" "409" "$(./artemis post receiving/$MAN/pallets '{"lineNumber":2,"lpn":"PLT-1101","qty":48,"lot":"L1","expirationDate":"today+8"}' | jq -r .status)"
 check "catch-weight needs scale"  "400" "$(./artemis post receiving/$MAN/pallets '{"lineNumber":3,"lpn":"PLT-1201","qty":48,"lot":"C1","expirationDate":"today+250"}' | jq -r .status)"
 p=$(./artemis post receiving/$MAN/pallets '{"lineNumber":1,"lpn":"PLT-1001","qty":50}')
-check "dry pallet consolidates with same item" "D-A-2-01-A" "$(jq -r .putaway.destination <<<"$p")"
+check "dry pallet consolidates with same item" "D-01-2-01-A" "$(jq -r .putaway.destination <<<"$p")"
 ./artemis post receiving/$MAN/pallets '{"lineNumber":2,"lpn":"PLT-1101","qty":48,"lot":"L1","expirationDate":"today+56"}' >/dev/null
 ./artemis post receiving/$MAN/pallets '{"lineNumber":3,"lpn":"PLT-1201","qty":48,"lot":"C1","expirationDate":"today+250","actualWeightKg":869.4}' >/dev/null
 tasks=$(./artemis get "sites/$SITE/putaway/tasks")
@@ -42,9 +42,9 @@ T1=$(jq -r '.[] | select(.lpn=="PLT-1001") | .task_id' <<<"$tasks"); D1=$(jq -r 
 T2=$(jq -r '.[] | select(.lpn=="PLT-1101") | .task_id' <<<"$tasks")
 check "wrong digits hard-stop"   "409" "$(./artemis post putaway/tasks/$T1/complete '{"checkDigits":"00"}' | jq -r .status)"
 check "right digits complete"    "false" "$(./artemis post putaway/tasks/$T1/complete "{\"checkDigits\":\"$D1\"}" | jq -r .override)"
-check "override needs a reason"  "400" "$(./artemis post putaway/tasks/$T2/complete '{"overrideLocation":"C-A-1-02-A"}' | jq -r .status)"
-check "override into wrong zone blocked" "409" "$(./artemis post putaway/tasks/$T2/complete '{"overrideLocation":"F-A-1-02-A","overrideReason":"x"}' | jq -r .status)"
-check "override journaled"       "PUTAWAY_OVERRIDE" "$(./artemis post putaway/tasks/$T2/complete '{"overrideLocation":"C-A-1-02-A","overrideReason":"spill"}' >/dev/null; ./artemis get lpn/PLT-1101 | jq -r '.history[-1].movement_type')"
+check "override needs a reason"  "400" "$(./artemis post putaway/tasks/$T2/complete '{"overrideLocation":"C-01-1-02-A"}' | jq -r .status)"
+check "override into wrong zone blocked" "409" "$(./artemis post putaway/tasks/$T2/complete '{"overrideLocation":"F-01-1-02-A","overrideReason":"x"}' | jq -r .status)"
+check "override journaled"       "PUTAWAY_OVERRIDE" "$(./artemis post putaway/tasks/$T2/complete '{"overrideLocation":"C-01-1-02-A","overrideReason":"spill"}' >/dev/null; ./artemis get lpn/PLT-1101 | jq -r '.history[-1].movement_type')"
 p=$(./artemis post receiving/$MAN/pallets '{"lineNumber":1,"qty":10}')
 check "no LPN given: the system assigns one" "true" "$(jq -r '.lpn | test("^PLT-1[0-9]{6}$")' <<<"$p")"
 check "…on the dock, with a putaway task to a slot" "DOCK-R1/true" "$(jq -r '"\(.location)/\(.putaway.destination != null)"' <<<"$p")"
@@ -61,7 +61,7 @@ W_CHL=$(./artemis post "sites/$SITE/waves" '{"type":"SHIP_URGENCY","tempZone":"R
 check "chilled wave: ship-date order" "ORD-1001,ORD-1002" "$(jq -r '[.zoneOrders[].order_number]|join(",")' <<<"$W_CHL")"
 REL=$(./artemis post "waves/$(jq -r .wave_id <<<"$W_CHL")/release" '{"equipment":"CART-01"}')
 check "release: 1 cart, 1 shelf-life bypass" "1/1" "$(jq -r '"\(.release.assignmentsCut)/\(.release.bypasses)"' <<<"$REL")"
-check "bypass skipped the 8-day face stock for PLT-0101" "PLT-0101/true" "$(./artemis get "sites/$SITE/orders/ORD-1001" | jq -r '.lines[] | select(.sku=="CHL-2001") | .allocations[0] | "\(.lpn)/\(.bypass)"')"
+check "bypass skipped the 8-day face stock for PLT-0101" "PLT-0101/true" "$(./artemis get "sites/$SITE/orders/ORD-1001" | jq -r '.lines[] | select(.sku=="070732001217") | .allocations[0] | "\(.lpn)/\(.bypass)"')"
 check "ROTATION_BYPASS alert raised" "ROTATION_BYPASS" "$(./artemis get "sites/$SITE/alerts" | jq -r '.[0].alert_type')"
 A_CHL=$(jq -r '.assignments[0].assignment_id' <<<"$REL"); ASG=$(./artemis get assignments/$A_CHL)
 check "tasks walk the pick path" "true" "$(jq -r '[.tasks[].from_location] as $l | ($l == ($l|sort))' <<<"$ASG")"
@@ -70,7 +70,7 @@ check "wrong put digits → hard stop" "409" "$(./artemis post selection/tasks/$
 check "pick verified both sides"    "false" "$(./artemis post selection/tasks/$TID/pick "{\"checkDigits\":\"$CD\",\"putCheckDigits\":\"$PD\"}" | jq -r .shorted)"
 for row in $(jq -r '.tasks[1:][] | "\(.task_id)|\(.check_digits)|\(.put_check_digits)"' <<<"$ASG"); do IFS='|' read -r tid cd pd <<<"$row"; ./artemis post selection/tasks/$tid/pick "{\"checkDigits\":\"$cd\",\"putCheckDigits\":\"$pd\"}" >/dev/null; done
 check "assignment rolls up COMPLETE" "COMPLETE" "$(./artemis get assignments/$A_CHL | jq -r .status)"
-check "drop refuses a rack slot"    "400" "$(./artemis post assignments/$A_CHL/drop '{"dropLocation":"D-A-1-01-A"}' | jq -r .status)"
+check "drop refuses a rack slot"    "400" "$(./artemis post assignments/$A_CHL/drop '{"dropLocation":"D-01-1-01-A"}' | jq -r .status)"
 check "drop at DROP-01"             "2"   "$(./artemis post assignments/$A_CHL/drop '{"dropLocation":"DROP-01"}' | jq -r .dropped)"
 # remaining zones: ambient (3 orders) and the two frozen waves
 W_DRY=$(./artemis post "sites/$SITE/waves" '{"type":"PROXIMITY","tempZone":"AMBIENT"}')
@@ -88,11 +88,11 @@ check "all orders DROPPED" "DROPPED,DROPPED,DROPPED,DROPPED" "$(./artemis get "s
 check "face PF-0001 picked to zero stays in the journal" "PICKED/true" "$(./artemis get lpn/PF-0001 | jq -r '"\(.status)/\((.qty|tonumber)==0)"')"
 SHIP=$(./artemis post "sites/$SITE/shipments" '{"customer":"GIANT-EAGLE-012","orderNumbers":["ORD-1001","ORD-1004"],"carrier":"Estes","dock":"DOCK-S1"}')
 check "shipment refuses another customer's order" "400" "$(./artemis post "sites/$SITE/shipments" '{"customer":"GIANT-EAGLE-012","orderNumbers":["ORD-1002"]}' | jq -r .status)"
-check "packing list from picked lots" "PL-/L24091" "$(jq -r '"\(.packingList[0].document_number[0:3])/\((.packingList[] | select(.sku=="CHL-2001") | .lot_number))"' <<<"$SHIP")"
+check "packing list from picked lots" "PL-/L24091" "$(jq -r '"\(.packingList[0].document_number[0:3])/\((.packingList[] | select(.sku=="070732001217") | .lot_number))"' <<<"$SHIP")"
 check "shipped" "SHIPPED" "$(./artemis post shipments/$(jq -r .shipment_id <<<"$SHIP")/ship | jq -r .status)"
 
 echo "== replenishment (supervisor)"
-check "empty face under pressure" "D-A-1-01-A" "$(./artemis get "sites/$SITE/replen/pressure" | jq -r '.[] | select(.on_hand==0) | .location_code' | head -1)"
+check "empty face under pressure" "D-01-1-01-A" "$(./artemis get "sites/$SITE/replen/pressure" | jq -r '.[] | select(.on_hand==0) | .location_code' | head -1)"
 ./artemis post "sites/$SITE/replen/run" >/dev/null   # the scheduled scan may already have cut these; either way they exist now
 check "replen tasks cut" "true" "$(./artemis get "sites/$SITE/assignments?type=REPLENISHMENT" | jq -r 'length >= 1')"
 check "a second scan cuts nothing twice" "0" "$(./artemis post "sites/$SITE/replen/run" | jq -r .created)"
@@ -102,11 +102,11 @@ RTASK=$(./artemis get assignments/$RT | jq -r '.tasks[0]'); RTID=$(jq -r .task_i
 check "replen check digits" "409" "$(./artemis post replen/tasks/$RTID/complete '{"checkDigits":"00"}' | jq -r .status)"
 check "pallet split: child LPN lands on the face" "PLT-0001.1" "$(./artemis post replen/tasks/$RTID/complete "{\"checkDigits\":\"$RCD\"}" | jq -r .lpnAtFace)"
 check "parent keeps lineage-correct remainder" "true" "$(./artemis get lpn/PLT-0001 | jq -r '.qty|tonumber < 50')"
-check "face no longer under pressure" "0" "$(./artemis get "sites/$SITE/replen/pressure" | jq -r '[.[] | select(.location_code=="D-A-1-01-A")] | length')"
+check "face no longer under pressure" "0" "$(./artemis get "sites/$SITE/replen/pressure" | jq -r '[.[] | select(.location_code=="D-01-1-01-A")] | length')"
 
 echo "== picked stock rides on the unit; work built on the floor"; as supervisor@pit1.local change-me
 check "nothing waiting to be built yet" "0" "$(./artemis get "sites/$SITE/selection/unbuilt" | jq -r length)"
-r=$(./artemis post "sites/$SITE/orders/bulk" '[{"orderNumber":"ORD-2001","customer":"GIANT-EAGLE-012","lines":[{"sku":"DRY-1002","qty":2}]},{"orderNumber":"ORD-2002","customer":"GIANT-EAGLE-012","lines":[{"sku":"DRY-1003","qty":3}]},{"orderNumber":"ORD-2003","customer":"GIANT-EAGLE-012","lines":[{"sku":"DRY-1004","qty":1}]}]')
+r=$(./artemis post "sites/$SITE/orders/bulk" '[{"orderNumber":"ORD-2001","customer":"GIANT-EAGLE-012","lines":[{"sku":"076808280012","qty":2}]},{"orderNumber":"ORD-2002","customer":"GIANT-EAGLE-012","lines":[{"sku":"051500255162","qty":3}]},{"orderNumber":"ORD-2003","customer":"GIANT-EAGLE-012","lines":[{"sku":"017400100421","qty":1}]}]')
 check "three more orders" "3" "$(jq -r .created <<<"$r")"
 W_MAN=$(./artemis post "sites/$SITE/waves" '{"type":"SHIP_URGENCY","tempZone":"AMBIENT"}')
 REL=$(./artemis post "waves/$(jq -r .wave_id <<<"$W_MAN")/release" '{"build":"MANUAL"}')
@@ -169,14 +169,21 @@ check "no stray markup on the board" "0" "$(grep -c '&lt;title\|&lt;/' "$UI" || 
 check "no manual replenishment button" "0" "$(grep -ci 'replen/run\|Run scan' "$UI" || true)"
 check "forms carry CSRF tokens" "true" "$(grep -c '_csrf' "$UI" | awk '{print ($1>0)?"true":"false"}')"
 check "board offers dispatch with operator load" "true" "$(grep -q 'J. Okafor · ' "$UI" && grep -q 'Dispatch' "$UI" && echo true)"
-page racking    "/sites/$SITE/racking"    "Zone D · Aisle A"
-check "rack cells link to the slot and the item" "true" "$(grep -q 'href="/slots/D-A-1-01-A"' "$UI" && grep -q 'href="/items/DRY-' "$UI" && echo true)"
-page slot       "/slots/D-A-1-01-A"       "Pick face"
+page locations  "/sites/$SITE/racking"    "Outbound staging"
+check "locations open on a summary, not every placard" "true/0" "$(grep -q 'racking?zone=D' "$UI" && echo true)/$(grep -c 'class="rack"' "$UI" || true)"
+page "zone placards" "/sites/$SITE/racking?zone=D" "DRY · Aisle 01"
+check "rack cells link to the slot and the item" "true" "$(grep -q 'href="/slots/D-01-1-01-A"' "$UI" && grep -q 'href="/items/013000004664"' "$UI" && echo true)"
+page "one aisle"     "/sites/$SITE/racking?zone=D&aisle=02" "DRY · Aisle 02"
+check "…and only that aisle" "0" "$(grep -c 'DRY · Aisle 01' "$UI" || true)"
+page "inbound"       "/sites/$SITE/racking?view=inbound"  "DOCK-R1"
+page "outbound staging" "/sites/$SITE/racking?view=outbound" "DROP-01"
+check "an unknown zone is a 404" "404" "$(ui "/sites/$SITE/racking?zone=Q")"
+page slot       "/slots/D-01-1-01-A"       "Pick face"
 page pallets    "/sites/$SITE/pallets"    "PLT-0001"
 page pallet     "/pallets/PLT-0001"       "Where it"
 page "pallet (split child)" "/pallets/PLT-0001.1" "PLT-0001"
 page lots       "/sites/$SITE/lots"       "L24091"
-page lot        "/lots/CHL-2001?lot=L24091" "PLT-"
+page lot        "/lots/070732001217?lot=L24091" "PLT-"
 page receiving  "/sites/$SITE/receiving"  "New manifest"
 page manifest   "/receiving/$MAN"         "Pallets received"
 page orders     "/sites/$SITE/orders"     "ORD-1001"
@@ -191,8 +198,8 @@ page shipment   "/shipments/$(jq -r .shipment_id <<<"$SHIP")" "Packing list"
 page dashboard  "/sites/$SITE/dashboard"  "Pick-face velocity"
 page alerts     "/sites/$SITE/alerts"     "ROTATION BYPASS"
 page notifications "/notifications"       "Notifications"
-page items      "/items"                  "CHL-2001"
-page item       "/items/CHL-2002"         "Units of measure"
+page items      "/items"                  "070732001217"
+page item       "/items/021000611225"         "Units of measure"
 page customers  "/customers"              "GIANT-EAGLE-012"
 page customer   "/customers/GIANT-EAGLE-012" "ORD-1001"
 page operators  "/operators"              "Trained for"
@@ -212,9 +219,9 @@ page org        "/org"                    "FREEZER"
 page policy     "/org/$SITE/policy"       "Effective (after cascade)"
 echo "== universal search"
 check "a pallet LPN goes straight to the pallet"  "/pallets/PLT-0001"   "$(goes '/search?q=plt-0001')"
-check "a slot code goes straight to the slot"     "/slots/D-A-1-01-A"   "$(goes '/search?q=D-A-1-01-A')"
+check "a slot code goes straight to the slot"     "/slots/D-01-1-01-A"   "$(goes '/search?q=D-01-1-01-A')"
 check "an order number goes straight to the order" "/orders/ORD-1001"   "$(goes '/search?q=ord-1001')"
-check "a SKU goes straight to the item"           "/items/CHL-2001"     "$(goes '/search?q=CHL-2001')"
+check "a SKU goes straight to the item"           "/items/070732001217"     "$(goes '/search?q=070732001217')"
 page "search: a person"   "/search?q=okafor&stay=1" "Operator"
 page "search: many hits"  "/search?q=ORD-10"  "ORD-1004"
 page "search: nothing"    "/search?q=zzzz"    "Nothing"
@@ -222,7 +229,7 @@ check "the old LPN lookup address still works" "/search?q=PLT-0001" "$(goes '/lp
 check "an unknown pallet is a 404 page, not a stack trace" "404" "$(ui /pallets/NOPE)"
 echo "== receiving through the screen"
 ui "/sites/$SITE/receiving" >/dev/null
-check "create a manifest" "302" "$(post "/ui/sites/$SITE/manifests" manifestNumber=MAN-UI supplier=Smoke "lines=DRY-1001 20")"
+check "create a manifest" "302" "$(post "/ui/sites/$SITE/manifests" manifestNumber=MAN-UI supplier=Smoke "lines=013000004664 20")"
 M2=$(./artemis get "sites/$SITE/receiving" | jq -r '.[] | select(.manifest_number=="MAN-UI") | .manifest_id')
 page "new manifest" "/receiving/$M2" "MAN-UI"
 check "arrive" "302" "$(post "/ui/receiving/$M2/arrive")"; ui "/receiving/$M2" >/dev/null
@@ -232,7 +239,7 @@ check "receive a pallet with no LPN typed" "302" "$(post "/ui/receiving/$M2/pall
 check "it has a system LPN, a dock and a putaway" "true/DOCK-R1/true" "$(./artemis get receiving/$M2 | jq -r '.pallets[0] | "\(.lpn|test("^PLT-1"))/\(.location)/\(.directed_to != null)"')"
 check "fully received" "RECEIVED" "$(./artemis get receiving/$M2 | jq -r .status)"
 page "manifest shows where it's going" "/receiving/$M2" "Directed to"
-M3=$(./artemis post "sites/$SITE/receiving" '{"manifestNumber":"MAN-GONE","supplier":"Smoke","lines":[{"sku":"DRY-1001","expectedQty":5}]}' | jq -r .manifestId)
+M3=$(./artemis post "sites/$SITE/receiving" '{"manifestNumber":"MAN-GONE","supplier":"Smoke","lines":[{"sku":"013000004664","expectedQty":5}]}' | jq -r .manifestId)
 check "an untouched manifest can be cancelled" "CANCELLED" "$(./artemis post receiving/$M3/cancel | jq -r .status)"
 echo "== equipment check-out"
 EQ=$(./artemis get "sites/$SITE/equipment" | jq -r '.[] | select(.code=="CART-02") | .equipment_id'); ui "/equipment/CART-02" >/dev/null

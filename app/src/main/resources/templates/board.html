@@ -52,7 +52,8 @@
     </section>
 
     <section>
-      <h2>Putaway <b th:text="${#lists.size(putaway)}">0</b></h2>
+      <h2>Putaway <b th:text="${#lists.isEmpty(putaway) ? 0 : putaway[0].total}">0</b></h2>
+      <p class="small muted" style="margin:.1rem 0 .4rem" th:if="${!#lists.isEmpty(putaway) and putaway[0].total > #lists.size(putaway)}" th:text="|Most urgent ${#lists.size(putaway)} shown.|"></p>
       <div class="lane">
         <th:block th:each="a : ${putaway}"><div th:replace="~{x :: work(${a}, ${eligible['PUTAWAY']}, ${here})}"></div></th:block>
         <p class="empty" th:if="${#lists.isEmpty(putaway)}">Dock is clear.</p>
@@ -60,7 +61,8 @@
     </section>
 
     <section>
-      <h2>Replenishment <b th:text="${#lists.size(replen)}">0</b></h2>
+      <h2>Replenishment <b th:text="${#lists.isEmpty(replen) ? 0 : replen[0].total}">0</b></h2>
+      <p class="small muted" style="margin:.1rem 0 .4rem" th:if="${!#lists.isEmpty(replen) and replen[0].total > #lists.size(replen)}" th:text="|Most urgent ${#lists.size(replen)} shown.|"></p>
       <div class="lane">
         <th:block th:each="a : ${replen}"><div th:replace="~{x :: work(${a}, ${eligible['REPLENISHMENT']}, ${here})}"></div></th:block>
         <p class="empty" th:if="${#lists.isEmpty(replen)}">Faces are stocked.</p>
@@ -68,7 +70,8 @@
     </section>
 
     <section>
-      <h2>Selection <b th:text="${#lists.size(selection)}">0</b></h2>
+      <h2>Selection <b th:text="${#lists.isEmpty(selection) ? 0 : selection[0].total}">0</b></h2>
+      <p class="small muted" style="margin:.1rem 0 .4rem" th:if="${!#lists.isEmpty(selection) and selection[0].total > #lists.size(selection)}" th:text="|Most urgent ${#lists.size(selection)} shown.|"></p>
       <div class="lane">
         <form class="card build" th:if="${!#lists.isEmpty(unbuilt)}" th:action="@{/ui/sites/{s}/selection/build(s=${site.org_node_id})}" method="post">
           <input type="hidden" name="back" th:value="${here}">

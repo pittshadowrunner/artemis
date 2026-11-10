@@ -1,9 +1,12 @@
 <html xmlns:th="http://www.thymeleaf.org" th:replace="~{layout :: page(~{::title}, ~{::main})}">
 <head><title>Items — Artemis WMS</title></head>
 <body><main>
-  <h1>Items<small th:text="|${#lists.size(items)} shown|"></small></h1>
-  <form th:action="@{/items}" method="get" class="inline" style="margin-bottom:1rem"><input name="q" th:value="${q}" placeholder="SKU or description" autofocus><button type="submit" class="secondary">Filter</button></form>
-  <div class="panel"><table><tr><th>SKU</th><th>Description</th><th>Zone</th><th>Tracking</th><th title="Calculated from the last 30 days of picks: A = the items making up the first 80% of lines, B the next 15%, C the rest">Velocity</th><th class="num">On hand</th><th class="num">Pallets</th><th>Pick face</th></tr>
+  <h1>Items<small th:text="|${#numbers.formatInteger(total, 1, 'COMMA')} item${total == 1 ? '' : 's'}${pages > 1 ? ' · page ' + page + ' of ' + pages : ''}|"></small></h1>
+  <form th:action="@{/items}" method="get" class="inline" style="margin-bottom:1rem"><input name="q" th:value="${q}" placeholder="UPC or description" autofocus>
+    <select name="zone" aria-label="Area"><option value="">All areas</option><option value="AMBIENT" th:selected="${zone == 'AMBIENT'}">Dry</option><option value="REFRIGERATED" th:selected="${zone == 'REFRIGERATED'}">Chilled</option><option value="FROZEN" th:selected="${zone == 'FROZEN'}">Frozen</option></select>
+    <button type="submit" class="secondary">Filter</button>
+    <span class="pager" th:if="${pages > 1}"><a th:if="${page > 1}" th:href="@{/items(q=${q},zone=${zone},page=${page - 1})}">‹ Previous</a> <span class="muted small" th:text="|${(page - 1) * 200 + 1}–${(page - 1) * 200 + #lists.size(items)}|"></span> <a th:if="${page < pages}" th:href="@{/items(q=${q},zone=${zone},page=${page + 1})}">Next ›</a></span></form>
+  <div class="panel"><table><tr><th>UPC</th><th>Description</th><th>Area</th><th>Tracking</th><th title="Calculated from the last 30 days of picks: A = the items making up the first 80% of lines, B the next 15%, C the rest">Velocity</th><th class="num">On hand</th><th class="num">Pallets</th><th>Pick face</th></tr>
     <tr th:each="i : ${items}"><td><th:block th:replace="~{x :: item(${i.sku})}"/></td><td th:text="${i.description}"></td>
       <td><th:block th:replace="~{x :: zone(${i.temp_zone})}"/></td>
       <td class="small" th:text="|${i.lot_tracked ? 'lot ' : ''}${i.expiry_tracked ? 'expiry ' : ''}${i.serial_tracked ? 'serial ' : ''}${i.catch_weight ? 'catch-weight' : ''}|"></td>

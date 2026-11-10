@@ -45,7 +45,8 @@ public class AlertService {
         return jdbc.queryForList("""
             SELECT a.alert_id, a.alert_type, a.severity::text AS severity, a.message, a.ref_kind, a.ref_id, ar.code AS area, a.created_at
             FROM system_alert a LEFT JOIN org_node ar ON ar.org_node_id = a.area_id
-            WHERE a.site_id = ? AND a.acknowledged_at IS NULL ORDER BY a.created_at DESC""", siteId);
+            WHERE a.site_id = ? AND a.acknowledged_at IS NULL
+            ORDER BY (a.severity = 'CRITICAL') DESC, a.created_at DESC LIMIT 200""", siteId);
     }
 
     public void acknowledge(UUID alertId) {

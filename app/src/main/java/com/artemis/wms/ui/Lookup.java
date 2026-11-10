@@ -227,7 +227,18 @@ public class Lookup {
         return c;
     }
 
-    public List<Map<String, Object>> items(String q) {
+    public static final int ITEM_PAGE = 200;
+
+    public int itemCount(String q, String tempZone) {
+        Integer n = jdbc.queryForObject("""
+            SELECT count(*) FROM item i WHERE i.corporation_id = ? AND i.active AND (?::text IS NULL OR i.temp_zone::text = ?)
+              AND (?::text IS NULL OR i.sku::text ILIKE '%' || ? || '%' OR i.description ILIKE '%' || ? || '%')""",
+            Integer.class, access.requireTenant(), tempZone, tempZone, q, q, q);
+        return n == null ? 0 : n;
+    }
+
+    /** One page of the item master; a catalogue of ten thousand is not a single table. */
+    public List<Map<String, Object>> items(String q, String tempZone, int page) {
         return jdbc.queryForList("""
             SELECT i.sku::text AS sku, i.description, i.temp_zone::text AS temp_zone, i.lot_tracked, i.expiry_tracked, i.serial_tracked, i.catch_weight,
                    iv.velocity, iv.lines_30d, b.sku::text AS base_item_sku,
@@ -235,8 +246,11 @@ public class Lookup {
                    (SELECT count(*) FROM inventory v WHERE v.item_id = i.item_id AND v.qty > 0 AND v.status IN ('AVAILABLE','ALLOCATED')) AS pallets,
                    (SELECT string_agg(l.code, ', ' ORDER BY l.code) FROM location l WHERE l.replen_item_id = i.item_id AND l.active) AS faces
             FROM item i LEFT JOIN item b ON b.item_id = i.base_item_id LEFT JOIN v_item_velocity iv ON iv.item_id = i.item_id
-            WHERE i.corporation_id = ? AND i.active AND (?::text IS NULL OR i.sku::text ILIKE '%' || ? || '%' OR i.description ILIKE '%' || ? || '%')
-            ORDER BY i.sku""", access.requireTenant(), q, q, q);
+            WHERE i.item_id IN (
+                SELECT x.item_id FROM item x WHERE x.corporation_id = ? AND x.active AND (?::text IS NULL OR x.temp_zone::text = ?)
+                  AND (?::text IS NULL OR x.sku::text ILIKE '%' || ? || '%' OR x.description ILIKE '%' || ? || '%')
+                ORDER BY x.description, x.sku LIMIT ? OFFSET ?)
+            ORDER BY i.description, i.sku""", access.requireTenant(), tempZone, tempZone, q, q, q, ITEM_PAGE, Math.max(0, page - 1) * ITEM_PAGE);
     }
 
     // ------------------------------------------------------------ customer

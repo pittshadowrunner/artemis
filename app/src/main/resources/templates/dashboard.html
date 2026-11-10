@@ -16,20 +16,22 @@
       <p class="empty" th:if="${#lists.isEmpty(d.dwell)}">Dock is clear.</p></div>
     <div class="panel"><h2>Pick faces under trigger</h2>
       <table><tr><th>Face</th><th>Item</th><th class="num">On hand</th><th class="num">Trigger</th><th class="num">Max</th><th class="num">On the way</th></tr>
-        <tr th:each="p : ${pressure}"><td><th:block th:replace="~{x :: slot(${p.location_code})}"/> <th:block th:replace="~{x :: zone(${p.temp_zone})}"/></td><td><th:block th:replace="~{x :: item(${p.sku})}"/></td>
+        <tr th:each="p, i : ${pressure}" th:if="${i.index < 50}"><td><th:block th:replace="~{x :: slot(${p.location_code})}"/> <th:block th:replace="~{x :: zone(${p.temp_zone})}"/></td><td><th:block th:replace="~{x :: item(${p.sku})}"/></td>
           <td class="num" th:classappend="${p.on_hand == 0} ? 'late'" th:text="${p.on_hand == 0 ? 'EMPTY' : fmt.qty(p.on_hand)}"></td><td class="num" th:text="${fmt.qty(p.replen_trigger_qty)}"></td><td class="num" th:text="${fmt.qty(p.replen_max_qty)}"></td><td class="num" th:text="${fmt.qty(p.in_flight)}"></td></tr></table>
+      <p class="small muted" th:if="${#lists.size(pressure) > 50}" th:text="|…and ${#lists.size(pressure) - 50} more, lowest first.|"></p>
       <p class="empty" th:if="${#lists.isEmpty(pressure)}">Every face is above its trigger or has replenishment on the way.</p>
       <p class="hint">Replenishment is cut automatically as faces drop; it shows on the board as it's created.</p></div>
     <div class="panel"><h2>Shipping</h2>
       <table><tr><th>Shipment</th><th>Customer</th><th>Status</th><th class="num">Orders</th><th class="num">Ready</th></tr>
         <tr th:each="s : ${d.shipping}"><td><th:block th:replace="~{x :: shipment(${s.shipment_number})}"/></td><td><th:block th:replace="~{x :: customer(${s.customer_code}, ${s.customer_name})}"/></td><td><th:block th:replace="~{x :: st(${s.status})}"/></td><td class="num" th:text="${s.orders}"></td><td class="num" th:text="${s.orders_ready}"></td></tr></table>
       <p class="empty" th:if="${#lists.isEmpty(d.shipping)}">Nothing today.</p></div>
-    <div class="panel"><h2>Pick-face velocity · 30 days</h2>
+    <div class="panel"><h2>Pick-face velocity · 30 days <span class="muted small" style="text-transform:none;letter-spacing:0">— busiest 25</span></h2>
       <table><tr><th>Face</th><th>Item</th><th class="num">Lines</th><th class="num">Cases</th><th class="num">Active days</th></tr>
         <tr th:each="v : ${d.velocity}"><td><th:block th:replace="~{x :: slot(${v.location_code})}"/></td><td><th:block th:replace="~{x :: item(${v.sku})}"/></td><td class="num" th:text="${v.lines_30d}"></td><td class="num" th:text="${fmt.qty(v.cases_30d)}"></td><td class="num" th:text="${v.active_days_30d}"></td></tr></table></div>
     <div class="panel"><h2>Expiry risk · 30 days or less</h2>
       <table><tr><th>Item</th><th>Lot</th><th>Expires</th><th class="num">Days</th><th class="num">Qty</th></tr>
         <tr th:each="e : ${d.expiry}"><td><th:block th:replace="~{x :: item(${e.sku})}"/></td><td><th:block th:replace="~{x :: lot(${e.sku}, ${e.lot_number})}"/></td><td th:text="${e.expiration_date}"></td><td class="num" th:classappend="${e.days_remaining <= 7} ? 'late'" th:text="${e.days_remaining}"></td><td class="num" th:text="${fmt.qty(e.qty)}"></td></tr></table>
+      <p class="small muted" th:if="${d.expiryTotal > 50}" th:text="|Soonest 50 of ${d.expiryTotal} lots inside 30 days.|"></p>
       <p class="empty" th:if="${#lists.isEmpty(d.expiry)}">Nothing close to date.</p></div>
     <div class="panel"><h2>Labor · 7 days</h2>
       <table><tr><th>Operator</th><th>Work</th><th class="num">Tasks</th><th class="num">Cases</th></tr>

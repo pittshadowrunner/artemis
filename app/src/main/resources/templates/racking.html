@@ -1,30 +1,89 @@
 <html xmlns:th="http://www.thymeleaf.org" th:replace="~{layout :: page(~{::title}, ~{::main})}">
 <head><title th:text="|${site.code} locations — Artemis WMS|"></title></head>
-<body><main>
-  <h1><span th:text="${site.name}">Site</span><small>locations · racking placards</small></h1>
-  <div class="legend">
-    <span><span class="cell full"></span>holds stock</span><span><span class="cell face"></span>pick face (PF)</span><span><span class="cell"></span>empty</span>
-    <span>Each cell is a slot: click the position for the slot, the SKU for the item. Check digits are top right. Levels run top to bottom; aisle order is the pick path.</span>
-  </div>
-  <div th:each="z : ${zones}">
-    <div th:each="a : ${z.value}" class="rack">
-      <div class="zonehead"><span class="tag" th:classappend="${a.value.css}" th:text="${a.value.tag}"></span><h3 th:text="|Zone ${z.key} · Aisle ${a.key}|"></h3><span class="muted small" th:text="|${#lists.size(a.value.columns)} positions × ${#lists.size(a.value.levels)} levels|"></span></div>
-      <table>
-        <tr><th>Lvl</th><th th:each="c : ${a.value.columns}" th:text="${c}"></th></tr>
-        <tr th:each="l : ${a.value.levels}"><th th:text="${l}"></th>
-          <td th:each="c : ${a.value.columns}" th:with="cell=${a.value.cells[l + '|' + c]}">
-            <div th:if="${cell != null}" class="cell" th:classappend="|${cell.css} ${cell.face ? 'face' : ''} ${cell.pallets > 0 ? 'full' : ''}|" th:title="${cell.code}">
-              <a class="c" th:href="${go.slot(cell.code)}" th:text="${c}" th:title="|Slot ${cell.code}|">01-A</a><span class="d" th:text="${cell.check_digits}"></span>
-              <a class="s" th:if="${cell.face}" th:href="${go.item(cell.face_sku)}" th:text="${cell.face_sku}">SKU</a>
-              <a class="s" th:if="${!cell.face and cell.sku != null}" th:href="${go.item(cell.sku)}" th:text="${cell.sku}">SKU</a>
-              <span class="q" th:if="${cell.pallets > 0}" th:text="|${fmt.qty(cell.qty)} on ${cell.pallets} LPN|">48 on 1 LPN</span>
-              <span class="q" th:if="${cell.face and cell.pallets == 0}">empty face</span>
-            </div></td></tr>
-      </table>
+<body><main th:with="base=|/sites/${site.org_node_id}/racking|">
+  <h1><span th:text="${site.name}">Site</span><small>locations</small></h1>
+
+  <nav class="loctabs" aria-label="Locations">
+    <a th:href="@{${base}}" th:classappend="${here == null and view == null} ? 'on'">Overview</a>
+    <span class="grp">Racking</span>
+    <a th:each="z : ${zones}" th:href="@{${base}(zone=${z.zone})}" th:classappend="${here != null and here.zone == z.zone} ? 'on'" th:text="|${go.tag(z.temp_zone)} · ${z.aisles} aisles|">DRY · 60 aisles</a>
+    <span class="grp">Flow</span>
+    <a th:href="@{${base}(view='inbound')}" th:classappend="${view == 'INBOUND'} ? 'on'" th:text="|Inbound · ${#lists.size(inbound)}|">Inbound</a>
+    <a th:href="@{${base}(view='outbound')}" th:classappend="${view == 'OUTBOUND'} ? 'on'" th:text="|Outbound staging · ${#lists.size(outbound)}|">Outbound staging</a>
+  </nav>
+
+  <!-- ───────────── overview ───────────── -->
+  <th:block th:if="${here == null and view == null}">
+    <div class="grid c2">
+      <div class="panel"><h2>Racking</h2>
+        <table><tr><th>Zone</th><th class="num">Aisles</th><th class="num">Slots</th><th class="num">Pick faces</th><th>Holding stock</th><th class="num">Empty faces</th></tr>
+          <tr th:each="r : ${zones}">
+            <td><span class="tag" th:classappend="${go.css(r.temp_zone)}" th:text="${go.tag(r.temp_zone)}">DRY</span> <a class="loc" th:href="@{${base}(zone=${r.zone})}" th:text="${r.area_name ?: 'Zone ' + r.zone}">Dry</a> <span class="muted small" th:text="|slots ${r.zone}-…|">D-…</span></td>
+            <td class="num" th:text="${r.aisles}">60</td><td class="num" th:text="${#numbers.formatInteger(r.slots, 1, 'COMMA')}">15,000</td><td class="num" th:text="${#numbers.formatInteger(r.faces, 1, 'COMMA')}">6,000</td>
+            <td><span class="fill"><i th:style="|width:${r.slots == 0 ? 0 : 100 * r.occupied / r.slots}%|"></i></span> <span class="small" th:text="|${r.slots == 0 ? 0 : 100 * r.occupied / r.slots}%|">92%</span></td>
+            <td class="num" th:classappend="${r.empty_faces > 0} ? 'warn'" th:text="${r.empty_faces}">0</td></tr></table>
+        <p class="empty" th:if="${#lists.isEmpty(zones)}">No rack slots yet — generate them with <code>ops/artemis import</code>.</p>
+        <p class="hint">Slot codes read Zone‑Aisle‑Level‑Column‑Slot. Open a zone for its aisles, an aisle for its placards.</p></div>
+      <div>
+        <div class="panel" style="margin-bottom:1rem"><h2>Inbound</h2>
+          <p class="small muted" style="margin-top:0">Receiving docks, cross-dock and inbound staging — where pallets land before putaway.</p>
+          <div class="stat"><b th:text="${#lists.size(inbound)}">12</b><span th:text="|locations · ${#aggregates.sum(inbound.![pallets]) ?: 0} pallets waiting|">locations</span></div>
+          <p><a th:href="@{${base}(view='inbound')}">Open inbound →</a></p></div>
+        <div class="panel"><h2>Outbound staging</h2>
+          <p class="small muted" style="margin-top:0">Drop zones, staging lanes and shipping docks — where picked loads wait for the truck.</p>
+          <div class="stat"><b th:text="${#lists.size(outbound)}">30</b><span th:text="|locations · ${#aggregates.sum(outbound.![pallets]) ?: 0} units staged|">locations</span></div>
+          <p><a th:href="@{${base}(view='outbound')}">Open outbound staging →</a></p></div>
+      </div>
     </div>
-  </div>
-  <p class="empty" th:if="${#maps.isEmpty(zones)}">No rack slots yet — generate them with <code>ops/artemis import</code>.</p>
-  <h2>Docks, drops, staging</h2>
-  <div class="panel"><table><tr><th>Location</th><th>Type</th><th>Check</th><th class="num">Pallets here</th><th class="num">Drops, last 24h</th></tr>
-    <tr th:each="d : ${docks}"><td><th:block th:replace="~{x :: place(${d.code}, ${d.loc_type})}"/></td><td th:text="${fmt.words(d.loc_type)}"></td><td class="mono" th:text="${d.check_digits}"></td><td class="num" th:text="${d.pallets}"></td><td class="num" th:text="${d.drops_24h}"></td></tr></table></div>
+  </th:block>
+
+  <!-- ───────────── inbound / outbound ───────────── -->
+  <th:block th:if="${view != null}" th:with="rows=${view == 'INBOUND' ? inbound : outbound}">
+    <h2 th:text="${view == 'INBOUND' ? 'Inbound — docks, cross-dock, staging' : 'Outbound staging — drops, staging lanes, shipping docks'}">Inbound</h2>
+    <div class="panel"><table><tr><th>Location</th><th>Type</th><th>Area</th><th>Check</th><th class="num">Pallets / units here</th><th class="num">Cases</th><th class="num" th:text="${view == 'INBOUND' ? 'Putaways waiting' : 'Drops, last 24h'}">Activity</th></tr>
+      <tr th:each="d : ${rows}"><td><th:block th:replace="~{x :: place(${d.code}, ${d.loc_type})}"/></td><td th:text="${fmt.words(d.loc_type)}"></td>
+        <td><span th:if="${d.area}" th:text="${d.area}">DRY</span><span th:if="${d.area == null}" class="muted">site</span></td>
+        <td class="mono" th:text="${d.check_digits}"></td><td class="num" th:text="${d.pallets}"></td><td class="num" th:text="${fmt.qty(d.qty)}"></td>
+        <td class="num" th:text="${view == 'INBOUND' ? d.open_tasks : d.drops_24h}"></td></tr></table>
+      <p class="empty" th:if="${#lists.isEmpty(rows)}">None defined.</p></div>
+  </th:block>
+
+  <!-- ───────────── one zone: its aisles, then placards ───────────── -->
+  <th:block th:if="${here != null}">
+    <div class="crumbs"><a th:href="@{${base}}">Locations</a> › <a th:href="@{${base}(zone=${here.zone})}" th:text="${here.area_name ?: 'Zone ' + here.zone}">Dry</a><span th:if="${aisle}" th:text="| › Aisle ${aisle}|"></span></div>
+    <h2><span class="tag" th:classappend="${go.css(here.temp_zone)}" th:text="${go.tag(here.temp_zone)}">DRY</span> <span th:text="${here.area_name ?: 'Zone ' + here.zone}">Dry</span>
+      <span class="muted small" style="text-transform:none;letter-spacing:0" th:text="|${here.aisles} aisles · ${#numbers.formatInteger(here.slots, 1, 'COMMA')} slots · ${#numbers.formatInteger(here.faces, 1, 'COMMA')} pick faces · ${here.slots == 0 ? 0 : 100 * here.occupied / here.slots}% holding stock|"></span></h2>
+    <div class="aisles">
+      <a th:each="a : ${aisles}" class="aisle" th:classappend="${aisle == a.aisle} ? 'on'" th:href="@{${base}(zone=${here.zone},aisle=${a.aisle})}">
+        <b th:text="|Aisle ${a.aisle}|">Aisle 01</b>
+        <span class="fill"><i th:style="|width:${a.slots == 0 ? 0 : 100 * a.occupied / a.slots}%|"></i></span>
+        <span class="small" th:text="|${a.occupied}/${a.slots} slots · ${a.faces} faces|">230/250</span>
+        <span class="small warn" th:if="${a.empty_faces > 0}" th:text="|${a.empty_faces} empty face${a.empty_faces == 1 ? '' : 's'}|">2 empty faces</span>
+      </a>
+    </div>
+    <p class="hint" th:if="${racks == null}">Pick an aisle to see its placards.</p>
+    <th:block th:if="${racks != null}">
+      <div class="legend">
+        <span><span class="cell full"></span>holds stock</span><span><span class="cell face"></span>pick face</span><span><span class="cell"></span>empty</span>
+        <span>Click the position for the slot, the SKU for the item. Check digits are top right. Levels run top to bottom; columns follow the pick path.</span>
+      </div>
+      <th:block th:each="z : ${racks}">
+        <div th:each="a : ${z.value}" class="rack">
+          <div class="zonehead"><span class="tag" th:classappend="${go.css(here.temp_zone)}" th:text="${go.tag(here.temp_zone)}"></span><h3 th:text="|${go.tag(here.temp_zone)} · Aisle ${a.key}|"></h3><span class="muted small" th:text="|${#lists.size(a.value.columns)} positions × ${#lists.size(a.value.levels)} levels|"></span></div>
+          <div class="rackscroll"><table>
+            <tr><th>Lvl</th><th th:each="c : ${a.value.columns}" th:text="${c}"></th></tr>
+            <tr th:each="l : ${a.value.levels}"><th th:text="${l}"></th>
+              <td th:each="c : ${a.value.columns}" th:with="cell=${a.value.cells[l + '|' + c]}">
+                <div th:if="${cell != null}" class="cell" th:classappend="|${cell.css} ${cell.face ? 'face' : ''} ${cell.pallets > 0 ? 'full' : ''}|" th:title="${cell.code}">
+                  <a class="c" th:href="${go.slot(cell.code)}" th:text="${c}" th:title="|Slot ${cell.code}|">01-A</a><span class="d" th:text="${cell.check_digits}"></span>
+                  <a class="s" th:if="${cell.face}" th:href="${go.item(cell.face_sku)}" th:text="${cell.face_sku}">SKU</a>
+                  <a class="s" th:if="${!cell.face and cell.sku != null}" th:href="${go.item(cell.sku)}" th:text="${cell.sku}">SKU</a>
+                  <span class="q" th:if="${cell.pallets > 0}" th:text="|${fmt.qty(cell.qty)} on ${cell.pallets} LPN|">48 on 1 LPN</span>
+                  <span class="q" th:if="${cell.face and cell.pallets == 0}">empty face</span>
+                </div></td></tr>
+          </table></div>
+        </div>
+      </th:block>
+    </th:block>
+  </th:block>
 </main></body></html>

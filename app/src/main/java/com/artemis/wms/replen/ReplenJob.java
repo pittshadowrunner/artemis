@@ -27,9 +27,10 @@ public class ReplenJob {
     private final JdbcTemplate jdbc;
     private final ReplenService replen;
     private final boolean enabled;
+    private final com.artemis.wms.platform.BulkLoads loads;
 
-    public ReplenJob(JdbcTemplate jdbc, ReplenService replen, @Value("${artemis.replen.auto:true}") boolean enabled) {
-        this.jdbc = jdbc; this.replen = replen; this.enabled = enabled;
+    public ReplenJob(JdbcTemplate jdbc, ReplenService replen, @Value("${artemis.replen.auto:true}") boolean enabled, com.artemis.wms.platform.BulkLoads loads) {
+        this.jdbc = jdbc; this.replen = replen; this.enabled = enabled; this.loads = loads;
     }
 
     @Scheduled(fixedDelayString = "${artemis.replen.scan-fixed-delay-ms:60000}", initialDelayString = "${artemis.replen.scan-initial-delay-ms:30000}")
@@ -41,6 +42,7 @@ public class ReplenJob {
                 "SELECT DISTINCT corporation_id, site_id FROM v_replen_pressure WHERE on_hand + in_flight <= replen_trigger_qty");
             for (Map<String, Object> s : sites) {
                 UUID corp = (UUID) s.get("corporation_id"), site = (UUID) s.get("site_id");
+                if (loads.busy(corp)) continue;      // a building being stocked is not a building running short
                 try {
                     TenantContext.set(new TenantContext.Principal(null, corp, true, "system:replen"));
                     Map<String, Object> r = replen.cut(site, corp);

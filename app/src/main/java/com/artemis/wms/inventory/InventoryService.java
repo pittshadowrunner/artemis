@@ -31,14 +31,19 @@ public class InventoryService {
     private final ItemService items;
     private final LocationService locations;
     private final TransactionTemplate tx;
+    private final com.artemis.wms.platform.BulkLoads loads;
 
-    public InventoryService(JdbcTemplate jdbc, AccessService access, ItemService items, LocationService locations, TransactionTemplate tx) {
-        this.jdbc = jdbc; this.access = access; this.items = items; this.locations = locations; this.tx = tx;
+    public InventoryService(JdbcTemplate jdbc, AccessService access, ItemService items, LocationService locations, TransactionTemplate tx, com.artemis.wms.platform.BulkLoads loads) {
+        this.jdbc = jdbc; this.access = access; this.items = items; this.locations = locations; this.tx = tx; this.loads = loads;
     }
 
     public BulkResult openingBalances(UUID siteId, List<Map<String, Object>> records) {
         UUID corp = access.requireTenant();
         access.require(siteId, Capabilities.INVENTORY_ADJUST);
+        return loads.during(corp, () -> load(corp, siteId, records));
+    }
+
+    private BulkResult load(UUID corp, UUID siteId, List<Map<String, Object>> records) {
         BulkResult r = new BulkResult();
         int row = 0;
         for (Map<String, Object> rec : records) {

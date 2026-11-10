@@ -16,8 +16,9 @@ import java.util.*;
 import static com.artemis.wms.platform.Values.*;
 
 /**
- * Locations. Codes follow Zone-Aisle-Level-Column-Slot; sequence and check
- * digits derive in the database. Bulk loads upsert by (site, code).
+ * Locations. A rack slot is Zone-Aisle-Level-Column-Slot (D-07-3-12-B); the
+ * zone is the temperature zone. Sequence and check digits derive in the
+ * database. Bulk loads upsert by (site, code).
  * {@link #generate} enumerates a rack from its dimensions.
  */
 @Service
@@ -52,13 +53,15 @@ public class LocationService {
 
     private boolean upsert(UUID corp, UUID siteId, String code, Map<String, Object> loc) {
         UUID areaId = loc.get("areaId") != null ? uuid(loc.get("areaId"))
-                    : loc.get("area") != null ? org.resolve(siteCode(siteId) + "/" + str(loc.get("area"))) : null;
+                    : loc.get("area") != null ? areaId(siteId, str(loc.get("area"))) : null;
+        String flow = upper(loc.get("flow"));
+        if (flow != null && !flow.equals("INBOUND") && !flow.equals("OUTBOUND")) throw ApiException.badRequest("flow must be INBOUND or OUTBOUND.");
         UUID replenItem = loc.get("replenSku") == null ? null : items.idBySku(corp, str(loc.get("replenSku")));
         Object[] args = { areaId, upper(loc.get("locType")), upper(loc.get("tempZone")), upper(loc.get("rackType")),
             number(loc.get("widthCm")), number(loc.get("depthCm")), number(loc.get("heightCm")), number(loc.get("maxWeightKg")),
             upper(loc.get("velocityZone")), bool(loc.get("goldenZone")), str(loc.get("equipmentClass")),
             bool(loc.get("humidityControlled")), bool(loc.get("hazmatApproved")),
-            replenItem, number(loc.get("replenMinQty")), number(loc.get("replenMaxQty")), number(loc.get("replenTriggerQty")) };
+            replenItem, number(loc.get("replenMinQty")), number(loc.get("replenMaxQty")), number(loc.get("replenTriggerQty")), flow };
         List<UUID> existing = jdbc.queryForList("SELECT location_id FROM location WHERE site_id = ? AND code = ?", UUID.class, siteId, code);
         if (!existing.isEmpty()) {
             List<Object> upd = new ArrayList<>(Arrays.asList(args)); upd.add(existing.get(0));
@@ -68,7 +71,7 @@ public class LocationService {
                     velocity_zone = COALESCE(?, velocity_zone), golden_zone = COALESCE(?, golden_zone), equipment_class = COALESCE(?, equipment_class),
                     humidity_controlled = COALESCE(?, humidity_controlled), hazmat_approved = COALESCE(?, hazmat_approved),
                     replen_item_id = COALESCE(?, replen_item_id), replen_min_qty = COALESCE(?, replen_min_qty), replen_max_qty = COALESCE(?, replen_max_qty), replen_trigger_qty = COALESCE(?, replen_trigger_qty),
-                    active = true, updated_at = now()
+                    flow = COALESCE(?, flow), active = true, updated_at = now()
                 WHERE location_id = ?""", upd.toArray());
             return false;
         }
@@ -76,27 +79,27 @@ public class LocationService {
         jdbc.update("""
             INSERT INTO location (corporation_id, site_id, code, area_id, loc_type, temp_zone, rack_type, width_cm, depth_cm, height_cm, max_weight_kg,
                 velocity_zone, golden_zone, equipment_class, humidity_controlled, hazmat_approved,
-                replen_item_id, replen_min_qty, replen_max_qty, replen_trigger_qty)
+                replen_item_id, replen_min_qty, replen_max_qty, replen_trigger_qty, flow)
             VALUES (?, ?, ?, ?, COALESCE(?::location_type, 'STANDARD'), COALESCE(?::temp_zone, 'AMBIENT'), ?::rack_type, ?, ?, ?, ?,
-                ?, COALESCE(?, false), ?, COALESCE(?, false), COALESCE(?, false), ?, ?, ?, ?)""", ins.toArray());
+                ?, COALESCE(?, false), ?, COALESCE(?, false), COALESCE(?, false), ?, ?, ?, ?, ?)""", ins.toArray());
         return true;
     }
 
     /**
      * Range generation: describe the rack, we enumerate it. Names encode the
      * pick path, so no explicit sequence is needed — the trigger derives it.
-     * spec: {zone, aisles:[A,B], levels:[1,2,3], columns:[1..12], slots:[A,B], tempZone, rackType, area}
+     * spec: {zone, aisles: 1-60 | [A,B], levels: 1-5, columns: 1-25, slots: [A,B], tempZone, rackType, area}
      */
     public BulkResult generate(UUID siteId, Map<String, Object> spec) {
         String zone = upper(spec.get("zone"));
         if (zone == null) throw ApiException.badRequest("zone is required (first token of the location name).");
-        List<String> aisles = strings(spec.get("aisles")), levels = expand(spec.get("levels")), cols = expand(spec.get("columns")), slots = strings(spec.get("slots"));
+        List<String> aisles = expand(spec.get("aisles")), levels = expand(spec.get("levels")), cols = expand(spec.get("columns")), slots = strings(spec.get("slots"));
         if (aisles.isEmpty() || levels.isEmpty() || cols.isEmpty() || slots.isEmpty())
             throw ApiException.badRequest("aisles, levels, columns and slots are all required.");
         List<Map<String, Object>> locs = new ArrayList<>();
         for (String a : aisles) for (String c : cols) for (String s : slots) for (String l : levels) {
             Map<String, Object> loc = new HashMap<>(spec);
-            loc.put("code", zone + "-" + a + "-" + l + "-" + pad(c) + "-" + s);
+            loc.put("code", zone + "-" + pad(a) + "-" + l + "-" + pad(c) + "-" + s);
             loc.put("locType", "STANDARD");
             locs.add(loc);
         }
@@ -154,6 +157,12 @@ public class LocationService {
         List<UUID> ids = jdbc.queryForList("SELECT location_id FROM location WHERE site_id = ? AND code = ?", UUID.class, siteId, code.toUpperCase());
         if (ids.isEmpty()) throw ApiException.badRequest("Unknown location '" + code + "'.");
         return ids.get(0);
+    }
+
+    /** Area codes repeat for every slot of a rack; resolve each once per request thread. */
+    private final Map<String, UUID> areaCache = new java.util.concurrent.ConcurrentHashMap<>();
+    private UUID areaId(UUID siteId, String area) {
+        return areaCache.computeIfAbsent(siteId + "/" + area.toUpperCase(), k -> org.resolve(siteCode(siteId) + "/" + area));
     }
 
     private String siteCode(UUID siteId) { return jdbc.queryForObject("SELECT code FROM org_node WHERE org_node_id = ?", String.class, siteId); }
