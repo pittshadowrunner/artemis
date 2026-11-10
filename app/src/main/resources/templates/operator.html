@@ -1,0 +1,38 @@
+<html xmlns:th="http://www.thymeleaf.org" th:replace="~{layout :: page(~{::title}, ~{::main})}">
+<head><title th:text="|${op.display_name} — Artemis WMS|"></title></head>
+<body><main>
+  <div class="crumbs"><a th:href="@{/operators}">Operators</a> › <b th:text="${op.display_name}">Name</b></div>
+  <h1><span th:text="${op.display_name}">Name</span><small th:text="${op.email}"></small> <span class="status CANCELLED" th:if="${!op.active}">INACTIVE</span></h1>
+  <div class="grid c3" style="margin-bottom:1rem">
+    <div class="panel"><h2>Trained for</h2>
+      <form th:action="@{/ui/operators/{id}/allowances(id=${op.user_id})}" method="post">
+        <div style="display:flex;flex-direction:column;gap:.35rem;margin-bottom:.7rem"><label th:each="w : ${workflows}" style="flex-direction:row;align-items:center;gap:.4rem;font-size:.9rem;text-transform:none;letter-spacing:0;color:var(--ink)">
+          <input type="checkbox" name="workflows" th:value="${w}" th:checked="${#lists.contains(op.trained_workflows, w)}"> <span th:text="${#strings.capitalize(fmt.words(w))}">Selection</span></label></div>
+        <button type="submit" class="secondary">Save allowances</button>
+      </form>
+      <p class="hint">Dispatch only offers work this operator is trained for.</p></div>
+    <div class="panel"><h2>Access</h2>
+      <table><tr th:each="g : ${op.grants}"><td class="mono" th:text="${g.node}"></td><td class="small muted" th:text="${fmt.words(g.level)}"></td><td th:text="${fmt.words(g.role)}"></td></tr></table>
+      <p class="empty" th:if="${#lists.isEmpty(op.grants)}">No grants — can't sign in to any site.</p>
+      <p class="small muted" th:text="|Last sign-in ${op.last_login_at != null ? fmt.dt(op.last_login_at, 'yyyy-MM-dd HH:mm') : 'never'} · on the roster since ${fmt.dt(op.created_at, 'yyyy-MM-dd')}|"></p></div>
+    <div class="panel"><h2>Equipment</h2>
+      <table th:if="${!#lists.isEmpty(op.uses)}"><tr><th>Unit</th><th>Out</th><th>In</th><th>Held</th></tr>
+        <tr th:each="u : ${op.uses}" th:style="${u.checked_in_at == null} ? 'font-weight:600'"><td><th:block th:replace="~{x :: unit(${u.equipment})}"/></td><td class="small nowrap" th:text="${fmt.dt(u.checked_out_at, 'MM-dd HH:mm')}"></td>
+          <td class="small nowrap" th:text="${u.checked_in_at != null ? fmt.dt(u.checked_in_at, 'MM-dd HH:mm') : 'has it now'}"></td><td class="small" th:text="${fmt.age(u.held)}"></td></tr></table>
+      <p class="empty" th:if="${#lists.isEmpty(op.uses)}">Hasn't checked anything out.</p></div>
+  </div>
+  <div class="grid c2">
+    <div class="panel"><h2>Labor</h2>
+      <table th:if="${!#lists.isEmpty(op.labor)}"><tr><th>Work</th><th class="num">Tasks today</th><th class="num">Cases today</th><th class="num">Tasks · 7d</th><th class="num">Cases · 7d</th><th class="num">Tasks · 30d</th><th class="num">Cases · 30d</th><th class="num">Days worked</th></tr>
+        <tr th:each="l : ${op.labor}"><td th:text="${#strings.capitalize(fmt.words(l.type))}"></td><td class="num" th:text="${l.tasks_today}"></td><td class="num" th:text="${fmt.qty(l.cases_today)}"></td>
+          <td class="num" th:text="${l.tasks_7d}"></td><td class="num" th:text="${fmt.qty(l.cases_7d)}"></td><td class="num" th:text="${l.tasks_30d}"></td><td class="num" th:text="${fmt.qty(l.cases_30d)}"></td><td class="num" th:text="${l.days_worked}"></td></tr></table>
+      <p class="empty" th:if="${#lists.isEmpty(op.labor)}">No completed work in the last 30 days.</p></div>
+    <div class="panel"><h2>Work</h2>
+      <table th:if="${!#lists.isEmpty(op.work)}"><tr><th>Assignment</th><th>Type</th><th>Priority</th><th>Wave · unit</th><th class="num">Tasks</th><th>Status</th><th>Finished</th></tr>
+        <tr th:each="a : ${op.work}"><td><th:block th:replace="~{x :: asg(${a.assignment_number})}"/> <th:block th:replace="~{x :: zone(${a.temp_zone})}"/></td><td class="small" th:text="${fmt.words(a.type)}"></td><td><th:block th:replace="~{x :: pri(${a.priority})}"/></td>
+          <td class="small"><th:block th:if="${a.wave_number}"><th:block th:replace="~{x :: wave(${a.wave_number})}"/></th:block><th:block th:if="${a.equipment}"> · <th:block th:replace="~{x :: unit(${a.equipment})}"/></th:block></td>
+          <td class="num" th:text="|${a.done}/${a.tasks}|"></td><td><th:block th:replace="~{x :: st(${a.status})}"/></td>
+          <td class="small muted" th:text="${a.completed_at != null ? fmt.dt(a.completed_at, 'MM-dd HH:mm') + (a.took != null ? ' · ' + fmt.age(a.took) : '') : ''}"></td></tr></table>
+      <p class="empty" th:if="${#lists.isEmpty(op.work)}">Never dispatched.</p></div>
+  </div>
+</main></body></html>

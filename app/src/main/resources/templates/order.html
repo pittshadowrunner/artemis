@@ -1,18 +1,42 @@
 <html xmlns:th="http://www.thymeleaf.org" th:replace="~{layout :: page(~{::title}, ~{::main})}">
 <head><title th:text="|${order.order_number} — Artemis WMS|"></title></head>
-<body><main>
-  <h1><span th:text="${order.order_number}">ORD</span><small th:text="|${order.customer_name} · ${site.code}|"></small> <span class="status" th:classappend="${order.status}" th:text="${order.status}"></span> <span class="pri p9" th:if="${order.rush}">RUSH</span></h1>
-  <div class="subnav"><a th:href="@{/sites/{s}/orders(s=${site.org_node_id})}">← Orders</a></div>
+<body><main th:with="c=${order.customer}">
+  <div class="crumbs"><a th:href="@{/sites/{s}/orders(s=${site.org_node_id})}">Orders</a> › <b th:text="${order.order_number}">ORD</b></div>
+  <h1><span th:text="${order.order_number}">ORD</span><small>customer order · <span th:text="${site.code}"></span></small> <th:block th:replace="~{x :: st(${order.status})}"/> <span class="pri p9" th:if="${order.rush}">RUSH</span> <th:block th:replace="~{x :: pri(${order.priority})}"/></h1>
   <div class="grid c2">
-    <div class="panel"><h2>Lines &amp; allocations</h2>
-      <table><tr><th>#</th><th>SKU</th><th class="num">Ordered</th><th class="num">Alloc</th><th class="num">Picked</th><th>From</th></tr>
-        <tr th:each="l : ${order.lines}"><td th:text="${l.line_number}"></td><td><span class="loc" th:text="${l.sku}"></span> <span class="tag" th:classappend="${#strings.toLowerCase(l.temp_zone) == 'frozen'} ? 'frozen' : (${#strings.toLowerCase(l.temp_zone) == 'refrigerated'} ? 'chill')" th:text="${l.temp_zone.substring(0,3)}"></span><br><span class="muted small" th:text="${l.description}"></span></td>
-          <td class="num" th:text="${l.ordered_qty}"></td><td class="num" th:text="${l.allocated_qty}"></td><td class="num" th:text="${l.picked_qty}"></td>
-          <td class="small"><div th:each="a : ${l.allocations}"><a th:href="@{/lpn(q=${a.lpn})}" class="mono" th:text="${a.lpn}"></a> @ <span class="loc" th:text="${a.location}"></span> × <span th:text="${a.qty}"></span> <span th:if="${a.lot}" th:text="|lot ${a.lot} exp ${a.expires}|" class="muted"></span> <b class="sev WARNING" th:if="${a.bypass}">BYPASS</b></div></td></tr></table></div>
-    <div class="panel"><h2>Zone orders</h2>
-      <table><tr><th>Zone</th><th>Wave</th><th>Assignment</th><th>Dropped</th></tr>
-        <tr th:each="z : ${order.zoneOrders}"><td><span class="tag" th:classappend="${#strings.toLowerCase(z.temp_zone) == 'frozen'} ? 'frozen' : (${#strings.toLowerCase(z.temp_zone) == 'refrigerated'} ? 'chill')" th:text="${z.temp_zone}"></span></td><td th:text="${z.wave_number ?: '—'}"></td>
-          <td><span th:text="${z.assignment_number ?: '—'}" class="mono"></span> <span class="status" th:if="${z.assignment_status}" th:classappend="${z.assignment_status}" th:text="${z.assignment_status}"></span></td>
-          <td th:text="${z.dropped_at != null ? z.drop_location + ' ' + fmt.dt(z.dropped_at, 'MM-dd HH:mm') : '—'}"></td></tr></table></div>
+    <div class="panel"><h2>Ship to</h2>
+      <table class="kv">
+        <tr><th>Customer</th><td><th:block th:replace="~{x :: customer(${order.customer_code}, ${order.customer_name})}"/> <span class="mono small muted" th:text="${order.customer_code}"></span></td></tr>
+        <tr th:if="${c != null}"><th>Address</th><td><span th:text="${c.address_line1 ?: '—'}"></span><th:block th:if="${c.address_line2}"><br><span th:text="${c.address_line2}"></span></th:block><br>
+          <span th:text="|${c.city ?: ''}${c.state_province != null ? ', ' + c.state_province : ''} ${c.postal_code ?: ''}|"></span></td></tr>
+        <tr th:if="${c != null}"><th>Phone</th><td th:text="${c.contact_phone ?: '—'}"></td></tr>
+        <tr><th>Requested ship</th><td th:text="${order.requested_ship_date ?: '—'}"></td></tr>
+        <tr><th>Route / stop</th><td th:text="|${order.route_code ?: '—'}${order.stop_sequence != null ? ' · stop ' + order.stop_sequence : ''}|"></td></tr>
+        <tr th:if="${c != null and c.min_shelf_life_days != null}"><th>Shelf-life terms</th><td th:text="|at least ${c.min_shelf_life_days} days remaining at ship|"></td></tr>
+        <tr th:if="${order.shipment}"><th>Shipment</th><td><th:block th:replace="~{x :: shipment(${order.shipment.shipment_number})}"/> <th:block th:replace="~{x :: st(${order.shipment.status})}"/></td></tr>
+      </table>
+    </div>
+    <div class="panel"><h2>Zone orders <span class="muted small" style="text-transform:none;letter-spacing:0">— this order, split by temperature zone</span></h2>
+      <table><tr><th>Zone order</th><th class="num">Lines</th><th>Wave</th><th>Assignment</th><th>Priority</th><th>Operator</th><th>Unit · pos</th><th>Dropped</th></tr>
+        <tr th:each="z : ${order.zoneOrders}">
+          <td><span class="mono" style="font-weight:600" th:text="|${order.order_number}-${go.tag(z.temp_zone)}|">ORD-DRY</span> <th:block th:replace="~{x :: zone(${z.temp_zone})}"/></td>
+          <td class="num" th:text="${z.lines}"></td>
+          <td><th:block th:if="${z.wave_number}"><th:block th:replace="~{x :: wave(${z.wave_number})}"/> <th:block th:replace="~{x :: st(${z.wave_status})}"/></th:block><span th:if="${z.wave_number == null}" class="muted">not waved</span></td>
+          <td><th:block th:if="${z.assignment_number}"><th:block th:replace="~{x :: asg(${z.assignment_number})}"/> <th:block th:replace="~{x :: st(${z.assignment_status})}"/></th:block><span th:if="${z.assignment_number == null}" class="muted">—</span></td>
+          <td><th:block th:replace="~{x :: pri(${z.assignment_priority})}"/></td>
+          <td><th:block th:if="${z.assignment_number}"><th:block th:replace="~{x :: op(${z.operator_id}, ${z.operator})}"/></th:block></td>
+          <td><th:block th:if="${z.equipment}"><th:block th:replace="~{x :: unit(${z.equipment})}"/><span class="muted small" th:if="${z.cart_position}" th:text="| · ${z.cart_position}|"></span></th:block></td>
+          <td class="small"><th:block th:if="${z.dropped_at}"><th:block th:replace="~{x :: slot(${z.drop_location})}"/> <span class="muted" th:text="${fmt.dt(z.dropped_at, 'MM-dd HH:mm')}"></span></th:block></td></tr></table>
+    </div>
+  </div>
+  <div class="panel" style="margin-top:1rem"><h2>Order lines</h2>
+    <table><tr><th>#</th><th>Item</th><th>Zone</th><th class="num">Ordered</th><th class="num">Allocated</th><th class="num">Picked</th><th>Allocated from</th></tr>
+      <tr th:each="l : ${order.lines}"><td th:text="${l.line_number}"></td><td><th:block th:replace="~{x :: item(${l.sku})}"/><div class="muted small" th:text="${l.description}"></div></td>
+        <td><th:block th:replace="~{x :: zone(${l.temp_zone})}"/></td>
+        <td class="num" th:text="${fmt.qty(l.ordered_qty)}"></td><td class="num" th:classappend="${l.allocated_qty < l.ordered_qty and order.status != 'NEW'} ? 'late'" th:text="${fmt.qty(l.allocated_qty)}"></td><td class="num" th:text="${fmt.qty(l.picked_qty)}"></td>
+        <td class="small"><div th:each="a : ${l.allocations}"><th:block th:replace="~{x :: pallet(${a.lpn})}"/> at <th:block th:replace="~{x :: slot(${a.location})}"/> × <span th:text="${fmt.qty(a.qty)}"></span>
+          <th:block th:if="${a.lot}"> · lot <th:block th:replace="~{x :: lot(${l.sku}, ${a.lot})}"/> <span class="muted" th:text="|exp ${a.expires}|"></span></th:block>
+          <b class="sev WARNING" th:if="${a.bypass}" title="strict rotation was skipped to meet this customer's shelf-life terms">BYPASS</b></div>
+          <span class="muted" th:if="${#lists.isEmpty(l.allocations)}">allocated when its wave is released</span></td></tr></table>
   </div>
 </main></body></html>

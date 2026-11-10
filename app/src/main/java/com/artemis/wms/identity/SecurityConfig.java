@@ -4,6 +4,7 @@ import com.artemis.wms.tenancy.TenantFilter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
+import org.springframework.core.annotation.Order;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -41,12 +42,31 @@ public class SecurityConfig {
         };
     }
 
-    @Bean @Profile("local-auth")
-    public SecurityFilterChain localChain(HttpSecurity http, TenantFilter tenantFilter) throws Exception {
-        http.csrf(csrf -> csrf.ignoringRequestMatchers("/api/**"))
-            .authorizeHttpRequests(a -> a.requestMatchers(PUBLIC).permitAll().anyRequest().authenticated())
+    /**
+     * API: HTTP Basic (CLI, scripts, voice clients) or an existing browser
+     * session. Kept on its own chain so a Basic credential can only ever
+     * authenticate an /api call.
+     */
+    @Bean @Profile("local-auth") @Order(1)
+    public SecurityFilterChain localApiChain(HttpSecurity http, TenantFilter tenantFilter) throws Exception {
+        http.securityMatcher("/api/**")
+            .csrf(csrf -> csrf.disable())
+            .authorizeHttpRequests(a -> a.anyRequest().authenticated())
             .httpBasic(Customizer.withDefaults())
-            .formLogin(f -> f.defaultSuccessUrl("/", false))
+            .addFilterAfter(tenantFilter, AnonymousAuthenticationFilter.class);
+        return http.build();
+    }
+
+    /**
+     * Pages: form login and a session, nothing else. There is deliberately no
+     * Basic here — a browser caches Basic credentials for the whole origin and
+     * replays them on every request, which silently overrode whoever had just
+     * signed in through the form.
+     */
+    @Bean @Profile("local-auth") @Order(2)
+    public SecurityFilterChain localChain(HttpSecurity http, TenantFilter tenantFilter) throws Exception {
+        http.authorizeHttpRequests(a -> a.requestMatchers(PUBLIC).permitAll().anyRequest().authenticated())
+            .formLogin(f -> f.loginPage("/login").defaultSuccessUrl("/", false))
             .logout(l -> l.logoutSuccessUrl("/login?logout"))
             .addFilterAfter(tenantFilter, AnonymousAuthenticationFilter.class);
         return http.build();

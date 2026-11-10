@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<!--
+  Shared fragments. Never rendered as a page.
+
+  Entity links: every name on every screen goes through one of these, so a
+  slot, pallet, item, order… always looks the same and always links to its
+  own page. All of them are null-safe (they render an em dash).
+-->
+<html xmlns:th="http://www.thymeleaf.org"><body>
+
+<th:block th:fragment="slot(code)"><a th:if="${code != null}" class="loc" th:href="${go.slot(code)}" th:text="${code}">D-A-1-01-A</a><span th:if="${code == null}" class="muted">—</span></th:block>
+<th:block th:fragment="pallet(lpn)"><a th:if="${lpn != null}" class="mono" th:href="${go.pallet(lpn)}" th:text="${lpn}">PLT-1</a><span th:if="${lpn == null}" class="muted">—</span></th:block>
+<th:block th:fragment="item(sku)"><a th:if="${sku != null}" class="loc" th:href="${go.item(sku)}" th:text="${sku}">SKU</a><span th:if="${sku == null}" class="muted">—</span></th:block>
+<th:block th:fragment="lot(sku, lotNo)"><a th:if="${lotNo != null and sku != null}" class="mono" th:href="${go.lot(sku, lotNo)}" th:text="${lotNo}">L1</a><span th:if="${lotNo == null}" class="muted">—</span></th:block>
+<th:block th:fragment="order(num)"><a th:if="${num != null}" class="loc" th:href="${go.order(num)}" th:text="${num}">ORD-1</a><span th:if="${num == null}" class="muted">—</span></th:block>
+<th:block th:fragment="wave(num)"><a th:if="${num != null}" class="loc" th:href="${go.wave(num)}" th:text="${num}">W-1</a><span th:if="${num == null}" class="muted">—</span></th:block>
+<th:block th:fragment="asg(num)"><a th:if="${num != null}" class="loc" th:href="${go.assignment(num)}" th:text="${num}">A-1</a><span th:if="${num == null}" class="muted">—</span></th:block>
+<th:block th:fragment="manifest(num)"><a th:if="${num != null}" class="loc" th:href="${go.manifest(num)}" th:text="${num}">MAN-1</a><span th:if="${num == null}" class="muted">—</span></th:block>
+<th:block th:fragment="shipment(num)"><a th:if="${num != null}" class="loc" th:href="${go.shipment(num)}" th:text="${num}">S-1</a><span th:if="${num == null}" class="muted">—</span></th:block>
+<th:block th:fragment="customer(code, name)"><a th:if="${code != null}" th:href="${go.customer(code)}" th:text="${name ?: code}" th:title="${code}">Customer</a><span th:if="${code == null}" class="muted">—</span></th:block>
+<th:block th:fragment="op(id, name)"><a th:if="${id != null}" th:href="${go.operator(id)}" th:text="${name}">Operator</a><span th:if="${id == null}" class="muted" th:text="${name ?: 'unassigned'}">unassigned</span></th:block>
+<th:block th:fragment="unit(code)"><a th:if="${code != null}" class="loc" th:href="${go.equipment(code)}" th:text="${code}">CART-01</a><span th:if="${code == null}" class="muted">—</span></th:block>
+
+<th:block th:fragment="zone(tz)"><span th:if="${tz != null}" class="tag" th:classappend="${go.css(tz)}" th:text="${go.tag(tz)}" th:title="${fmt.words(tz)}">DRY</span></th:block>
+<th:block th:fragment="st(s)"><span th:if="${s != null}" class="status" th:classappend="${s}" th:text="${#strings.replace(s, '_', ' ')}">OPEN</span></th:block>
+<th:block th:fragment="pri(p)"><span th:if="${p != null}" class="pri" th:classappend="'p' + ${p}" th:text="'P' + ${p}" title="priority 1–10">P5</span></th:block>
+
+<!-- A location the way it's labelled on the floor: type tag + code. -->
+<th:block th:fragment="place(code, locType)"><a th:if="${code != null}" class="placard" th:href="${go.slot(code)}"><i th:if="${locType != null and locType != 'STANDARD'}" th:text="${go.locTag(locType)}">DCK</i><b th:text="${code}">RCV-01</b></a><span th:if="${code == null}" class="muted">in transit</span></th:block>
+
+<!-- One unit of open work on the board. `a` is a row from UiQueries.openAssignments. -->
+<div class="card" th:fragment="work(a, people, back)" th:classappend="${go.css(a.temp_zone)}">
+  <div class="head"><th:block th:replace="~{x :: asg(${a.assignment_number})}"/>
+    <span><th:block th:replace="~{x :: zone(${a.temp_zone})}"/> <th:block th:replace="~{x :: pri(${a.priority})}"/></span></div>
+  <!-- one pallet, one move: putaway and replenishment -->
+  <th:block th:if="${a.type != 'SELECTION'}">
+    <div class="meta"><th:block th:replace="~{x :: pallet(${a.lpn})}"/> · <th:block th:replace="~{x :: item(${a.sku})}"/> · <span th:text="${fmt.qty(a.qty)}">48</span></div>
+    <div class="move"><th:block th:replace="~{x :: slot(${a.from_code})}"/> <span class="arrow">→</span> <th:block th:replace="~{x :: slot(${a.to_code})}"/></div>
+    <div class="meta" th:if="${a.type == 'PUTAWAY'}">on the dock <b th:classappend="${a.overdue} ? 'late'" th:text="${fmt.age(a.waiting)}">2h</b><th:block th:if="${a.manifest_number}"> · from <th:block th:replace="~{x :: manifest(${a.manifest_number})}"/></th:block></div>
+  </th:block>
+  <!-- a pick path across many items: selection -->
+  <th:block th:if="${a.type == 'SELECTION'}">
+    <div class="meta"><th:block th:replace="~{x :: wave(${a.wave_number})}"/> · <span th:text="|${a.orders} order${a.orders == 1 ? '' : 's'}|">3 orders</span><th:block th:if="${a.equipment}"> · <th:block th:replace="~{x :: unit(${a.equipment})}"/></th:block></div>
+    <div class="meta"><span th:text="|${a.done} of ${a.tasks} picks|">0 of 6 picks</span> <span class="bar"><i th:style="|width:${a.tasks > 0 ? 100 * a.done / a.tasks : 0}%|"></i></span></div>
+  </th:block>
+  <form th:action="@{/ui/assignments/{id}/assign(id=${a.assignment_id})}" method="post" class="inline dispatch">
+    <input type="hidden" name="back" th:value="${back}">
+    <select name="userId" aria-label="Operator"><option value="" th:text="${a.assigned_to != null ? a.assigned_to + ' (keep)' : 'Unassigned'}">Unassigned</option>
+      <option th:each="u : ${people}" th:value="${u.user_id}" th:text="|${u.display_name} · ${u.open_work} open|">Operator</option></select>
+    <button type="submit" class="secondary" th:text="${a.assigned_to != null ? 'Reassign' : 'Dispatch'}">Dispatch</button>
+    <th:block th:if="${a.assigned_user_id}"><th:block th:replace="~{x :: op(${a.assigned_user_id}, ${a.assigned_to})}"/></th:block>
+  </form>
+</div>
+
+</body></html>

@@ -29,8 +29,9 @@ public class InboundController {
     @GetMapping("/receiving/{id}") public Map<String, Object> manifest(@PathVariable UUID id) { return receiving.get(id); }
     @PostMapping("/receiving/{id}/arrive") public Map<String, Object> arrive(@PathVariable UUID id) { receiving.arrive(id); return receiving.get(id); }
     @PostMapping("/receiving/{id}/close")  public Map<String, Object> close(@PathVariable UUID id)  { receiving.close(id);  return receiving.get(id); }
+    @PostMapping("/receiving/{id}/cancel") public Map<String, Object> cancel(@PathVariable UUID id) { receiving.cancel(id); return receiving.get(id); }
 
-    /** {lineNumber, lpn, qty, lot?, expirationDate?, serials?, actualWeightKg?, dock?, skipPutaway?} */
+    /** {lineNumber, qty, lpn? (system-assigned when absent), lot?, expirationDate?, serials?, actualWeightKg?, dock?, skipPutaway?} */
     @PostMapping("/receiving/{id}/pallets") @ResponseStatus(HttpStatus.CREATED)
     public Map<String, Object> receive(@PathVariable UUID id, @RequestBody Map<String, Object> body) { return receiving.receive(id, body); }
 

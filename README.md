@@ -115,19 +115,59 @@ templates under `ops/data/templates/`).
 ## The web UI
 
 Server-rendered Thymeleaf over the same services the API uses — a page can never do something the
-API can't, and a domain rejection shows as a plain sentence in a flash bar. Sign in at `/login`
-(local-auth) and you land on the site's **ops board**: receiving, putaway, selection and
-replenishment lanes with priority and zone tags, dispatch selects that only list operators
-**trained for that workflow**, pressure on pick faces, and open alerts. From there:
+API can't, and a domain rejection shows as a plain sentence in a flash bar. Sign in at `/login`.
+The bar is the same on every page: one **search box** and a fixed set of entries that keep pointing
+at the site you're working in, whatever you clicked last.
 
-- **Racking** — placards per zone/aisle: check digits, SKU, quantity, pick faces marked PF.
-- **LPN lookup** (search box in the header) — the pallet and its full journal with dwell.
-- **Receiving** → manifest → receive-a-pallet form (directed putaway comes back in the flash).
-- **Orders**, **Waves** (plan form, release with a cart), **Assignments** (pick / put / replenish
-  with check digits, drop), **Shipping** (build from DROPPED orders, printable packing list).
-- **Dashboard** — receiving/shipping today, pick-face velocity, expiry risk, labor, dock dwell.
-- **Items**, **Customers**, **Org** (tree with effective policy, per-node policy editor), **Users**
-  (create, allowances, grants), the alert bell and **Notifications**.
+**Everything printed is a link.** A slot code, pallet LPN, SKU, lot, order, wave, assignment,
+manifest, shipment, customer, operator or equipment unit opens that thing's page, from any screen.
+
+- **Search** — one box for pallets, slots, items, lots, orders, customers, waves, assignments,
+  manifests, shipments, operators, equipment, serials and containers. An exact match (scan an LPN,
+  type a slot) goes straight there; anything else lists hits grouped by kind. `/` focuses it.
+- **Board** — lanes in floor order: Receiving → Putaway → Replenishment → Selection → Shipping,
+  with zone filter chips, priority, and dispatch selects that only list operators **trained for
+  that workflow**.
+- **Locations** — racking placards per zone/aisle (each cell links to its slot and its item), plus
+  docks, drops and staging. A **slot** page shows what's in it, what's headed to or from it, and
+  its move history.
+- **Pallets** / **Lots** — original vs on-hand quantity, where each pallet is and where it's
+  directed, every stop with dwell, the orders it's promised to.
+- **Receiving** → manifest → receive by line. Receiving a pallet always does three things at once:
+  assigns an **LPN** (`PLT-1000001`… unless you scan the supplier's), lands it on a **dock**, and
+  cuts a **putaway task** to a slot. A manifest can't be closed with nothing received; an untouched
+  one can be cancelled.
+- **Orders** (filter by customer, date, status) → order page with ship-to and its zone orders;
+  **Waves** (pick a zone, tick zone orders or let the wave type choose; release with or without a
+  unit); **Assignments**; **Shipping**.
+- **Operators** — people, not assets: trained workflows, grants, personal labor, the work they've
+  been handed, equipment they have out. **Equipment** — check out / check in to an operator, and
+  what's riding in each position right now, back to the order and wave.
+- **Dashboard**, **Items** (velocity is calculated from the last 30 days of picks), **Customers**
+  (address, phone, order history), **Org**, the alert bell and **Notifications**.
+
+**Picked stock stays stock.** A pick doesn't make cases vanish from the slot: the picked quantity
+becomes a pick unit (`PK-n`) riding on the equipment, in its put position, for its zone order. The
+equipment page shows what's on each position right now; dropping the load moves those units to the
+drop location; shipping takes them out of the building. A selection assignment can exist before
+its unit is known — put positions stay blank and nothing can be picked until someone sets the unit.
+
+**Work built on the floor.** Releasing a wave either cuts its assignments at once or leaves the
+allocated zone orders on the board ("Released, not built"). From there a supervisor ticks zone
+orders and builds an assignment by hand (one zone, one wave, no more orders than the unit has
+positions), or an operator presses **Give me my next assignment**: they resume what they hold,
+else take the highest-priority work they're trained and permitted to do — and if that is unbuilt
+selection, it's built for them on the spot, sized to the unit they have checked out.
+API: `sites/{id}/work/next`, `sites/{id}/selection/unbuilt`, `sites/{id}/selection/build`,
+`assignments/{id}/equipment`, and `waves/{id}/release {"build":"MANUAL"}`.
+
+Replenishment has no button: a scan runs every minute (`REPLEN_SCAN_MS`, off with
+`REPLEN_AUTO=false`) and cuts work for any pick face under its trigger.
+
+**Sign-in.** Pages take the login form only; the API (`/api/**`) takes HTTP Basic only. They are
+separate on purpose — a browser that has cached API credentials can't silently override who signed
+in. The platform sysadmin belongs to no tenant: after signing in they get a tenant list and choose
+one to work in for that browser session (the CLI equivalent is `ARTEMIS_CORP`).
 
 Dispatch is gated twice: the dispatcher's role capability for that workflow, and the operator's
 trained-workflow allowance (`users[].workflows` in the import). Untrained operators don't appear in
@@ -193,6 +233,10 @@ OIDC per tenant otherwise. Everything is under `/api/v1`:
 ## Roadmap
 
 - ~~Cycle 2~~ outbound + replenishment — done (v2.0.0-cycle2).
-- **Cycle 3** the Thymeleaf UI (ops board, racking placards, LPN lookup, org tree, alerts bell,
-  dashboards); operator allowance gating on dispatch.
+- ~~Cycle 3~~ the Thymeleaf UI, operator allowance gating on dispatch — done.
+- ~~Cycle 4~~ linked navigation and universal search, system LPNs at receiving, slot / pallet / lot
+  / operator / equipment pages, scheduled replenishment, separate page and API sign-in — done.
+- ~~Cycle 5~~ picked stock rides on the unit as inventory, selection assignments built by hand,
+  work handed out on request — done.
+- **Next** permanent vs operational asset split.
 - **Later** VoiceLink dialog endpoints, OIDC group → grant sync, custom roles portal.

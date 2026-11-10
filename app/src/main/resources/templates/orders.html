@@ -1,15 +1,26 @@
 <html xmlns:th="http://www.thymeleaf.org" th:replace="~{layout :: page(~{::title}, ~{::main})}">
 <head><title th:text="|${site.code} orders — Artemis WMS|"></title></head>
-<body><main>
-  <h1><span th:text="${site.name}">Site</span><small>orders</small></h1>
-  <div class="subnav"><a th:href="@{/sites/{s}/orders(s=${site.org_node_id})}" th:classappend="${status == null} ? 'on'">All</a>
-    <a th:each="st : ${ {'NEW','ALLOCATED','PICKING','PICKED','DROPPED','SHIPPED'} }" th:href="@{/sites/{s}/orders(s=${site.org_node_id}, status=${st})}" th:classappend="${status == st} ? 'on'" th:text="${st}"></a></div>
+<body><main th:with="base=|/sites/${site.org_node_id}/orders|">
+  <h1><span th:text="${site.name}">Site</span><small th:text="|orders · ${#lists.size(orders)} shown|"></small></h1>
+  <form th:action="@{/sites/{s}/orders(s=${site.org_node_id})}" method="get" class="inline" style="margin-bottom:.6rem">
+    <input name="customer" th:value="${customer}" placeholder="customer or order number" style="width:16rem">
+    <label style="flex-direction:row;align-items:center;gap:.3rem">Ship from <input name="from" type="date" th:value="${from}"></label>
+    <label style="flex-direction:row;align-items:center;gap:.3rem">to <input name="to" type="date" th:value="${to}"></label>
+    <input type="hidden" name="status" th:value="${status}" th:if="${status}">
+    <button type="submit" class="secondary">Filter</button>
+    <a th:if="${customer != null and customer != '' or from != null or to != null}" th:href="@{${base}(status=${status})}" class="small">clear</a>
+  </form>
+  <div class="chips"><span class="lbl">Status</span><a th:href="@{${base}(customer=${customer}, from=${from}, to=${to})}" th:classappend="${status == null} ? 'on'">All</a>
+    <a th:each="st : ${ {'NEW','ALLOCATED','PICKING','PICKED','DROPPED','SHIPPED'} }" th:href="@{${base}(customer=${customer}, from=${from}, to=${to}, status=${st})}" th:classappend="${status == st} ? 'on'" th:text="${#strings.capitalize(#strings.toLowerCase(st))}">New</a></div>
   <div class="grid c2">
     <div class="panel" style="grid-column:span 1">
-      <table><tr><th>Order</th><th>Customer</th><th>Ship</th><th>Zones</th><th>Status</th><th class="num">Lines</th><th class="num">Picked</th></tr>
-        <tr th:each="o : ${orders}"><td><a th:href="@{/orders/{id}(id=${o.order_id})}" class="loc" th:text="${o.order_number}"></a> <span class="pri p9" th:if="${o.rush}">RUSH</span></td><td th:text="${o.customer_code}"></td><td th:text="${o.requested_ship_date}"></td>
-          <td class="small" th:text="|${o.zones} (${o.zones_waved} waved, ${o.zones_dropped} dropped)|"></td><td><span class="status" th:classappend="${o.status}" th:text="${o.status}"></span></td><td class="num" th:text="${o.lines}"></td><td class="num" th:text="|${o.picked_qty}/${o.ordered_qty}|"></td></tr></table>
-      <p class="empty" th:if="${#lists.isEmpty(orders)}">No orders.</p>
+      <table><tr><th>Order</th><th>Customer</th><th>Ship date</th><th>Route / stop</th><th>Zone orders</th><th>Status</th><th class="num">Lines</th><th class="num">Picked</th></tr>
+        <tr th:each="o : ${orders}"><td><th:block th:replace="~{x :: order(${o.order_number})}"/> <span class="pri p9" th:if="${o.rush}">RUSH</span></td>
+          <td><th:block th:replace="~{x :: customer(${o.customer_code}, ${o.customer_name})}"/></td><td th:text="${o.requested_ship_date}"></td>
+          <td class="small" th:text="|${o.route_code ?: ''} ${o.stop_sequence != null ? '#' + o.stop_sequence : ''}|"></td>
+          <td class="small"><th:block th:if="${o.zones != null}" th:each="z : ${#strings.arraySplit(o.zones, ',')}"><th:block th:replace="~{x :: zone(${z})}"/> </th:block><span class="muted" th:text="|${o.zones_waved} waved · ${o.zones_dropped} dropped|"></span></td>
+          <td><th:block th:replace="~{x :: st(${o.status})}"/></td><td class="num" th:text="${o.lines}"></td><td class="num" th:text="|${fmt.qty(o.picked_qty)}/${fmt.qty(o.ordered_qty)}|"></td></tr></table>
+      <p class="empty" th:if="${#lists.isEmpty(orders)}">No orders match.</p>
     </div>
     <div class="panel">
       <h2>New order</h2>
@@ -21,6 +32,7 @@
         <label style="flex-direction:row;align-items:center;gap:.5rem;margin-top:.5rem"><input type="checkbox" name="rush" value="true"> Rush</label>
         <button type="submit" style="margin-top:.6rem">Create</button>
       </form>
+      <p class="hint">An order can ask for anything. It splits into one zone order per temperature zone, and each zone order is waved and picked on its own. Waving is on the <a th:href="@{/sites/{s}/waves(s=${site.org_node_id})}">Waves</a> page.</p>
     </div>
   </div>
 </main></body></html>

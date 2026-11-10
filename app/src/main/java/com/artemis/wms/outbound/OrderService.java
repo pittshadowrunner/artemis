@@ -88,9 +88,21 @@ public class OrderService {
                 WHERE a.order_line_id = ? ORDER BY a.created_at""", line.get("order_line_id")));
         o.put("lines", lines);
         o.put("zoneOrders", jdbc.queryForList("""
-            SELECT z.zone_order_id, z.temp_zone::text AS temp_zone, w.wave_number, a.assignment_number, a.status::text AS assignment_status, z.dropped_at, l.code AS drop_location
+            SELECT z.zone_order_id, z.temp_zone::text AS temp_zone, w.wave_number, w.status::text AS wave_status, a.assignment_number, a.status::text AS assignment_status,
+                   a.priority AS assignment_priority, u.display_name AS operator, a.assigned_to AS operator_id, e.code AS equipment, ac.cart_position,
+                   z.dropped_at, l.code AS drop_location,
+                   (SELECT count(*) FROM customer_order_line ol JOIN item i ON i.item_id = ol.item_id WHERE ol.order_id = z.order_id AND i.temp_zone = z.temp_zone) AS lines
             FROM zone_order z LEFT JOIN wave w ON w.wave_id = z.wave_id LEFT JOIN assignment a ON a.assignment_id = z.assignment_id LEFT JOIN location l ON l.location_id = z.drop_location_id
+            LEFT JOIN app_user u ON u.user_id = a.assigned_to LEFT JOIN equipment e ON e.equipment_id = a.equipment_id
+            LEFT JOIN assignment_container ac ON ac.zone_order_id = z.zone_order_id AND ac.assignment_id = a.assignment_id
             WHERE z.order_id = ? ORDER BY z.temp_zone""", orderId));
+        o.put("customer", jdbc.queryForList("""
+            SELECT c.code, c.name, c.address_line1, c.address_line2, c.city, c.state_province, c.postal_code, c.country, c.contact_phone, c.contact_email::text AS contact_email,
+                   c.delivery_window_start, c.delivery_window_end, c.min_shelf_life_days, c.preferred_carrier
+            FROM customer_order co JOIN customer c ON c.customer_id = co.customer_id WHERE co.order_id = ?""", orderId).stream().findFirst().orElse(null));
+        o.put("shipment", jdbc.queryForList("""
+            SELECT s.shipment_number, s.status::text AS status, s.carrier, s.shipped_at
+            FROM shipment_order so JOIN shipment s ON s.shipment_id = so.shipment_id WHERE so.order_id = ?""", orderId).stream().findFirst().orElse(null));
         return o;
     }
 

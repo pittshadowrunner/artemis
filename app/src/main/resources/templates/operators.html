@@ -1,0 +1,30 @@
+<html xmlns:th="http://www.thymeleaf.org" th:replace="~{layout :: page(~{::title}, ~{::main})}">
+<head><title>Operators — Artemis WMS</title></head>
+<body><main>
+  <h1>Operators<small th:text="|${#lists.size(operators)} people|"></small></h1>
+  <div class="panel" style="margin-bottom:1rem"><table><tr><th>Operator</th><th>Trained for</th><th class="num">Open work</th><th class="num">Tasks · 7 days</th><th class="num">Cases · 7 days</th><th>Has out</th><th>Access</th><th>Last sign-in</th></tr>
+    <tr th:each="u : ${operators}"><td><th:block th:replace="~{x :: op(${u.user_id}, ${u.display_name})}"/> <span class="status CANCELLED" th:if="${!u.active}">INACTIVE</span><div class="small muted" th:text="${u.email}"></div></td>
+      <td class="small" th:text="${!#lists.isEmpty(u.trained_workflows) ? fmt.words(#strings.listJoin(u.trained_workflows, ', ')) : 'not trained — can’t be dispatched'}" th:classappend="${#lists.isEmpty(u.trained_workflows)} ? 'muted'"></td>
+      <td class="num" th:text="${u.open_work}"></td><td class="num" th:text="${u.tasks_7d}"></td><td class="num" th:text="${fmt.qty(u.cases_7d)}"></td>
+      <td><th:block th:if="${u.equipment}" th:each="e, s : ${#strings.arraySplit(u.equipment, ', ')}"><th:block th:replace="~{x :: unit(${e})}"/><span th:if="${!s.last}">, </span></th:block></td>
+      <td class="small muted" th:text="${u.grants ?: 'no grants'}"></td><td class="small muted" th:text="${u.last_login_at != null ? fmt.dt(u.last_login_at, 'yyyy-MM-dd') : '—'}"></td></tr></table></div>
+  <div class="grid c2">
+    <div class="panel"><h2>Add or update a person</h2>
+      <form th:action="@{/ui/users}" method="post">
+        <div class="row"><label>Email<input name="email" type="email" required></label><label>Display name<input name="displayName" required></label><label>Password (local sign-in)<input name="password" type="password" autocomplete="new-password"></label></div>
+        <label>Trained workflows — what they can be dispatched to</label>
+        <div style="display:flex;gap:1rem;flex-wrap:wrap;margin:.3rem 0 .8rem"><label th:each="w : ${workflows}" style="flex-direction:row;align-items:center;gap:.3rem"><input type="checkbox" name="workflows" th:value="${w}"> <span th:text="${w}"></span></label></div>
+        <div class="row"><label>Grant at<select name="grantNode"><option value="">(none now)</option><option th:each="n : ${tree}" th:value="${n.org_node_id}" th:text="|${n.path} (${fmt.words(n.level)})|"></option></select></label>
+          <label>Role<select name="grantRole"><option>READ_ONLY</option><option>OPERATOR</option><option>SUPERVISOR</option><option>ADMIN</option></select></label></div>
+        <button type="submit">Save</button>
+      </form></div>
+    <div class="panel"><h2>Add a grant</h2>
+      <form th:action="@{/ui/users/grant}" method="post" class="inline">
+        <input name="email" type="email" placeholder="email" required>
+        <select name="orgNodeId" aria-label="Org node"><option th:each="n : ${tree}" th:value="${n.org_node_id}" th:text="|${n.path} (${fmt.words(n.level)})|"></option></select>
+        <select name="role" aria-label="Role"><option>READ_ONLY</option><option>OPERATOR</option><option>SUPERVISOR</option><option>ADMIN</option></select>
+        <button type="submit">Grant</button>
+      </form>
+      <p class="hint">A grant says what someone may do and where; training says which work they can be handed. Dispatch needs both. Highest rank across the ancestry wins: ADMIN at the corporation outranks READ_ONLY at a site.</p></div>
+  </div>
+</main></body></html>

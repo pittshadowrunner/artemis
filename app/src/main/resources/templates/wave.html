@@ -1,20 +1,25 @@
 <html xmlns:th="http://www.thymeleaf.org" th:replace="~{layout :: page(~{::title}, ~{::main})}">
 <head><title th:text="|${wave.wave_number} — Artemis WMS|"></title></head>
 <body><main>
-  <h1><span th:text="${wave.wave_number}">W</span><small th:text="|${wave.wave_type} · ${site.code}|"></small> <span class="tag" th:classappend="${#strings.toLowerCase(wave.temp_zone) == 'frozen'} ? 'frozen' : (${#strings.toLowerCase(wave.temp_zone) == 'refrigerated'} ? 'chill')" th:text="${wave.temp_zone}"></span> <span class="status" th:classappend="${wave.status}" th:text="${wave.status}"></span></h1>
-  <div class="subnav">
-    <form th:if="${wave.status == 'PLANNED'}" th:action="@{/ui/waves/{id}/release(id=${wave.wave_id})}" method="post" class="inline">
-      <select name="equipment"><option value="">No cart (batch of <span th:text="${wave.batch_size}"></span>)</option><option th:each="e : ${equipment}" th:if="${e.type == 'CART'}" th:value="${e.code}" th:text="|${e.code} · ${e.container_positions} positions|"></option></select>
-      <button type="submit">Release — allocate &amp; cut assignments</button></form>
-    <a th:href="@{/sites/{s}/waves(s=${site.org_node_id})}">← Waves</a>
+  <div class="crumbs"><a th:href="@{/sites/{s}/waves(s=${site.org_node_id})}">Waves</a> › <b th:text="${wave.wave_number}">W</b></div>
+  <h1><span th:text="${wave.wave_number}">W</span><small th:text="|${fmt.words(wave.wave_type)} wave · ${site.code}|"></small> <th:block th:replace="~{x :: zone(${wave.temp_zone})}"/> <th:block th:replace="~{x :: st(${wave.status})}"/></h1>
+  <div class="subnav" th:if="${wave.status == 'PLANNED'}">
+    <form th:action="@{/ui/waves/{id}/release(id=${wave.wave_id})}" method="post" class="inline">
+      <select name="equipment" aria-label="Equipment"><option value="" th:text="|No unit yet — batches of ${wave.batch_size}|">No unit</option><option th:each="e : ${equipment}" th:if="${e.container_positions != null}" th:value="${e.code}" th:text="|${e.code} · ${e.container_positions} positions|"></option></select>
+      <select name="build" aria-label="How assignments are built"><option value="AUTO">Cut assignments now</option><option value="MANUAL">Leave on the board — build by hand or on request</option></select>
+      <button type="submit">Release — allocate</button></form>
   </div>
   <div class="grid c2">
     <div class="panel"><h2>Zone orders</h2>
-      <table><tr><th>Order</th><th>Customer</th><th>Ship</th><th>Route/stop</th><th>Assignment</th><th class="num">Pos</th><th>Dropped</th></tr>
-        <tr th:each="z : ${wave.zoneOrders}"><td class="loc" th:text="${z.order_number}"></td><td th:text="${z.customer}"></td><td th:text="${z.requested_ship_date}"></td><td th:text="|${z.route_code ?: ''} ${z.stop_sequence != null ? '#' + z.stop_sequence : ''}|"></td><td class="mono" th:text="${z.assignment_number ?: '—'}"></td><td class="num" th:text="${z.cart_position}"></td><td class="small" th:text="${z.dropped_at != null ? fmt.dt(z.dropped_at, 'HH:mm') : ''}"></td></tr></table></div>
+      <table><tr><th>Zone order</th><th>Customer</th><th>Ship date</th><th>Route / stop</th><th>Assignment</th><th class="num">Pos</th><th>Dropped</th></tr>
+        <tr th:each="z : ${wave.zoneOrders}"><td><th:block th:replace="~{x :: order(${z.order_number})}"/><span class="mono muted" th:text="|-${go.tag(wave.temp_zone)}|"></span> <span class="pri p9" th:if="${z.rush}">RUSH</span></td>
+          <td><th:block th:replace="~{x :: customer(${z.customer}, ${z.customer_name})}"/></td><td th:text="${z.requested_ship_date}"></td><td class="small" th:text="|${z.route_code ?: ''} ${z.stop_sequence != null ? '#' + z.stop_sequence : ''}|"></td>
+          <td><th:block th:replace="~{x :: asg(${z.assignment_number})}"/></td><td class="num" th:text="${z.cart_position}"></td>
+          <td class="small"><th:block th:if="${z.dropped_at}"><th:block th:replace="~{x :: slot(${z.drop_location})}"/> <span class="muted" th:text="${fmt.dt(z.dropped_at, 'HH:mm')}"></span></th:block></td></tr></table></div>
     <div class="panel"><h2>Assignments</h2>
-      <table><tr><th>Assignment</th><th>Status</th><th class="num">Pri</th><th>Cart</th><th>Operator</th><th class="num">Tasks</th></tr>
-        <tr th:each="a : ${wave.assignments}"><td><a th:href="@{/assignments/{id}(id=${a.assignment_id})}" class="loc" th:text="${a.assignment_number}"></a></td><td><span class="status" th:classappend="${a.status}" th:text="${a.status}"></span></td><td class="num"><span class="pri" th:classappend="'p' + ${a.priority}" th:text="${a.priority}"></span></td><td th:text="${a.equipment ?: '—'}"></td><td th:text="${a.assigned_to ?: '—'}"></td><td class="num" th:text="|${a.done}/${a.tasks}|"></td></tr></table>
-      <p class="empty" th:if="${#lists.isEmpty(wave.assignments)}">Not released yet.</p></div>
+      <table th:if="${!#lists.isEmpty(wave.assignments)}"><tr><th>Assignment</th><th>Status</th><th>Priority</th><th>Unit</th><th>Operator</th><th class="num">Picks</th></tr>
+        <tr th:each="a : ${wave.assignments}"><td><th:block th:replace="~{x :: asg(${a.assignment_number})}"/></td><td><th:block th:replace="~{x :: st(${a.status})}"/></td><td><th:block th:replace="~{x :: pri(${a.priority})}"/></td>
+          <td><th:block th:replace="~{x :: unit(${a.equipment})}"/></td><td><th:block th:replace="~{x :: op(${a.operator_id}, ${a.assigned_to})}"/></td><td class="num" th:text="|${a.done}/${a.tasks}|"></td></tr></table>
+      <p class="empty" th:if="${#lists.isEmpty(wave.assignments)}" th:text="${wave.status == 'PLANNED' ? 'Planned — releasing the wave allocates stock and cuts the assignments.' : 'No assignments were cut — nothing could be allocated.'}">Not released yet.</p></div>
   </div>
 </main></body></html>

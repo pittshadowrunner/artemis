@@ -1,0 +1,14 @@
+<html xmlns:th="http://www.thymeleaf.org" th:replace="~{layout :: page(~{::title}, ~{::main})}">
+<head><title th:text="|${q} — search — Artemis WMS|"></title></head>
+<body><main>
+  <h1>Search<small th:if="${q != ''}" th:text="|${#lists.size(hits)} result${#lists.size(hits) == 1 ? '' : 's'} for “${q}”|"></small></h1>
+  <p class="muted" th:if="${q == ''}">Type anything with a name on it — an LPN, a slot, a SKU or description, a lot, an order, wave, assignment, manifest or shipment number, a customer, an operator, a unit of equipment, a tote or a serial number. An exact match takes you straight there.</p>
+  <div class="chips" th:if="${#lists.size(kinds) > 1}"><span class="lbl">Found</span><a th:each="k : ${kinds}" th:href="|#${k}|" th:text="${k + 's'}">Pallets</a></div>
+  <div class="panel" th:if="${!#lists.isEmpty(hits)}">
+    <div class="hits">
+      <a class="hit" th:each="h, i : ${hits}" th:href="${h.url()}" th:classappend="${h.exact()} ? 'exact'" th:id="${i.index == 0 or hits[i.index - 1].kind() != h.kind()} ? ${h.kind()}">
+        <span class="k" th:text="${h.kind()}">Pallet</span><span class="n" th:text="${h.key()}">PLT-1</span><span class="d" th:text="${h.detail()}">detail</span></a>
+    </div>
+  </div>
+  <p class="empty" th:if="${q != '' and #lists.isEmpty(hits)}" th:text="|Nothing named “${q}” in this tenant.|">Nothing found.</p>
+</main></body></html>

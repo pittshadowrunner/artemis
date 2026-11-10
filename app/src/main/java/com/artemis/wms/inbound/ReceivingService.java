@@ -22,7 +22,9 @@ import static com.artemis.wms.platform.Values.*;
  * Receiving is a linkable document with a timeline (expected → arrived →
  * receiving → closed). Its output is pallets: one call per LPN, capture
  * enforced at the dock, minimum-shelf-life rejection sends product back on
- * the truck, and every pallet spawns its directed putaway task.
+ * the truck. Every pallet leaves receiving with three things: an LPN (system-
+ * assigned unless the supplier's label is scanned), a location (the dock it
+ * landed on), and a directed putaway task to the slot it belongs in.
  */
 @Service
 public class ReceivingService {
@@ -73,8 +75,10 @@ public class ReceivingService {
         Map<String, Object> m = jdbc.queryForMap("SELECT corporation_id, site_id, status::text AS status FROM receiving_manifest WHERE manifest_id = ?", manifestId);
         UUID siteId = (UUID) m.get("site_id");
         access.require(siteId, Capabilities.RECEIVING_EXECUTE);
-        if (!List.of("ARRIVED", "RECEIVING").contains(m.get("status")))
-            throw ApiException.conflict("Manifest must be ARRIVED before receiving (is " + m.get("status") + ").");
+        if (!List.of("ARRIVED", "RECEIVING", "RECEIVED").contains(m.get("status")))
+            throw ApiException.conflict("EXPECTED".equals(m.get("status"))
+                ? "Mark the trailer arrived before receiving against it."
+                : "Manifest is " + m.get("status") + " — nothing more can be received against it.");
 
         Integer lineNo = integer(r.get("lineNumber"));
         if (lineNo == null) throw ApiException.badRequest("lineNumber is required.");
@@ -109,10 +113,18 @@ public class ReceivingService {
             throw ApiException.badRequest("Serial-tracked item needs exactly " + qty.intValue() + " serials.");
         BigDecimal weight = number(r.get("actualWeightKg"));
         if (is(line.get("catch_weight")) && weight == null) throw ApiException.badRequest("Catch-weight item requires the scale reading (actualWeightKg).");
+        // The inbound LPN is assigned here. A supplier label (SSCC) may be passed in and wins.
         String lpn = upper(r.get("lpn"));
-        if (lpn == null) throw ApiException.badRequest("A receipt is an LPN — supply one.");
+        if (lpn == null) lpn = jdbc.queryForObject("SELECT next_lpn(?)", String.class, siteId);
+        else if (jdbc.queryForObject("SELECT count(*) FROM inventory WHERE site_id = ? AND lpn = ?", Integer.class, siteId, lpn) > 0)
+            throw ApiException.conflict("LPN " + lpn + " already exists at this site.");
 
-        UUID dock = r.get("dock") != null ? locations.idByCode(siteId, str(r.get("dock"))) : defaultDock(siteId);
+        // Receiving lands freight on a dock. Cross-dock freight stays there for the outbound trailer.
+        UUID dock = str(r.get("dock")) != null ? locations.idByCode(siteId, str(r.get("dock"))) : defaultDock(siteId);
+        String dockType = jdbc.queryForObject("SELECT loc_type::text FROM location WHERE location_id = ?", String.class, dock);
+        if (!List.of("RECEIVING_DOCK", "CROSS_DOCK").contains(dockType))
+            throw ApiException.badRequest(str(r.get("dock")) + " is a " + dockType.replace('_', ' ').toLowerCase() + ", not a dock — freight is received onto a receiving or cross dock.");
+        boolean crossDock = "CROSS_DOCK".equals(dockType) || is(r.get("skipPutaway"));
         UUID itemId = (UUID) line.get("item_id");
         UUID invId = UUID.randomUUID();
         jdbc.update("""
@@ -121,11 +133,19 @@ public class ReceivingService {
         for (String s : serials) jdbc.update("INSERT INTO inventory_serial (inventory_id, serial_number) VALUES (?, ?)", invId, s);
         jdbc.update("INSERT INTO inventory_movement (inventory_id, to_location, qty, movement_type, performed_by) VALUES (?, ?, ?, 'RECEIPT', ?)", invId, dock, qty, TenantContext.user());
         jdbc.update("UPDATE receiving_manifest_line SET received_qty = received_qty + ? WHERE manifest_line_id = ?", qty, line.get("manifest_line_id"));
-        jdbc.update("UPDATE receiving_manifest SET status = 'RECEIVING', updated_at = now() WHERE manifest_id = ? AND status = 'ARRIVED'", manifestId);
+        // RECEIVED once every line is accounted for (received + rejected); RECEIVING until then.
+        jdbc.update("""
+            UPDATE receiving_manifest m SET updated_at = now(), status = CASE
+                WHEN NOT EXISTS (SELECT 1 FROM receiving_manifest_line ml WHERE ml.manifest_id = m.manifest_id AND ml.received_qty + ml.rejected_qty < ml.expected_qty)
+                THEN 'RECEIVED'::manifest_status ELSE 'RECEIVING'::manifest_status END
+            WHERE m.manifest_id = ? AND m.status IN ('ARRIVED','RECEIVING')""", manifestId);
 
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("inventoryId", invId); out.put("lpn", lpn); out.put("sku", line.get("sku")); out.put("qty", qty);
-        if (!is(r.get("skipPutaway"))) out.put("putaway", putaway.createTask(siteId, invId, itemId, lot, dock));
+        out.put("location", jdbc.queryForObject("SELECT code FROM location WHERE location_id = ?", String.class, dock));
+        // Cross-dock freight stays where it lands; everything else is directed to a slot now.
+        out.put("crossDock", crossDock);
+        if (!crossDock) out.put("putaway", putaway.createTask(siteId, invId, itemId, lot, dock, manifestId));
         return out;
     }
 
@@ -143,11 +163,39 @@ public class ReceivingService {
         if (n == 0) throw ApiException.notFound("Manifest line not found.");
     }
 
-    /** Short shipments close fine — deliberately. */
+    /**
+     * Closing is the end of receiving, never a substitute for it. Short
+     * shipments close fine — deliberately — but a manifest with nothing
+     * received and nothing rejected has not been received at all: that is a
+     * cancellation, and saying so keeps "closed" meaning "freight is here".
+     */
     @Transactional
     public void close(UUID manifestId) {
-        int n = jdbc.update("UPDATE receiving_manifest SET status = 'CLOSED', closed_at = now(), updated_at = now() WHERE manifest_id = ? AND status IN ('ARRIVED','RECEIVING','RECEIVED')", manifestId);
-        if (n == 0) throw ApiException.conflict("Manifest cannot be closed from its current status.");
+        Map<String, Object> m = manifestRow(manifestId);
+        access.require((UUID) m.get("site_id"), Capabilities.RECEIVING_EXECUTE);
+        if (!List.of("ARRIVED", "RECEIVING", "RECEIVED").contains(m.get("status")))
+            throw ApiException.conflict("Manifest cannot be closed from " + m.get("status") + ".");
+        Integer touched = jdbc.queryForObject("SELECT count(*) FROM receiving_manifest_line WHERE manifest_id = ? AND (received_qty > 0 OR rejected_qty > 0)", Integer.class, manifestId);
+        if (touched == null || touched == 0)
+            throw ApiException.conflict("Nothing has been received on this manifest. Receive the pallets first — or cancel the manifest if the freight never came.");
+        jdbc.update("UPDATE receiving_manifest SET status = 'CLOSED', closed_at = now(), updated_at = now() WHERE manifest_id = ?", manifestId);
+    }
+
+    /** The freight never came (or was refused whole). Only possible before anything is received. */
+    @Transactional
+    public void cancel(UUID manifestId) {
+        Map<String, Object> m = manifestRow(manifestId);
+        access.require((UUID) m.get("site_id"), Capabilities.RECEIVING_EXECUTE);
+        Integer pallets = jdbc.queryForObject("SELECT count(*) FROM inventory WHERE manifest_id = ?", Integer.class, manifestId);
+        if (pallets != null && pallets > 0) throw ApiException.conflict("Pallets have been received on this manifest — close it instead.");
+        int n = jdbc.update("UPDATE receiving_manifest SET status = 'CANCELLED', closed_at = now(), updated_at = now() WHERE manifest_id = ? AND status IN ('EXPECTED','ARRIVED','RECEIVING')", manifestId);
+        if (n == 0) throw ApiException.conflict("Manifest cannot be cancelled from " + m.get("status") + ".");
+    }
+
+    private Map<String, Object> manifestRow(UUID manifestId) {
+        List<Map<String, Object>> rows = jdbc.queryForList("SELECT site_id, status::text AS status FROM receiving_manifest WHERE manifest_id = ?", manifestId);
+        if (rows.isEmpty()) throw ApiException.notFound("Manifest not found.");
+        return rows.get(0);
     }
 
     public List<Map<String, Object>> list(UUID siteId, boolean openOnly) {
@@ -159,12 +207,21 @@ public class ReceivingService {
         if (rows.isEmpty()) throw ApiException.notFound("Manifest not found.");
         Map<String, Object> m = new LinkedHashMap<>(rows.get(0));
         m.put("lines", jdbc.queryForList("""
-            SELECT ml.line_number, i.sku::text AS sku, i.description, ml.expected_qty, ml.received_qty, ml.rejected_qty, ml.rejection_reason
+            SELECT ml.line_number, i.sku::text AS sku, i.description, i.temp_zone::text AS temp_zone, ml.expected_qty, ml.received_qty, ml.rejected_qty, ml.rejection_reason,
+                   GREATEST(ml.expected_qty - ml.received_qty - ml.rejected_qty, 0) AS remaining_qty,
+                   i.lot_tracked, i.expiry_tracked, i.serial_tracked, i.catch_weight, i.pallet_ti * i.pallet_hi AS pallet_qty
             FROM receiving_manifest_line ml JOIN item i ON i.item_id = ml.item_id WHERE ml.manifest_id = ? ORDER BY ml.line_number""", manifestId));
+        // Receiving's output: LPN + captured attributes + a location, and the directed task that moves it on.
         m.put("pallets", jdbc.queryForList("""
-            SELECT v.lpn, i.sku::text AS sku, v.lot_number, v.expiration_date, v.qty, v.actual_weight_kg, l.code AS location, v.status::text AS status, v.created_at
+            SELECT v.lpn, i.sku::text AS sku, v.lot_number, v.expiration_date, v.qty, v.original_qty, v.actual_weight_kg, l.code AS location, l.loc_type::text AS loc_type,
+                   v.status::text AS status, v.created_at, now() - v.created_at AS dwell,
+                   pt.to_code AS directed_to, pt.assignment_id, pt.assignment_number, pt.assignment_status::text AS assignment_status, pt.operator, pt.assigned_to,
+                   done.assignment_id AS done_assignment_id, done.assignment_number AS done_assignment_number, done.completed_at AS put_away_at
             FROM inventory v JOIN item i ON i.item_id = v.item_id LEFT JOIN location l ON l.location_id = v.location_id
-            WHERE v.manifest_id = ? ORDER BY v.created_at""", manifestId));
+            LEFT JOIN v_pallet_task pt ON pt.inventory_id = v.inventory_id AND pt.assignment_type = 'PUTAWAY'
+            LEFT JOIN LATERAL (SELECT a.assignment_id, a.assignment_number, t.completed_at FROM assignment_task t JOIN assignment a ON a.assignment_id = t.assignment_id
+                               WHERE t.inventory_id = v.inventory_id AND a.assignment_type = 'PUTAWAY' AND t.status = 'COMPLETE' ORDER BY t.completed_at DESC LIMIT 1) done ON true
+            WHERE v.manifest_id = ? AND v.parent_inventory_id IS NULL ORDER BY v.created_at""", manifestId));
         return m;
     }
 }

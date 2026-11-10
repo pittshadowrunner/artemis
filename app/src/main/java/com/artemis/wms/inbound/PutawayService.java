@@ -30,15 +30,20 @@ public class PutawayService {
 
     @Transactional
     public Map<String, Object> createTask(UUID siteId, UUID inventoryId, UUID itemId, String lot, UUID fromLocation) {
+        return createTask(siteId, inventoryId, itemId, lot, fromLocation, null);
+    }
+
+    @Transactional
+    public Map<String, Object> createTask(UUID siteId, UUID inventoryId, UUID itemId, String lot, UUID fromLocation, UUID manifestId) {
         List<Map<String, Object>> slots = jdbc.queryForList("SELECT * FROM directed_putaway_slot(?, ?, ?, ?, ?)",
             siteId, itemId, lot, policy.allowItemMixing(siteId), policy.allowLotMixing(siteId));
-        if (slots.isEmpty()) throw ApiException.conflict("No qualifying reserve slot for this item (temp zone / hazmat / mixing rules).");
+        if (slots.isEmpty()) throw ApiException.conflict("No open reserve slot qualifies for this item (temp zone, hazmat and mixing rules) — the pallet was not received. Free or add a slot in that zone, then receive again.");
         Map<String, Object> slot = slots.get(0);
         UUID assignmentId = UUID.randomUUID();
         jdbc.update("""
-            INSERT INTO assignment (assignment_id, corporation_id, site_id, assignment_number, assignment_type, priority, temp_zone)
-            SELECT ?, v.corporation_id, ?, next_assignment_number(), 'PUTAWAY', default_priority('PUTAWAY', i.temp_zone), i.temp_zone
-            FROM inventory v JOIN item i ON i.item_id = v.item_id WHERE v.inventory_id = ?""", assignmentId, siteId, inventoryId);
+            INSERT INTO assignment (assignment_id, corporation_id, site_id, assignment_number, assignment_type, priority, temp_zone, manifest_id)
+            SELECT ?, v.corporation_id, ?, next_assignment_number(), 'PUTAWAY', default_priority('PUTAWAY', i.temp_zone), i.temp_zone, ?
+            FROM inventory v JOIN item i ON i.item_id = v.item_id WHERE v.inventory_id = ?""", assignmentId, siteId, manifestId, inventoryId);
         UUID taskId = UUID.randomUUID();
         String digits = String.valueOf(slot.get("check_digits"));
         String prompt = "Put away to " + String.valueOf(slot.get("code")).replace("-", " ") + ", check " + digits;

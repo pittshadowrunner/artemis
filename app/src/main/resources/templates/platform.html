@@ -3,9 +3,12 @@
 <body><main>
   <h1>Platform <small>tenants</small></h1>
   <div class="panel">
-    <table><tr><th>Code</th><th>Name</th><th>Created</th><th>Corporation id</th></tr>
-      <tr th:each="c : ${corporations}"><td class="loc" th:text="${c.code}"></td><td th:text="${c.name}"></td><td class="small muted" th:text="${fmt.dt(c.created_at, 'yyyy-MM-dd')}"></td><td><code th:text="${c.org_node_id}"></code></td></tr>
+    <p>You're signed in as the <b>platform sysadmin</b>. This account creates tenants; it doesn't belong to one, so there is no warehouse to show until you pick a tenant to work in.</p>
+    <table><tr><th>Code</th><th>Name</th><th>Created</th><th>Corporation id</th><th></th></tr>
+      <tr th:each="c : ${corporations}"><td class="loc" th:text="${c.code}"></td><td th:text="${c.name}"></td><td class="small muted" th:text="${fmt.dt(c.created_at, 'yyyy-MM-dd')}"></td><td><code th:text="${c.org_node_id}"></code></td>
+        <td><form th:action="@{/ui/platform/enter}" method="post"><input type="hidden" name="corporationId" th:value="${c.org_node_id}"><button type="submit" th:text="|Work in ${c.code}|">Work in tenant</button></form></td></tr>
     </table>
-    <p class="muted small">You're the platform sysadmin. To work inside a tenant, send <code>X-Artemis-Corporation</code> from the CLI (<code>ARTEMIS_CORP=…</code>) or sign in as a tenant user. Create tenants with <code>ops/artemis import</code>.</p>
+    <p class="empty" th:if="${#lists.isEmpty(corporations)}">No tenants yet.</p>
+    <p class="hint">Create a tenant with <code>ops/artemis import ops/data/hierarchy.example.yaml</code>. From the CLI, <code>ARTEMIS_CORP=&lt;corporation id&gt;</code> does what the button does. Day to day, sign in as a tenant user instead.</p>
   </div>
 </main></body></html>

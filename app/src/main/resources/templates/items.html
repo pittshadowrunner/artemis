@@ -2,12 +2,13 @@
 <head><title>Items — Artemis WMS</title></head>
 <body><main>
   <h1>Items<small th:text="|${#lists.size(items)} shown|"></small></h1>
-  <form th:action="@{/items}" method="get" class="inline" style="margin-bottom:1rem"><input name="q" th:value="${q}" placeholder="SKU or description"><button type="submit" class="secondary">Search</button></form>
-  <div class="panel"><table><tr><th>SKU</th><th>Description</th><th>Zone</th><th>Pack</th><th>Tracking</th><th>Vel</th><th>Base</th></tr>
-    <tr th:each="i : ${items}"><td><a th:href="@{/items/{s}(s=${i.sku})}" class="loc" th:text="${i.sku}"></a></td><td th:text="${i.description}"></td>
-      <td><span class="tag" th:classappend="${#strings.toLowerCase(i.temp_zone) == 'frozen'} ? 'frozen' : (${#strings.toLowerCase(i.temp_zone) == 'refrigerated'} ? 'chill')" th:text="${i.zone_tag}"></span></td>
-      <td class="small" th:text="|${i.case_pack_qty != null ? i.case_pack_qty + '/CS' : ''} ${i.pallet_ti != null ? i.pallet_ti + '×' + i.pallet_hi : ''}|"></td>
-      <td class="small" th:text="|${i.lot_tracked ? 'lot ' : ''}${i.expiry_tracked ? 'expiry ' : ''}${i.serial_tracked ? 'serial ' : ''}${i.catch_weight ? 'catch-wt' : ''}|"></td>
-      <td th:text="${i.velocity_class}"></td><td class="mono small" th:text="${i.base_item_sku}"></td></tr></table>
+  <form th:action="@{/items}" method="get" class="inline" style="margin-bottom:1rem"><input name="q" th:value="${q}" placeholder="SKU or description" autofocus><button type="submit" class="secondary">Filter</button></form>
+  <div class="panel"><table><tr><th>SKU</th><th>Description</th><th>Zone</th><th>Tracking</th><th title="Calculated from the last 30 days of picks: A = the items making up the first 80% of lines, B the next 15%, C the rest">Velocity</th><th class="num">On hand</th><th class="num">Pallets</th><th>Pick face</th></tr>
+    <tr th:each="i : ${items}"><td><th:block th:replace="~{x :: item(${i.sku})}"/></td><td th:text="${i.description}"></td>
+      <td><th:block th:replace="~{x :: zone(${i.temp_zone})}"/></td>
+      <td class="small" th:text="|${i.lot_tracked ? 'lot ' : ''}${i.expiry_tracked ? 'expiry ' : ''}${i.serial_tracked ? 'serial ' : ''}${i.catch_weight ? 'catch-weight' : ''}|"></td>
+      <td><b th:if="${i.velocity}" th:text="${i.velocity}">A</b><span th:if="${i.velocity == null}" class="muted small">no picks yet</span></td>
+      <td class="num" th:text="${fmt.qty(i.on_hand)}"></td><td class="num" th:text="${i.pallets}"></td>
+      <td><th:block th:if="${i.faces}" th:each="f, s : ${#strings.arraySplit(i.faces, ', ')}"><th:block th:replace="~{x :: slot(${f})}"/><span th:if="${!s.last}">, </span></th:block></td></tr></table>
     <p class="empty" th:if="${#lists.isEmpty(items)}">No items — load with <code>ops/artemis import</code> or <code>POST /api/v1/items/upload</code>.</p></div>
 </main></body></html>

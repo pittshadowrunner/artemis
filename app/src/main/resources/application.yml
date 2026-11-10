@@ -38,6 +38,11 @@ artemis:
     # First boot only: if no users exist, create this platform sysadmin.
     sysadmin-email: ${BOOTSTRAP_SYSADMIN_EMAIL:}
     sysadmin-password: ${BOOTSTRAP_SYSADMIN_PASSWORD:}
+  replen:
+    # Replenishment is cut by a scheduled scan, not a button. Set REPLEN_AUTO=false
+    # to drive it only from POST /api/v1/sites/{id}/replen/run.
+    auto: ${REPLEN_AUTO:true}
+    scan-fixed-delay-ms: ${REPLEN_SCAN_MS:60000}
   mail:
     mailgun-api-key: ${MAILGUN_API_KEY:}
     mailgun-domain: ${MAILGUN_DOMAIN:}

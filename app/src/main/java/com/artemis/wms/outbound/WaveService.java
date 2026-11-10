@@ -66,9 +66,16 @@ public class WaveService {
         return get(waveId);
     }
 
-    /** Allocate + cut assignments. Batch = one cart of zone orders; tasks walk the pick path. */
     @Transactional
-    public Map<String, Object> release(UUID waveId, String equipmentCode) {
+    public Map<String, Object> release(UUID waveId, String equipmentCode) { return release(waveId, equipmentCode, false); }
+
+    /**
+     * Allocate, then either cut assignments now (batch = one cart of zone
+     * orders) or — manual — leave the released zone orders on the floor to be
+     * built by hand or handed to whoever asks for work next.
+     */
+    @Transactional
+    public Map<String, Object> release(UUID waveId, String equipmentCode, boolean manual) {
         Map<String, Object> w = jdbc.queryForMap("SELECT site_id, corporation_id, status::text AS status, temp_zone::text AS temp_zone, batch_size FROM wave WHERE wave_id = ?", waveId);
         UUID siteId = (UUID) w.get("site_id");
         access.require(siteId, Capabilities.WAVE_PLAN);
@@ -91,17 +98,72 @@ public class WaveService {
             if (eq.get("container_positions") != null) batch = (Integer) eq.get("container_positions");   // the cart decides
         }
         int assignments = 0;
-        for (int i = 0; i < zoneOrders.size(); i += batch) {
+        if (!manual) for (int i = 0; i < zoneOrders.size(); i += batch) {
             cutAssignment(siteId, (UUID) w.get("corporation_id"), waveId, (String) w.get("temp_zone"), equipmentId, zoneOrders.subList(i, Math.min(i + batch, zoneOrders.size())));
             assignments++;
         }
         jdbc.update("UPDATE wave SET status = 'RELEASED', released_at = now() WHERE wave_id = ?", waveId);
         Map<String, Object> out = new LinkedHashMap<>(get(waveId));
-        out.put("release", Map.of("assignmentsCut", assignments, "shortfall", shortfall, "bypasses", bypasses));
+        out.put("release", Map.of("assignmentsCut", assignments, "shortfall", shortfall, "bypasses", bypasses, "leftToBuild", manual ? zoneOrders.size() : 0));
         return out;
     }
 
-    private void cutAssignment(UUID siteId, UUID corp, UUID waveId, String zone, UUID equipmentId, List<UUID> zoneOrders) {
+    /** Released zone orders with no assignment yet, best first. */
+    public List<Map<String, Object>> unbuilt(UUID siteId, String zone) {
+        return jdbc.queryForList("""
+            SELECT u.zone_order_id, u.temp_zone::text AS temp_zone, u.wave_id, u.wave_number, u.batch_size, u.order_number, u.rush, u.priority, u.requested_ship_date,
+                   u.route_code, u.stop_sequence, u.customer, u.customer_name, u.work_priority, u.picks
+            FROM v_unbuilt_zone_order u WHERE u.site_id = ? AND (?::text IS NULL OR u.temp_zone::text = ?)
+            ORDER BY u.work_priority DESC, u.rush DESC, u.priority DESC, u.requested_ship_date NULLS LAST, u.order_number""", siteId, zone, zone);
+    }
+
+    /**
+     * Build one selection assignment by hand from released zone orders: same
+     * zone, same wave, and no more of them than the unit has positions.
+     */
+    @Transactional
+    public Map<String, Object> build(UUID siteId, List<UUID> zoneOrderIds, String equipmentCode) {
+        access.require(siteId, Capabilities.WAVE_PLAN);
+        return buildUnchecked(siteId, zoneOrderIds, equipmentCode);
+    }
+
+    /** The build itself; callers have already decided the requester may have this work. */
+    @Transactional
+    public Map<String, Object> buildUnchecked(UUID siteId, List<UUID> zoneOrderIds, String equipmentCode) {
+        if (zoneOrderIds == null || zoneOrderIds.isEmpty()) throw ApiException.badRequest("Tick at least one zone order to build an assignment.");
+        List<UUID> ids = new ArrayList<>(new LinkedHashSet<>(zoneOrderIds));
+        List<Map<String, Object>> rows = new ArrayList<>();
+        for (UUID id : ids) {
+            jdbc.queryForList("SELECT 1 FROM zone_order WHERE zone_order_id = ? FOR UPDATE", id);   // two builders can't take the same order
+            List<Map<String, Object>> r = jdbc.queryForList("SELECT zone_order_id, corporation_id, temp_zone::text AS temp_zone, wave_id, wave_number, order_number FROM v_unbuilt_zone_order WHERE zone_order_id = ? AND site_id = ?", id, siteId);
+            if (r.isEmpty()) throw ApiException.conflict("One of those zone orders is no longer waiting — it was built, dropped or its wave isn't released. Refresh and try again.");
+            rows.add(r.get(0));
+        }
+        Map<String, Object> first = rows.get(0);
+        for (Map<String, Object> r : rows) {
+            if (!first.get("temp_zone").equals(r.get("temp_zone"))) throw ApiException.conflict("An assignment is one temperature zone: " + first.get("order_number") + " is " + first.get("temp_zone") + ", " + r.get("order_number") + " is " + r.get("temp_zone") + ".");
+            if (!first.get("wave_id").equals(r.get("wave_id"))) throw ApiException.conflict("An assignment belongs to one wave: " + first.get("order_number") + " is in " + first.get("wave_number") + ", " + r.get("order_number") + " is in " + r.get("wave_number") + ".");
+        }
+        UUID equipmentId = null; String code = null;
+        if (equipmentCode != null && !equipmentCode.isBlank()) {
+            Map<String, Object> eq;
+            try { eq = jdbc.queryForMap("SELECT equipment_id, code, container_positions, active FROM equipment WHERE site_id = ? AND code = ?", siteId, equipmentCode.trim().toUpperCase()); }
+            catch (Exception e) { throw ApiException.notFound("No unit " + equipmentCode.toUpperCase() + " at this site."); }
+            if (!Boolean.TRUE.equals(eq.get("active"))) throw ApiException.conflict(eq.get("code") + " is out of service.");
+            Integer positions = (Integer) eq.get("container_positions");
+            if (positions != null && ids.size() > positions) throw ApiException.conflict(eq.get("code") + " has " + positions + " positions; you ticked " + ids.size() + " zone orders.");
+            equipmentId = (UUID) eq.get("equipment_id"); code = (String) eq.get("code");
+        }
+        UUID assignmentId = cutAssignment(siteId, (UUID) first.get("corporation_id"), (UUID) first.get("wave_id"), (String) first.get("temp_zone"), equipmentId, ids);
+        Map<String, Object> a = jdbc.queryForMap("SELECT assignment_number, status::text AS status FROM assignment WHERE assignment_id = ?", assignmentId);
+        if ("CANCELLED".equals(a.get("status"))) throw ApiException.conflict("Nothing is allocated for those zone orders, so there is nothing to pick.");
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("assignmentId", assignmentId); out.put("assignmentNumber", a.get("assignment_number")); out.put("zoneOrders", ids.size());
+        out.put("equipment", code); out.put("tempZone", first.get("temp_zone")); out.put("waveNumber", first.get("wave_number"));
+        return out;
+    }
+
+    private UUID cutAssignment(UUID siteId, UUID corp, UUID waveId, String zone, UUID equipmentId, List<UUID> zoneOrders) {
         UUID assignmentId = UUID.randomUUID();
         jdbc.update("""
             INSERT INTO assignment (assignment_id, corporation_id, site_id, assignment_number, assignment_type, priority, temp_zone, wave_id, equipment_id)
@@ -140,6 +202,7 @@ public class WaveService {
                 assignmentId, seq, p.get("inventory_id"), p.get("item_id"), p.get("location_id"), p.get("qty"), p.get("check_digits"), p.get("put_check_digits"), prompt, p.get("allocation_id"), p.get("cart_position"));
         }
         if (seq == 0) jdbc.update("UPDATE assignment SET status = 'CANCELLED', updated_at = now() WHERE assignment_id = ?", assignmentId);   // nothing allocatable
+        return assignmentId;
     }
 
     public List<Map<String, Object>> list(UUID siteId) {
@@ -151,12 +214,15 @@ public class WaveService {
         if (rows.isEmpty()) throw ApiException.notFound("Wave not found.");
         Map<String, Object> w = new LinkedHashMap<>(rows.get(0));
         w.put("zoneOrders", jdbc.queryForList("""
-            SELECT o.order_number, c.code AS customer, o.rush, o.priority, o.requested_ship_date, o.route_code, o.stop_sequence, a.assignment_number, ac.cart_position, z.dropped_at
+            SELECT o.order_number, c.code AS customer, c.name AS customer_name, o.rush, o.priority, o.requested_ship_date, o.route_code, o.stop_sequence,
+                   a.assignment_number, a.status::text AS assignment_status, a.priority AS assignment_priority, u.display_name AS operator, a.assigned_to AS operator_id,
+                   ac.cart_position, z.dropped_at, dl.code AS drop_location
             FROM zone_order z JOIN customer_order o ON o.order_id = z.order_id JOIN customer c ON c.customer_id = o.customer_id
             LEFT JOIN assignment a ON a.assignment_id = z.assignment_id LEFT JOIN assignment_container ac ON ac.zone_order_id = z.zone_order_id
-            WHERE z.wave_id = ? ORDER BY a.assignment_number, ac.cart_position""", waveId));
+            LEFT JOIN app_user u ON u.user_id = a.assigned_to LEFT JOIN location dl ON dl.location_id = z.drop_location_id
+            WHERE z.wave_id = ? ORDER BY a.assignment_number, ac.cart_position, o.order_number""", waveId));
         w.put("assignments", jdbc.queryForList("""
-            SELECT a.assignment_id, a.assignment_number, a.status::text AS status, a.priority, e.code AS equipment, u.display_name AS assigned_to,
+            SELECT a.assignment_id, a.assignment_number, a.status::text AS status, a.priority, e.code AS equipment, u.display_name AS assigned_to, a.assigned_to AS operator_id,
                    (SELECT count(*) FROM assignment_task t WHERE t.assignment_id = a.assignment_id) AS tasks,
                    (SELECT count(*) FROM assignment_task t WHERE t.assignment_id = a.assignment_id AND t.status = 'COMPLETE') AS done
             FROM assignment a LEFT JOIN equipment e ON e.equipment_id = a.equipment_id LEFT JOIN app_user u ON u.user_id = a.assigned_to

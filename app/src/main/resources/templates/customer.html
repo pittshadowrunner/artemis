@@ -1,0 +1,35 @@
+<html xmlns:th="http://www.thymeleaf.org" th:replace="~{layout :: page(~{::title}, ~{::main})}">
+<head><title th:text="|${customer.name} — Artemis WMS|"></title></head>
+<body><main th:with="c=${customer}">
+  <div class="crumbs"><a th:href="@{/customers}">Customers</a> › <b th:text="${c.code}">CODE</b></div>
+  <h1><span th:text="${c.name}">Customer</span><small class="mono" th:text="${c.code}"></small> <span class="status CANCELLED" th:if="${!c.active}">INACTIVE</span></h1>
+  <div class="grid c4" style="margin-bottom:1rem">
+    <div class="panel tight stat"><b th:text="${ctx.totals.open_orders}">0</b><span>open orders</span></div>
+    <div class="panel tight stat"><b th:text="${ctx.totals.shipped_orders}">0</b><span>shipped</span></div>
+    <div class="panel tight stat"><b th:text="${ctx.totals.orders}">0</b><span>orders all time</span></div>
+    <div class="panel tight stat"><b th:text="${ctx.totals.last_order_at != null ? fmt.dt(ctx.totals.last_order_at, 'yyyy-MM-dd') : '—'}">—</b><span>last order</span></div>
+  </div>
+  <div class="grid c2">
+    <div class="panel"><h2>Ship to &amp; contact</h2>
+      <table class="kv">
+        <tr><th>Address</th><td><span th:text="${c.address_line1 ?: '—'}"></span><th:block th:if="${c.address_line2}"><br><span th:text="${c.address_line2}"></span></th:block><br>
+          <span th:text="|${c.city ?: ''}${c.state_province != null ? ', ' + c.state_province : ''} ${c.postal_code ?: ''} ${c.country ?: ''}|"></span></td></tr>
+        <tr><th>Phone</th><td th:text="${c.contact_phone ?: '—'}"></td></tr>
+        <tr><th>Email</th><td th:text="${c.contact_email ?: '—'}"></td></tr>
+        <tr><th>Route / stop</th><td th:text="|${c.route_code ?: '—'}${c.stop_sequence != null ? ' · stop ' + c.stop_sequence : ''}|"></td></tr>
+        <tr><th>Delivery window</th><td th:text="${c.delivery_window_start != null ? c.delivery_window_start + ' – ' + c.delivery_window_end : '—'}"></td></tr>
+        <tr><th>Shelf-life terms</th><td th:text="${c.min_shelf_life_days != null ? 'at least ' + c.min_shelf_life_days + ' days remaining at ship' : '—'}"></td></tr>
+        <tr><th>Preferred carrier</th><td th:text="${c.preferred_carrier ?: '—'}"></td></tr>
+        <tr><th>Compliance</th><td th:text="|${c.requires_gs1_labels ? 'GS1 labels · ' : ''}${c.requires_asn ? 'ASN required · ' : ''}pallet build ${c.pallet_build_pref != null ? fmt.words(c.pallet_build_pref) : 'not specified'}|"></td></tr>
+        <tr><th>Account owner</th><td class="mono" th:text="${c.owner}"></td></tr>
+      </table></div>
+    <div class="panel"><h2>Order history</h2>
+      <table th:if="${!#lists.isEmpty(ctx.orders)}"><tr><th>Order</th><th>Site</th><th>Placed</th><th>Ship date</th><th>Zones</th><th class="num">Lines</th><th class="num">Picked</th><th>Status</th><th>Shipment</th></tr>
+        <tr th:each="o : ${ctx.orders}"><td><th:block th:replace="~{x :: order(${o.order_number})}"/> <span class="pri p9" th:if="${o.rush}">RUSH</span></td><td class="mono small" th:text="${o.site}"></td>
+          <td class="small" th:text="${fmt.dt(o.created_at, 'yyyy-MM-dd')}"></td><td class="small" th:text="${o.requested_ship_date}"></td>
+          <td><th:block th:if="${o.zones != null}" th:each="z : ${#strings.arraySplit(o.zones, ',')}"><th:block th:replace="~{x :: zone(${z})}"/> </th:block></td>
+          <td class="num" th:text="${o.lines}"></td><td class="num" th:text="|${fmt.qty(o.picked_qty)}/${fmt.qty(o.ordered_qty)}|"></td><td><th:block th:replace="~{x :: st(${o.status})}"/></td>
+          <td><th:block th:if="${o.shipment_number}"><th:block th:replace="~{x :: shipment(${o.shipment_number})}"/></th:block></td></tr></table>
+      <p class="empty" th:if="${#lists.isEmpty(ctx.orders)}">No orders yet.</p></div>
+  </div>
+</main></body></html>

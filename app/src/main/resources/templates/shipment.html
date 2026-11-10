@@ -1,16 +1,17 @@
 <html xmlns:th="http://www.thymeleaf.org" th:replace="~{layout :: page(~{::title}, ~{::main})}">
 <head><title th:text="|${shipment.shipment_number} — Artemis WMS|"></title></head>
 <body><main>
-  <h1><span th:text="${shipment.shipment_number}">S</span><small th:text="|${shipment.customer_name} · ${shipment.carrier ?: ''} ${shipment.trailer_number ?: ''}|"></small> <span class="status" th:classappend="${shipment.status}" th:text="${shipment.status}"></span></h1>
+  <div class="crumbs noprint"><a th:href="@{/sites/{s}/shipments(s=${site.org_node_id})}">Shipping</a> › <b th:text="${shipment.shipment_number}">S</b></div>
+  <h1><span th:text="${shipment.shipment_number}">S</span><small>shipment to <th:block th:replace="~{x :: customer(${shipment.customer_code}, ${shipment.customer_name})}"/><span th:text="| · ${shipment.carrier ?: 'carrier not set'} ${shipment.trailer_number ?: ''}|"></span></small> <th:block th:replace="~{x :: st(${shipment.status})}"/></h1>
   <div class="subnav noprint">
     <form th:if="${shipment.status != 'SHIPPED'}" th:action="@{/ui/shipments/{id}/ship(id=${shipment.shipment_id})}" method="post"><button type="submit">Mark shipped</button></form>
     <button class="secondary" onclick="window.print()">Print packing list</button>
-    <a th:href="@{/sites/{s}/shipments(s=${site.org_node_id})}">← Shipping</a>
   </div>
   <div class="panel">
     <h2 th:text="|Packing list ${shipment.packingList.size() > 0 ? shipment.packingList[0].document_number : ''}|"></h2>
     <p class="small muted" th:text="|${site.name} → ${shipment.customer_name} · ${shipment.orders} order(s) · generated from picked lots|"></p>
-    <table><tr><th>#</th><th>Order</th><th>SKU</th><th>Description</th><th class="num">Qty</th><th>Lot</th><th>Expires</th><th>LPN</th></tr>
-      <tr th:each="l : ${shipment.packingList}"><td th:text="${l.line_number}"></td><td class="loc" th:text="${l.order_number}"></td><td class="loc" th:text="${l.sku}"></td><td th:text="${l.description}"></td><td class="num" th:text="${l.qty}"></td><td th:text="${l.lot_number ?: ''}"></td><td th:text="${l.expiration_date ?: ''}"></td><td class="mono" th:text="${l.lpn}"></td></tr></table>
+    <table><tr><th>#</th><th>Order</th><th>Item</th><th>Description</th><th class="num">Qty</th><th>Lot</th><th>Expires</th><th>From pallet</th></tr>
+      <tr th:each="l : ${shipment.packingList}"><td th:text="${l.line_number}"></td><td><th:block th:replace="~{x :: order(${l.order_number})}"/></td><td><th:block th:replace="~{x :: item(${l.sku})}"/></td><td th:text="${l.description}"></td><td class="num" th:text="${fmt.qty(l.qty)}"></td>
+        <td><th:block th:replace="~{x :: lot(${l.sku}, ${l.lot_number})}"/></td><td th:text="${l.expiration_date ?: ''}"></td><td><th:block th:replace="~{x :: pallet(${l.lpn})}"/></td></tr></table>
   </div>
 </main></body></html>

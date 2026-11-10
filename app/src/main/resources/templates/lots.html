@@ -1,0 +1,16 @@
+<html xmlns:th="http://www.thymeleaf.org" th:replace="~{layout :: page(~{::title}, ~{::main})}">
+<head><title th:text="|${site.code} lots — Artemis WMS|"></title></head>
+<body><main>
+  <div class="crumbs"><a th:href="@{/sites/{s}/pallets(s=${site.org_node_id})}">Pallets</a> › <b>Lots</b></div>
+  <h1><span th:text="${site.name}">Site</span><small th:text="|lots · ${#lists.size(lots)} shown|"></small></h1>
+  <form th:action="@{/sites/{s}/lots(s=${site.org_node_id})}" method="get" class="inline" style="margin-bottom:1rem"><input name="q" th:value="${q}" placeholder="lot number or SKU" class="mono"><button type="submit" class="secondary">Filter</button></form>
+  <div class="panel">
+    <table><tr><th>Lot</th><th>Item</th><th>Expires</th><th class="num">Days left</th><th class="num">Pallets on hand</th><th class="num">Qty on hand</th><th class="num">Received</th><th>Arrived</th></tr>
+      <tr th:each="l : ${lots}"><td><th:block th:replace="~{x :: lot(${l.sku}, ${l.lot_number})}"/></td>
+        <td><th:block th:replace="~{x :: item(${l.sku})}"/> <th:block th:replace="~{x :: zone(${l.temp_zone})}"/><div class="small muted" th:text="${l.description}"></div></td>
+        <td th:text="${l.expiration_date ?: '—'}"></td><td class="num" th:classappend="${l.days_remaining != null and l.days_remaining <= 7} ? 'late'" th:text="${l.days_remaining ?: ''}"></td>
+        <td class="num" th:text="${l.pallets_on_hand}"></td><td class="num" th:text="${fmt.qty(l.qty_on_hand)}"></td><td class="num muted" th:text="${fmt.qty(l.qty_received)}"></td>
+        <td class="small" th:text="${l.first_arrival == l.last_arrival ? l.first_arrival : l.first_arrival + ' – ' + l.last_arrival + ' (' + l.arrival_dates + ' dates)'}"></td></tr></table>
+    <p class="empty" th:if="${#lists.isEmpty(lots)}">No lots match.</p>
+  </div>
+</main></body></html>

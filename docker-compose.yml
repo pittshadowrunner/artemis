@@ -43,6 +43,8 @@ services:
       MAILGUN_API_KEY: ${MAILGUN_API_KEY:-}
       MAILGUN_DOMAIN: ${MAILGUN_DOMAIN:-mail.squiresenterprisesllc.com}
       MAIL_FROM: ${MAIL_FROM:-Artemis WMS <artemis@mail.squiresenterprisesllc.com>}
+      REPLEN_AUTO: ${REPLEN_AUTO:-true}
+      REPLEN_SCAN_MS: ${REPLEN_SCAN_MS:-60000}
     ports:
       - "${APP_PORT:-8085}:8080"     # LAN access without going through the edge
     networks: [artemis_net, edge_net]

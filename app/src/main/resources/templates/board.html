@@ -1,80 +1,103 @@
 <html xmlns:th="http://www.thymeleaf.org" th:replace="~{layout :: page(~{::title}, ~{::main})}">
 <head><title th:text="|${site.code} board — Artemis WMS|"></title></head>
-<body><main>
+<body><main th:with="here=|/sites/${site.org_node_id}/board${zone != null ? '?zone=' + zone : ''}|">
   <h1><span th:text="${site.name}">Site</span><small th:text="|${site.code} · ops board|"></small></h1>
+  <form th:if="${!#lists.isEmpty(myWork)}" th:action="@{/ui/sites/{s}/work/next(s=${site.org_node_id})}" method="post" class="subnav inline getwork">
+    <input type="hidden" name="back" th:value="${here}">
+    <select name="type" aria-label="Kind of work"><option value="">Any work I'm trained for</option><option th:each="w : ${myWork}" th:value="${w}" th:text="${#strings.capitalize(fmt.words(w))}">Selection</option></select>
+    <button type="submit">Give me my next assignment</button>
+    <span class="muted small">Highest priority first. If the best thing waiting is released orders nobody has built, they're built for you — sized to the unit you have checked out.</span>
+  </form>
+
   <div class="grid c4" style="margin-bottom:1rem">
-    <div class="panel tight stat"><b th:text="${counts.manifests}">0</b><span>open manifests</span></div>
-    <div class="panel tight stat" th:classappend="${counts.on_dock > 0} ? 'warn'"><b th:text="${counts.on_dock}">0</b><span>pallets on dock</span></div>
-    <div class="panel tight stat"><b th:text="${counts.putaway}">0</b><span>putaway tasks</span></div>
-    <div class="panel tight stat"><b th:text="${counts.selection}">0</b><span>selection assignments</span></div>
-    <div class="panel tight stat" th:classappend="${counts.faces_low > 0} ? 'warn'"><b th:text="${counts.faces_low}">0</b><span>faces under trigger</span></div>
-    <div class="panel tight stat"><b th:text="${counts.open_orders}">0</b><span>open orders</span></div>
-    <div class="panel tight stat"><b th:text="${counts.ready_to_ship}">0</b><span>ready to ship</span></div>
-    <div class="panel tight stat" th:classappend="${counts.critical > 0} ? 'crit' : (${counts.alerts > 0} ? 'warn')"><b th:text="${counts.alerts}">0</b><span>open alerts</span></div>
+    <a class="panel tight stat" th:href="@{/sites/{s}/receiving(s=${site.org_node_id})}"><b th:text="${counts.manifests}">0</b><span>open manifests</span></a>
+    <a class="panel tight stat" th:classappend="${counts.on_dock > 0} ? 'warn'" th:href="@{/sites/{s}/pallets(s=${site.org_node_id}, where='DOCK')}"><b th:text="${counts.on_dock}">0</b><span>pallets on the dock</span></a>
+    <a class="panel tight stat" th:classappend="${counts.faces_low > 0} ? 'warn'" th:href="@{/sites/{s}/dashboard(s=${site.org_node_id})}"><b th:text="${counts.faces_low}">0</b><span>faces under trigger</span></a>
+    <a class="panel tight stat" th:href="@{/sites/{s}/orders(s=${site.org_node_id})}"><b th:text="${counts.open_orders}">0</b><span>open orders</span></a>
+    <a class="panel tight stat" th:href="@{/sites/{s}/shipments(s=${site.org_node_id})}"><b th:text="${counts.ready_to_ship}">0</b><span>ready to ship</span></a>
+    <a class="panel tight stat" th:classappend="${counts.critical > 0} ? 'crit' : (${counts.alerts > 0} ? 'warn')" th:href="@{/sites/{s}/alerts(s=${site.org_node_id})}"><b th:text="${counts.alerts}">0</b><span>open alerts</span></a>
   </div>
 
-  <div class="grid c3">
+  <div class="alertstrip" th:if="${!#lists.isEmpty(alerts)}">
+    <div class="a" th:each="a, i : ${alerts}" th:if="${i.index < 3}" th:classappend="${a.severity}">
+      <span class="sev" th:classappend="${a.severity}" th:text="${#strings.replace(a.alert_type, '_', ' ')}">ALERT</span>
+      <span class="msg" th:text="${a.message}">message</span>
+      <span class="small muted nowrap" th:text="|${a.area ?: 'site'} · ${fmt.dt(a.created_at, 'MM-dd HH:mm')}|"></span>
+      <form th:action="@{/ui/alerts/{id}/ack(id=${a.alert_id})}" method="post"><input type="hidden" name="back" th:value="${here}"><button class="secondary" type="submit">Acknowledge</button></form>
+    </div>
+    <a class="small" th:if="${#lists.size(alerts) > 3}" th:href="@{/sites/{s}/alerts(s=${site.org_node_id})}" th:text="|+ ${#lists.size(alerts) - 3} more alerts|">more</a>
+  </div>
+
+  <div class="chips">
+    <span class="lbl">Zone</span>
+    <a th:href="@{/sites/{s}/board(s=${site.org_node_id})}" th:classappend="${zone == null} ? 'on'">All</a>
+    <a th:each="z : ${ {'AMBIENT','REFRIGERATED','FROZEN'} }" th:href="@{/sites/{s}/board(s=${site.org_node_id}, zone=${z})}" th:classappend="${zone == z} ? 'on'" th:text="${go.tag(z)}">DRY</a>
+    <span class="muted small" th:if="${zone != null}">Putaway, replenishment and selection are filtered; receiving and shipping are whole documents and always show.</span>
+  </div>
+
+  <!-- The floor, left to right in the order freight moves through the building. -->
+  <div class="lanes">
     <section>
-      <h2>Receiving</h2>
+      <h2>Receiving <b th:text="${#lists.size(manifests)}">0</b></h2>
       <div class="lane">
         <div class="card" th:each="m : ${manifests}">
-          <div class="head"><a th:href="@{/receiving/{id}(id=${m.manifest_id})}" th:text="${m.manifest_number}"></a><span class="status" th:classappend="${m.status}" th:text="${m.status}"></span></div>
-          <div class="meta" th:text="|${m.carrier ?: '—'} · ${m.received_qty ?: 0} / ${m.expected_qty} (${m.pct_complete ?: 0}%)|"></div>
+          <div class="head"><th:block th:replace="~{x :: manifest(${m.manifest_number})}"/><th:block th:replace="~{x :: st(${m.status})}"/></div>
+          <div class="meta" th:text="${m.carrier ?: 'carrier not set'}">Carrier</div>
+          <div class="meta"><span th:text="|${fmt.qty(m.received_qty) ?: 0} of ${fmt.qty(m.expected_qty)} received|">0 of 96</span> <span class="bar"><i th:style="|width:${m.pct_complete ?: 0}%|"></i></span></div>
+          <div class="meta" th:if="${m.pallets > 0}" th:text="|${m.pallets} pallet${m.pallets == 1 ? '' : 's'} · ${m.on_dock} still on the dock|">2 pallets</div>
+          <div class="meta" th:if="${m.status == 'EXPECTED'}" th:text="|expected ${m.expected_date ?: 'date not set'}|">expected</div>
         </div>
         <p class="empty" th:if="${#lists.isEmpty(manifests)}">Nothing inbound.</p>
       </div>
     </section>
 
-    <section th:replace="~{board :: lane('Putaway', ${putaway}, ${eligible['PUTAWAY']})}"></section>
-    <section th:replace="~{board :: lane('Selection', ${selection}, ${eligible['SELECTION']})}"></section>
-
     <section>
-      <h2>Replenishment</h2>
-      <form th:action="@{/ui/sites/{s}/replen/run(s=${site.org_node_id})}" method="post" class="inline" style="margin-bottom:.6rem">
-        <button type="submit" class="secondary">Run replenishment</button>
-        <span class="muted small" th:text="|${#lists.size(pressure)} face(s) under trigger|"></span>
-      </form>
+      <h2>Putaway <b th:text="${#lists.size(putaway)}">0</b></h2>
       <div class="lane">
-        <div class="card" th:each="p : ${pressure}" th:classappend="${#strings.toLowerCase(p.temp_zone) == 'frozen' or #strings.toLowerCase(p.temp_zone) == 'deep_frozen'} ? 'frozen' : (${#strings.toLowerCase(p.temp_zone) == 'refrigerated'} ? 'chill')">
-          <div class="head"><span class="loc" th:text="${p.location_code}"></span><span class="pri" th:classappend="${p.on_hand == 0} ? 'p9'" th:text="${p.on_hand == 0 ? 'EMPTY' : p.on_hand}"></span></div>
-          <div class="meta" th:text="|${p.sku} · trigger ${p.replen_trigger_qty} · max ${p.replen_max_qty} · in flight ${p.in_flight}|"></div>
-        </div>
+        <th:block th:each="a : ${putaway}"><div th:replace="~{x :: work(${a}, ${eligible['PUTAWAY']}, ${here})}"></div></th:block>
+        <p class="empty" th:if="${#lists.isEmpty(putaway)}">Dock is clear.</p>
       </div>
-      <div class="lane" style="margin-top:.6rem" th:replace="~{board :: cards(${replen}, ${eligible['REPLENISHMENT']})}"></div>
     </section>
 
     <section>
-      <h2>Alerts</h2>
+      <h2>Replenishment <b th:text="${#lists.size(replen)}">0</b></h2>
       <div class="lane">
-        <div class="card" th:each="a : ${alerts}">
-          <div class="head"><span class="sev" th:classappend="${a.severity}" th:text="${a.alert_type}"></span>
-            <form th:action="@{/ui/alerts/{id}/ack(id=${a.alert_id})}" method="post" class="inline"><input type="hidden" name="back" th:value="|/sites/${site.org_node_id}/board|"><button class="secondary" type="submit">Ack</button></form></div>
-          <div class="meta" th:text="${a.message}"></div>
-          <div class="small muted" th:text="|${a.area ?: 'site'} · ${fmt.dt(a.created_at, 'MM-dd HH:mm')}|"></div>
-        </div>
-        <p class="empty" th:if="${#lists.isEmpty(alerts)}">Quiet.</p>
+        <th:block th:each="a : ${replen}"><div th:replace="~{x :: work(${a}, ${eligible['REPLENISHMENT']}, ${here})}"></div></th:block>
+        <p class="empty" th:if="${#lists.isEmpty(replen)}">Faces are stocked.</p>
       </div>
     </section>
-  </div>
 
-  <!-- fragments -->
-  <section th:fragment="lane(title, items, people)" th:remove="${title == null} ? all : none">
-    <h2 th:text="${title}">Lane</h2>
-    <div th:replace="~{board :: cards(${items}, ${people})}"></div>
-  </section>
-  <div class="lane" th:fragment="cards(items, people)" th:remove="${items == null} ? all : none">
-    <div class="card" th:each="a : ${items}" th:classappend="${a.css}">
-      <div class="head"><a th:href="@{/assignments/{id}(id=${a.assignment_id})}" th:text="${a.assignment_number}"></a>
-        <span><span class="tag" th:classappend="${a.css}" th:text="${a.tag}"></span> <span class="pri" th:classappend="'p' + ${a.priority}" th:text="${a.priority}"></span></span></div>
-      <div class="meta" th:text="|${a.done}/${a.tasks} tasks · ${a.lpns ?: ''} ${a.wave_number != null ? '· ' + a.wave_number : ''} ${a.equipment != null ? '· ' + a.equipment : ''}|"></div>
-      <div class="meta" th:if="${a.destinations}" th:text="|→ ${a.destinations}|"></div>
-      <form th:action="@{/ui/assignments/{id}/assign(id=${a.assignment_id})}" method="post" class="inline">
-        <input type="hidden" name="back" th:value="|/sites/${site.org_node_id}/board|">
-        <select name="userId"><option value="" th:text="${a.assigned_to ?: 'Unassigned'}"></option>
-          <option th:each="u : ${people}" th:value="${u.user_id}" th:text="|${u.display_name} (${u.open_work} open)|"></option></select>
-        <button type="submit" class="secondary">Dispatch</button>
-      </form>
-    </div>
-    <p class="empty" th:if="${#lists.isEmpty(items)}">No open work.</p>
+    <section>
+      <h2>Selection <b th:text="${#lists.size(selection)}">0</b></h2>
+      <div class="lane">
+        <form class="card build" th:if="${!#lists.isEmpty(unbuilt)}" th:action="@{/ui/sites/{s}/selection/build(s=${site.org_node_id})}" method="post">
+          <input type="hidden" name="back" th:value="${here}">
+          <div class="head"><b>Released, not built</b><span class="muted small" th:text="|${#lists.size(unbuilt)} zone order${#lists.size(unbuilt) == 1 ? '' : 's'}|">3</span></div>
+          <label class="pickrow" th:each="u : ${unbuilt}"><input type="checkbox" name="zo" th:value="${u.zone_order_id}">
+            <span><th:block th:replace="~{x :: zone(${u.temp_zone})}"/> <th:block th:replace="~{x :: order(${u.order_number})}"/> <span class="status CANCELLED" th:if="${u.rush}">RUSH</span>
+              <span class="small muted" th:text="|${u.customer_name} · ${u.picks} pick${u.picks == 1 ? '' : 's'} ·|"></span> <th:block th:replace="~{x :: wave(${u.wave_number})}"/></span></label>
+          <select name="equipment" aria-label="Unit"><option value="">Unit decided later</option><option th:each="e : ${units}" th:if="${e.active}" th:value="${e.code}" th:text="|${e.code}${e.container_positions != null ? ' · ' + e.container_positions + ' positions' : ''}${e.operator != null ? ' · ' + e.operator : ''}|">CART-01</option></select>
+          <select name="userId" aria-label="Operator"><option value="">Unassigned</option><option th:each="p : ${eligible['SELECTION']}" th:value="${p.user_id}" th:text="|${p.display_name} · ${p.open_work} open|">Operator</option></select>
+          <button type="submit" class="secondary">Build assignment</button>
+          <div class="small muted">One zone and one wave per assignment.</div>
+        </form>
+        <th:block th:each="a : ${selection}"><div th:replace="~{x :: work(${a}, ${eligible['SELECTION']}, ${here})}"></div></th:block>
+        <p class="empty" th:if="${#lists.isEmpty(selection) and #lists.isEmpty(unbuilt)}">No picks released. <a th:href="@{/sites/{s}/waves(s=${site.org_node_id})}">Plan a wave</a>.</p>
+      </div>
+    </section>
+
+    <section>
+      <h2>Shipping <b th:text="${#lists.size(shipping)}">0</b></h2>
+      <div class="lane">
+        <div class="card" th:each="o : ${shipping}">
+          <div class="head"><th:block th:replace="~{x :: order(${o.order_number})}"/><span class="pri p9" th:if="${o.rush}">RUSH</span></div>
+          <div class="meta"><th:block th:replace="~{x :: customer(${o.customer_code}, ${o.customer_name})}"/></div>
+          <div class="meta">down at <span class="loc" th:text="${o.dropped_at ?: '—'}">DROP-01</span><th:block th:if="${o.requested_ship_date}" th:text="| · ship ${o.requested_ship_date}|"></th:block></div>
+          <div class="meta" th:if="${o.shipment_number}">on <th:block th:replace="~{x :: shipment(${o.shipment_number})}"/> <th:block th:replace="~{x :: st(${o.shipment_status})}"/></div>
+          <div class="meta" th:if="${o.shipment_number == null}"><a th:href="@{/sites/{s}/shipments(s=${site.org_node_id})}">build a shipment</a></div>
+        </div>
+        <p class="empty" th:if="${#lists.isEmpty(shipping)}">Nothing waiting at the dock.</p>
+      </div>
+    </section>
   </div>
 </main></body></html>

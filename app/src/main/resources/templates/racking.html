@@ -1,8 +1,11 @@
 <html xmlns:th="http://www.thymeleaf.org" th:replace="~{layout :: page(~{::title}, ~{::main})}">
-<head><title th:text="|${site.code} racking — Artemis WMS|"></title></head>
+<head><title th:text="|${site.code} locations — Artemis WMS|"></title></head>
 <body><main>
-  <h1><span th:text="${site.name}">Site</span><small>racking placards</small></h1>
-  <p class="muted small">Cells show column-slot, check digits (top right), SKU and quantity. <b>PF</b> marks a pick face. Levels run top to bottom; aisle order is the pick path.</p>
+  <h1><span th:text="${site.name}">Site</span><small>locations · racking placards</small></h1>
+  <div class="legend">
+    <span><span class="cell full"></span>holds stock</span><span><span class="cell face"></span>pick face (PF)</span><span><span class="cell"></span>empty</span>
+    <span>Each cell is a slot: click the position for the slot, the SKU for the item. Check digits are top right. Levels run top to bottom; aisle order is the pick path.</span>
+  </div>
   <div th:each="z : ${zones}">
     <div th:each="a : ${z.value}" class="rack">
       <div class="zonehead"><span class="tag" th:classappend="${a.value.css}" th:text="${a.value.tag}"></span><h3 th:text="|Zone ${z.key} · Aisle ${a.key}|"></h3><span class="muted small" th:text="|${#lists.size(a.value.columns)} positions × ${#lists.size(a.value.levels)} levels|"></span></div>
@@ -11,15 +14,17 @@
         <tr th:each="l : ${a.value.levels}"><th th:text="${l}"></th>
           <td th:each="c : ${a.value.columns}" th:with="cell=${a.value.cells[l + '|' + c]}">
             <div th:if="${cell != null}" class="cell" th:classappend="|${cell.css} ${cell.face ? 'face' : ''} ${cell.pallets > 0 ? 'full' : ''}|" th:title="${cell.code}">
-              <span class="c" th:text="${c}"></span><span class="d" th:text="${cell.check_digits}"></span>
-              <span class="s" th:text="${cell.face ? cell.face_sku : (cell.skus ?: '')}"></span>
-              <span class="s" th:if="${cell.pallets > 0}" th:text="|${cell.qty} on ${cell.pallets} LPN|"></span>
-              <span class="s muted" th:if="${cell.face and cell.pallets == 0}">empty face</span>
+              <a class="c" th:href="${go.slot(cell.code)}" th:text="${c}" th:title="|Slot ${cell.code}|">01-A</a><span class="d" th:text="${cell.check_digits}"></span>
+              <a class="s" th:if="${cell.face}" th:href="${go.item(cell.face_sku)}" th:text="${cell.face_sku}">SKU</a>
+              <a class="s" th:if="${!cell.face and cell.sku != null}" th:href="${go.item(cell.sku)}" th:text="${cell.sku}">SKU</a>
+              <span class="q" th:if="${cell.pallets > 0}" th:text="|${fmt.qty(cell.qty)} on ${cell.pallets} LPN|">48 on 1 LPN</span>
+              <span class="q" th:if="${cell.face and cell.pallets == 0}">empty face</span>
             </div></td></tr>
       </table>
     </div>
   </div>
+  <p class="empty" th:if="${#maps.isEmpty(zones)}">No rack slots yet — generate them with <code>ops/artemis import</code>.</p>
   <h2>Docks, drops, staging</h2>
-  <div class="panel"><table><tr><th>Location</th><th>Type</th><th>Check</th><th class="num">Pallets</th><th class="num">Drops 24h</th></tr>
-    <tr th:each="d : ${docks}"><td class="loc" th:text="${d.code}"></td><td th:text="${d.loc_type}"></td><td class="mono" th:text="${d.check_digits}"></td><td class="num" th:text="${d.pallets}"></td><td class="num" th:text="${d.drops_24h}"></td></tr></table></div>
+  <div class="panel"><table><tr><th>Location</th><th>Type</th><th>Check</th><th class="num">Pallets here</th><th class="num">Drops, last 24h</th></tr>
+    <tr th:each="d : ${docks}"><td><th:block th:replace="~{x :: place(${d.code}, ${d.loc_type})}"/></td><td th:text="${fmt.words(d.loc_type)}"></td><td class="mono" th:text="${d.check_digits}"></td><td class="num" th:text="${d.pallets}"></td><td class="num" th:text="${d.drops_24h}"></td></tr></table></div>
 </main></body></html>

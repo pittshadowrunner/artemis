@@ -31,8 +31,10 @@ public class OutboundController {
     /** {type, tempZone, batchSize?, maxOrders?, orderNumbers?, routeCode?, customer?, cutoff?, area?} */
     @PostMapping("/sites/{siteId}/waves") @ResponseStatus(HttpStatus.CREATED) public Map<String, Object> plan(@PathVariable UUID siteId, @RequestBody Map<String, Object> spec) { return waves.plan(siteId, spec); }
     @GetMapping("/waves/{id}") public Map<String, Object> wave(@PathVariable UUID id) { return waves.get(id); }
-    /** {equipment?} — cart code; its positions set the batch size */
-    @PostMapping("/waves/{id}/release") public Map<String, Object> release(@PathVariable UUID id, @RequestBody(required = false) Map<String, Object> b) { return waves.release(id, b == null ? null : str(b.get("equipment"))); }
+    /** {equipment?, build?} — cart code (its positions set the batch size); build: "MANUAL" leaves the zone orders for the floor to build */
+    @PostMapping("/waves/{id}/release") public Map<String, Object> release(@PathVariable UUID id, @RequestBody(required = false) Map<String, Object> b) {
+        return waves.release(id, b == null ? null : str(b.get("equipment")), b != null && "MANUAL".equalsIgnoreCase(str(b.get("build"))));
+    }
 
     // ---- selection
     @GetMapping("/sites/{siteId}/assignments") public List<Map<String, Object>> assignments(@PathVariable UUID siteId, @RequestParam(required = false) String type) { return selection.open(siteId, upper(type)); }

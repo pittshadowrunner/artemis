@@ -1,0 +1,35 @@
+<html xmlns:th="http://www.thymeleaf.org" th:replace="~{layout :: page(~{::title}, ~{::main})}">
+<head><title th:text="|Lot ${lot.lot_number} — Artemis WMS|"></title></head>
+<body><main>
+  <div class="crumbs"><a th:if="${siteId}" th:href="@{/sites/{s}/lots(s=${siteId})}">Lots</a> › <b th:text="${lot.lot_number}">L1</b></div>
+  <h1><span class="mono" th:text="${lot.lot_number}">L1</span><small>lot of <th:block th:replace="~{x :: item(${lot.sku})}"/> · <span th:text="${lot.description}"></span></small> <th:block th:replace="~{x :: zone(${lot.temp_zone})}"/></h1>
+  <div class="grid c4" style="margin-bottom:1rem">
+    <div class="panel tight stat"><b th:text="${fmt.qty(lot.qty_on_hand)}">0</b><span>on hand</span></div>
+    <div class="panel tight stat"><b th:text="${lot.pallets_on_hand}">0</b><span th:text="|of ${lot.pallets} pallets still hold stock|">pallets</span></div>
+    <div class="panel tight stat"><b th:text="${fmt.qty(lot.qty_received)}">0</b><span>received</span></div>
+    <div class="panel tight stat" th:classappend="${lot.days_remaining != null and lot.days_remaining <= 7} ? 'crit'"><b th:text="${lot.expiration_date ?: '—'}">date</b><span th:text="${lot.days_remaining != null ? lot.days_remaining + ' days left' : 'no expiry'}">days</span></div>
+  </div>
+  <p class="flash error" th:if="${lot.arrival_dates > 1}" th:text="|This lot came in on ${lot.arrival_dates} different dates (${lot.first_arrival} to ${lot.last_arrival}) — split shipment or a second delivery of the same production run.|"></p>
+  <div class="grid c2">
+    <div class="panel"><h2>Pallets carrying this lot</h2>
+      <table><tr><th>Pallet</th><th>Location</th><th class="num">Qty</th><th class="num">As received</th><th>Arrived</th><th>Status</th></tr>
+        <tr th:each="p : ${lot.pallets_list}"><td><th:block th:replace="~{x :: pallet(${p.lpn})}"/><div class="small muted" th:if="${p.parent_lpn}">split from <th:block th:replace="~{x :: pallet(${p.parent_lpn})}"/></div></td>
+          <td><th:block th:replace="~{x :: place(${p.location}, ${p.loc_type})}"/></td><td class="num" th:text="${fmt.qty(p.qty)}"></td><td class="num muted" th:text="${fmt.qty(p.original_qty)}"></td>
+          <td class="small"><span th:text="${p.arrival_date}"></span><th:block th:if="${p.manifest_number}"> · <th:block th:replace="~{x :: manifest(${p.manifest_number})}"/></th:block></td><td><th:block th:replace="~{x :: st(${p.status})}"/></td></tr></table>
+    </div>
+    <div>
+      <div class="panel" style="margin-bottom:1rem"><h2>Received on</h2>
+        <table th:if="${!#lists.isEmpty(lot.receipts)}"><tr><th>Manifest</th><th>Carrier</th><th>Received</th><th class="num">Pallets</th><th class="num">Qty</th></tr>
+          <tr th:each="r : ${lot.receipts}"><td><th:block th:replace="~{x :: manifest(${r.manifest_number})}"/></td><td th:text="${r.carrier}"></td><td class="small" th:text="${fmt.dt(r.received_at, 'yyyy-MM-dd HH:mm')}"></td><td class="num" th:text="${r.pallets}"></td><td class="num" th:text="${fmt.qty(r.qty)}"></td></tr></table>
+        <p class="empty" th:if="${#lists.isEmpty(lot.receipts)}">Loaded as opening balance — no manifest.</p>
+      </div>
+      <div class="panel"><h2>Where it went <span class="muted small" style="text-transform:none;letter-spacing:0">— the recall list</span></h2>
+        <table th:if="${!#lists.isEmpty(lot.orders)}"><tr><th>Order</th><th>Customer</th><th>From pallet</th><th class="num">Allocated</th><th class="num">Picked</th><th>Shipment</th></tr>
+          <tr th:each="o : ${lot.orders}"><td><th:block th:replace="~{x :: order(${o.order_number})}"/> <th:block th:replace="~{x :: st(${o.order_status})}"/></td><td><th:block th:replace="~{x :: customer(${o.customer}, ${o.customer_name})}"/></td>
+            <td><th:block th:replace="~{x :: pallet(${o.lpn})}"/></td><td class="num" th:text="${fmt.qty(o.allocated_qty)}"></td><td class="num" th:text="${fmt.qty(o.picked_qty)}"></td>
+            <td><th:block th:if="${o.shipment_number}"><th:block th:replace="~{x :: shipment(${o.shipment_number})}"/></th:block></td></tr></table>
+        <p class="empty" th:if="${#lists.isEmpty(lot.orders)}">Not promised to any order yet.</p>
+      </div>
+    </div>
+  </div>
+</main></body></html>

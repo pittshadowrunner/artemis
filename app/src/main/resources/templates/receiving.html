@@ -2,12 +2,14 @@
 <head><title th:text="|${site.code} receiving — Artemis WMS|"></title></head>
 <body><main>
   <h1><span th:text="${site.name}">Site</span><small>receiving</small></h1>
-  <div class="subnav"><a th:href="@{/sites/{s}/receiving(s=${site.org_node_id}, open=true)}" th:classappend="${open} ? 'on'">Open</a><a th:href="@{/sites/{s}/receiving(s=${site.org_node_id}, open=false)}" th:classappend="${!open} ? 'on'">All</a></div>
+  <div class="chips"><a th:href="@{/sites/{s}/receiving(s=${site.org_node_id}, open=true)}" th:classappend="${open} ? 'on'">Open</a><a th:href="@{/sites/{s}/receiving(s=${site.org_node_id}, open=false)}" th:classappend="${!open} ? 'on'">All</a></div>
   <div class="grid c2">
     <div class="panel">
-      <table><tr><th>Manifest</th><th>Carrier</th><th>Expected</th><th>Status</th><th class="num">Received / expected</th><th class="num">%</th></tr>
-        <tr th:each="m : ${manifests}"><td><a th:href="@{/receiving/{id}(id=${m.manifest_id})}" class="loc" th:text="${m.manifest_number}"></a></td><td th:text="${m.carrier}"></td><td th:text="${m.expected_date}"></td>
-          <td><span class="status" th:classappend="${m.status}" th:text="${m.status}"></span></td><td class="num" th:text="|${m.received_qty ?: 0} / ${m.expected_qty ?: 0}|"></td><td class="num" th:text="${m.pct_complete ?: 0}"></td></tr></table>
+      <table><tr><th>Manifest</th><th>Carrier</th><th>Expected</th><th>Arrived</th><th>Status</th><th class="num">Received / expected</th><th style="width:6rem"></th></tr>
+        <tr th:each="m : ${manifests}"><td><th:block th:replace="~{x :: manifest(${m.manifest_number})}"/></td><td th:text="${m.carrier}"></td><td th:text="${m.expected_date}"></td>
+          <td class="small" th:text="${m.arrived_at != null ? fmt.dt(m.arrived_at, 'MM-dd HH:mm') : ''}"></td>
+          <td><th:block th:replace="~{x :: st(${m.status})}"/></td><td class="num" th:text="|${fmt.qty(m.received_qty) ?: 0} / ${fmt.qty(m.expected_qty) ?: 0}|"></td>
+          <td><span class="bar wide"><i th:style="|width:${m.pct_complete ?: 0}%|"></i></span></td></tr></table>
       <p class="empty" th:if="${#lists.isEmpty(manifests)}">No manifests.</p>
     </div>
     <div class="panel">
@@ -17,6 +19,7 @@
         <label>Lines — one per row: <code>SKU qty</code><textarea name="lines" rows="5" class="mono" placeholder="DRY-1001 100&#10;CHL-2001 96"></textarea></label>
         <button type="submit" style="margin-top:.6rem">Create</button>
       </form>
+      <p class="hint">Manifests normally arrive over the API (<code>POST /api/v1/sites/{site}/receiving</code>) or in an import file.</p>
     </div>
   </div>
 </main></body></html>

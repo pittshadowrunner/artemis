@@ -8,31 +8,57 @@
 <body>
 <header class="top">
   <a class="brand" th:href="@{/}">Artemis <span>WMS</span></a>
-  <nav th:if="${siteId != null}">
-    <a th:href="@{/sites/{s}/board(s=${siteId})}">Board</a>
-    <a th:href="@{/sites/{s}/racking(s=${siteId})}">Racking</a>
-    <a th:href="@{/sites/{s}/receiving(s=${siteId})}">Receiving</a>
-    <a th:href="@{/sites/{s}/orders(s=${siteId})}">Orders</a>
-    <a th:href="@{/sites/{s}/waves(s=${siteId})}">Waves</a>
-    <a th:href="@{/sites/{s}/shipments(s=${siteId})}">Shipping</a>
-    <a th:href="@{/sites/{s}/dashboard(s=${siteId})}">Dashboard</a>
-  </nav>
-  <nav>
-    <a th:href="@{/items}">Items</a>
-    <a th:href="@{/customers}">Customers</a>
-    <a th:href="@{/org}">Org</a>
-    <a th:href="@{/users}">Users</a>
-  </nav>
+  <!-- One box for anything with a name. Hidden until there is a tenant to search in. -->
+  <form class="search" th:if="${me != null and me.corporationId() != null}" th:action="@{/search}" method="get" role="search">
+    <input name="q" type="search" id="q" th:value="${section == 'search' ? q : ''}" autocomplete="off" aria-label="Search"
+           placeholder="Search — LPN, slot, SKU, lot, order, wave, assignment, customer, operator…">
+  </form>
   <span class="spacer"></span>
-  <form class="lpn" th:action="@{/lpn}" method="get"><input name="q" placeholder="LPN lookup…" th:value="${q}"></form>
-  <a class="bell" th:href="@{/notifications}" title="Notifications">&#128276;<b th:if="${unread > 0}" th:text="${unread}">0</b></a>
+  <form th:if="${sites != null and #lists.size(sites) > 1}" class="site" method="get" action="#" onsubmit="return false">
+    <select aria-label="Site" onchange="location = '/sites/' + this.value + '/board'">
+      <option th:each="s : ${sites}" th:value="${s.site_id}" th:selected="${s.site_id == siteId}" th:text="|${s.code} · ${s.name}|">PIT1</option></select>
+  </form>
+  <form th:if="${tenant != null}" th:action="@{/ui/platform/leave}" method="post" class="tenant" title="You're the platform sysadmin, working inside this tenant">
+    <span th:text="|in ${tenant}|">in SQE</span><button type="submit" class="secondary">Leave</button></form>
+  <a class="bell" th:if="${me != null}" th:href="@{/notifications}" title="Notifications">&#128276;<b th:if="${unread != null and unread > 0}" th:text="${unread}">0</b></a>
   <span class="who" th:if="${me != null}" th:text="${me.email()}">user</span>
-  <form th:action="@{/logout}" method="post" style="margin:0"><button class="secondary" type="submit" style="color:var(--head-ink);border-color:#3d4c5b">Sign out</button></form>
+  <form th:if="${me != null}" th:action="@{/logout}" method="post"><button class="secondary" type="submit">Sign out</button></form>
 </header>
+<!-- The same bar on every page: what's here never depends on what you clicked last. -->
+<nav class="main" th:if="${me != null and me.corporationId() != null}" aria-label="Main">
+  <span class="grp" th:if="${siteId != null}">
+    <a th:href="@{/sites/{s}/board(s=${siteId})}"     th:classappend="${section == 'board'} ? 'on'">Board</a>
+    <a th:href="@{/sites/{s}/receiving(s=${siteId})}" th:classappend="${section == 'receiving'} ? 'on'">Receiving</a>
+    <a th:href="@{/sites/{s}/orders(s=${siteId})}"    th:classappend="${section == 'orders'} ? 'on'">Orders</a>
+    <a th:href="@{/sites/{s}/waves(s=${siteId})}"     th:classappend="${section == 'waves'} ? 'on'">Waves</a>
+    <a th:href="@{/sites/{s}/shipments(s=${siteId})}" th:classappend="${section == 'shipping'} ? 'on'">Shipping</a>
+  </span>
+  <span class="grp">
+    <a th:if="${siteId != null}" th:href="@{/sites/{s}/racking(s=${siteId})}" th:classappend="${section == 'locations'} ? 'on'">Locations</a>
+    <a th:if="${siteId != null}" th:href="@{/sites/{s}/pallets(s=${siteId})}" th:classappend="${section == 'pallets'} ? 'on'">Pallets</a>
+    <a th:href="@{/items}" th:classappend="${section == 'items'} ? 'on'">Items</a>
+  </span>
+  <span class="grp">
+    <a th:href="@{/customers}" th:classappend="${section == 'customers'} ? 'on'">Customers</a>
+    <a th:href="@{/operators}" th:classappend="${section == 'operators'} ? 'on'">Operators</a>
+    <a th:if="${siteId != null}" th:href="@{/sites/{s}/equipment(s=${siteId})}" th:classappend="${section == 'equipment'} ? 'on'">Equipment</a>
+  </span>
+  <span class="grp">
+    <a th:if="${siteId != null}" th:href="@{/sites/{s}/dashboard(s=${siteId})}" th:classappend="${section == 'dashboard'} ? 'on'">Dashboard</a>
+    <a th:href="@{/org}" th:classappend="${section == 'org'} ? 'on'">Org</a>
+  </span>
+</nav>
 <main>
   <div class="flash ok" th:if="${ok}" th:text="${ok}"></div>
-  <div class="flash error" th:if="${error}" th:text="${error}"></div>
+  <div class="flash error" th:if="${error != null and status == null}" th:text="${error}"></div>
   <div th:replace="${content}"></div>
 </main>
+<script>
+  // "/" jumps to search, the way it does everywhere else.
+  document.addEventListener('keydown', function (e) {
+    var t = e.target.tagName;
+    if (e.key === '/' && t !== 'INPUT' && t !== 'TEXTAREA' && t !== 'SELECT') { var q = document.getElementById('q'); if (q) { e.preventDefault(); q.focus(); q.select(); } }
+  });
+</script>
 </body>
 </html>

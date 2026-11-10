@@ -1,0 +1,37 @@
+<html xmlns:th="http://www.thymeleaf.org" th:replace="~{layout :: page(~{::title}, ~{::main})}">
+<head><title th:text="|${site.code} pallets — Artemis WMS|"></title></head>
+<body><main th:with="base=|/sites/${site.org_node_id}/pallets|">
+  <h1><span th:text="${site.name}">Site</span><small th:text="|pallets · ${#lists.size(pallets)} shown|"></small></h1>
+  <form th:action="@{/sites/{s}/pallets(s=${site.org_node_id})}" method="get" class="inline" style="margin-bottom:.6rem">
+    <input name="q" th:value="${q}" placeholder="LPN, SKU, lot or location" class="mono" style="width:18rem" autofocus>
+    <input type="hidden" name="where" th:value="${where}" th:if="${where}"><input type="hidden" name="zone" th:value="${zone}" th:if="${zone}"><input type="hidden" name="status" th:value="${status}" th:if="${status}">
+    <button type="submit" class="secondary">Filter</button>
+    <a th:href="@{/sites/{s}/lots(s=${site.org_node_id})}" class="small" style="margin-left:1rem">Lots →</a>
+  </form>
+  <div class="chips">
+    <span class="lbl">Where</span>
+    <a th:href="@{${base}(q=${q}, zone=${zone}, status=${status})}" th:classappend="${where == null} ? 'on'">Anywhere</a>
+    <a th:href="@{${base}(q=${q}, zone=${zone}, status=${status}, where='DOCK')}" th:classappend="${where == 'DOCK'} ? 'on'">On the dock</a>
+    <a th:href="@{${base}(q=${q}, zone=${zone}, status=${status}, where='RESERVE')}" th:classappend="${where == 'RESERVE'} ? 'on'">Reserve</a>
+    <a th:href="@{${base}(q=${q}, zone=${zone}, status=${status}, where='FACE')}" th:classappend="${where == 'FACE'} ? 'on'">Pick faces</a>
+    <span class="lbl" style="margin-left:.8rem">Zone</span>
+    <a th:href="@{${base}(q=${q}, where=${where}, status=${status})}" th:classappend="${zone == null} ? 'on'">All</a>
+    <a th:each="z : ${ {'AMBIENT','REFRIGERATED','FROZEN'} }" th:href="@{${base}(q=${q}, where=${where}, status=${status}, zone=${z})}" th:classappend="${zone == z} ? 'on'" th:text="${go.tag(z)}">DRY</a>
+    <span class="lbl" style="margin-left:.8rem">Status</span>
+    <a th:href="@{${base}(q=${q}, where=${where}, zone=${zone})}" th:classappend="${status == null} ? 'on'">On hand</a>
+    <a th:each="st : ${ {'PICKED','SHIPPED','HOLD'} }" th:href="@{${base}(q=${q}, where=${where}, zone=${zone}, status=${st})}" th:classappend="${status == st} ? 'on'" th:text="${#strings.capitalize(#strings.toLowerCase(st))}">Picked</a>
+  </div>
+  <div class="panel">
+    <table><tr><th>Pallet (LPN)</th><th>Item</th><th>Lot / expires</th><th class="num">Qty</th><th class="num">As received</th><th>Location</th><th>Headed to</th><th>Arrived</th><th>Status</th></tr>
+      <tr th:each="p : ${pallets}">
+        <td><th:block th:replace="~{x :: pallet(${p.lpn})}"/></td>
+        <td><th:block th:replace="~{x :: item(${p.sku})}"/> <th:block th:replace="~{x :: zone(${p.temp_zone})}"/><div class="small muted" th:text="${p.description}"></div></td>
+        <td><th:block th:replace="~{x :: lot(${p.sku}, ${p.lot_number})}"/> <span class="small muted" th:text="${p.expiration_date ?: ''}"></span></td>
+        <td class="num" th:text="${fmt.qty(p.qty)}"></td><td class="num muted" th:text="${fmt.qty(p.original_qty)}"></td>
+        <td><th:block th:replace="~{x :: place(${p.location}, ${p.loc_type})}"/></td>
+        <td><th:block th:if="${p.directed_to}"><th:block th:replace="~{x :: slot(${p.directed_to})}"/> <span class="small muted">on</span> <th:block th:replace="~{x :: asg(${p.assignment_number})}"/></th:block></td>
+        <td class="small"><span th:text="${p.arrival_date}"></span><th:block th:if="${p.manifest_number}"> · <th:block th:replace="~{x :: manifest(${p.manifest_number})}"/></th:block></td>
+        <td><th:block th:replace="~{x :: st(${p.status})}"/></td></tr></table>
+    <p class="empty" th:if="${#lists.isEmpty(pallets)}">No pallets match.</p>
+  </div>
+</main></body></html>

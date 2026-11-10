@@ -1,0 +1,44 @@
+<html xmlns:th="http://www.thymeleaf.org" th:replace="~{layout :: page(~{::title}, ~{::main})}">
+<head><title th:text="|${unit.code} — Artemis WMS|"></title></head>
+<body><main th:with="here=|/equipment/${unit.code}|">
+  <div class="crumbs"><a th:href="@{/sites/{s}/equipment(s=${unit.site_id})}">Equipment</a> › <b th:text="${unit.code}">CART-01</b></div>
+  <h1><span class="loc" th:text="${unit.code}">CART-01</span><small th:text="|${fmt.words(unit.type)} · ${unit.site}|"></small> <span class="status CANCELLED" th:if="${!unit.active}">INACTIVE</span></h1>
+  <div class="grid c4" style="margin-bottom:1rem">
+    <div class="panel tight stat"><b><th:block th:if="${unit.user_id}"><th:block th:replace="~{x :: op(${unit.user_id}, ${unit.operator})}"/></th:block><span th:if="${unit.user_id == null}" class="muted">in the pool</span></b>
+      <span th:text="${unit.user_id != null ? 'checked out ' + fmt.age(unit.held) + ' ago' : 'not checked out'}">not checked out</span></div>
+    <div class="panel tight stat"><b th:text="${unit.container_positions ?: '—'}">6</b><span>put positions</span></div>
+    <div class="panel tight stat"><b class="mono" th:text="${unit.check_digits ?: '—'}">42</b><span>unit check digits</span></div>
+    <div class="panel tight stat"><b th:text="${unit.max_weight_kg != null ? fmt.qty(unit.max_weight_kg) + ' kg' : '—'}">—</b><span th:text="${!#lists.isEmpty(unit.capabilities) ? fmt.words(#strings.listJoin(unit.capabilities, ', ')) : 'capacity'}">capacity</span></div>
+  </div>
+  <div class="subnav">
+    <form th:if="${unit.user_id == null}" th:action="@{/ui/equipment/{id}/checkout(id=${unit.equipment_id})}" method="post" class="inline"><input type="hidden" name="back" th:value="${here}">
+      <select name="userId" aria-label="Operator" required><option value="">Operator…</option><option th:each="u : ${people}" th:value="${u.user_id}" th:text="${u.display_name}"></option></select><button type="submit">Check out</button></form>
+    <form th:if="${unit.user_id != null}" th:action="@{/ui/equipment/{id}/checkin(id=${unit.equipment_id})}" method="post"><input type="hidden" name="back" th:value="${here}"><button type="submit">Check in</button></form>
+  </div>
+  <div class="grid c2">
+    <div class="panel" th:if="${!#lists.isEmpty(unit.positions)}"><h2>Positions <span class="muted small" style="text-transform:none;letter-spacing:0">— what's riding on it now</span></h2>
+      <table><tr><th class="num">Pos</th><th>Check</th><th>Container</th><th>Zone order</th><th>Customer</th><th>Wave</th><th>Confirmed picks</th></tr>
+        <tr th:each="p : ${unit.positions}"><td class="num" th:text="${p.position_no}"></td><td class="mono" th:text="${p.check_digits}"></td>
+          <td class="mono" th:text="${p.container ?: (p.order_number != null ? 'not inducted' : '—')}" th:classappend="${p.container == null} ? 'muted'"></td>
+          <td><th:block th:if="${p.order_number}"><th:block th:replace="~{x :: order(${p.order_number})}"/><span class="mono muted" th:text="|-${go.tag(p.temp_zone)}|"></span></th:block><span th:if="${p.order_number == null}" class="muted">empty</span></td>
+          <td><th:block th:if="${p.order_number}"><th:block th:replace="~{x :: customer(${p.customer}, ${p.customer_name})}"/></th:block></td>
+          <td><th:block th:if="${p.wave_number}"><th:block th:replace="~{x :: wave(${p.wave_number})}"/></th:block></td>
+          <td class="small"><div th:each="c : ${p.contents}"><th:block th:replace="~{x :: pallet(${c.lpn})}"/> <th:block th:replace="~{x :: item(${c.sku})}"/> × <b th:text="${fmt.qty(c.qty)}"></b> <span class="muted" th:text="${c.description}"></span>
+              <span class="muted" th:if="${c.from_lpn}"> from <th:block th:replace="~{x :: pallet(${c.from_lpn})}"/></span><span th:if="${p.order_number == null and c.order_number != null}"> for <th:block th:replace="~{x :: order(${c.order_number})}"/></span></div>
+            <span class="muted" th:if="${p.order_number != null and #lists.isEmpty(p.contents)}">nothing picked yet</span></td></tr></table>
+      <p class="hint" th:if="${unit.positions[0].assignment_number}">Loaded for <th:block th:replace="~{x :: asg(${unit.positions[0].assignment_number})}"/> <th:block th:replace="~{x :: st(${unit.positions[0].assignment_status})}"/>. Each pick leaves its slot and rides here as its own unit of stock until the load is dropped.</p>
+    </div>
+    <div>
+      <div class="panel" style="margin-bottom:1rem"><h2>Open work on this unit</h2>
+        <table th:if="${!#lists.isEmpty(unit.work)}"><tr><th>Assignment</th><th>Type</th><th>Priority</th><th>Wave</th><th>Operator</th><th class="num">Tasks</th><th>Status</th></tr>
+          <tr th:each="a : ${unit.work}"><td><th:block th:replace="~{x :: asg(${a.assignment_number})}"/></td><td class="small" th:text="${fmt.words(a.type)}"></td><td><th:block th:replace="~{x :: pri(${a.priority})}"/></td>
+            <td><th:block th:if="${a.wave_number}"><th:block th:replace="~{x :: wave(${a.wave_number})}"/></th:block></td><td><th:block th:replace="~{x :: op(${a.assigned_to}, ${a.operator})}"/></td><td class="num" th:text="|${a.done}/${a.tasks}|"></td><td><th:block th:replace="~{x :: st(${a.status})}"/></td></tr></table>
+        <p class="empty" th:if="${#lists.isEmpty(unit.work)}">Nothing assigned to this unit.</p></div>
+      <div class="panel"><h2>Operator uses</h2>
+        <table th:if="${!#lists.isEmpty(unit.uses)}"><tr><th>Operator</th><th>Checked out</th><th>Checked in</th><th>Held</th></tr>
+          <tr th:each="u : ${unit.uses}" th:style="${u.checked_in_at == null} ? 'font-weight:600'"><td><th:block th:replace="~{x :: op(${u.user_id}, ${u.operator})}"/></td><td class="small nowrap" th:text="${fmt.dt(u.checked_out_at, 'MM-dd HH:mm')}"></td>
+            <td class="small nowrap" th:text="${u.checked_in_at != null ? fmt.dt(u.checked_in_at, 'MM-dd HH:mm') : 'still out'}"></td><td class="small" th:text="${fmt.age(u.held)}"></td></tr></table>
+        <p class="empty" th:if="${#lists.isEmpty(unit.uses)}">Never checked out.</p></div>
+    </div>
+  </div>
+</main></body></html>

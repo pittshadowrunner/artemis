@@ -28,6 +28,19 @@ public class AlertService {
         return id;
     }
 
+    /**
+     * For producers that run unattended (the replenishment scan): raise only if
+     * the same condition isn't already on the board, and don't re-raise one
+     * that was acknowledged in the last few hours. Returns null when suppressed.
+     */
+    public UUID raiseOnce(UUID siteId, UUID areaId, String type, String severity, String message, String refKind, UUID refId) {
+        Integer live = jdbc.queryForObject("""
+            SELECT count(*) FROM system_alert
+            WHERE site_id = ? AND alert_type = ? AND ref_id IS NOT DISTINCT FROM ?
+              AND (acknowledged_at IS NULL OR created_at > now() - interval '4 hours')""", Integer.class, siteId, type, refId);
+        return live != null && live > 0 ? null : raise(siteId, areaId, type, severity, message, refKind, refId);
+    }
+
     public List<Map<String, Object>> open(UUID siteId) {
         return jdbc.queryForList("""
             SELECT a.alert_id, a.alert_type, a.severity::text AS severity, a.message, a.ref_kind, a.ref_id, ar.code AS area, a.created_at

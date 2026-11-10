@@ -13,7 +13,9 @@ import java.math.BigDecimal;
 import java.util.*;
 
 /**
- * Replenishment: faces at or under trigger get a task from the rotation-
+ * Replenishment is automatic: nobody presses a button. A scheduled scan
+ * ({@link ReplenJob}) watches every face; the API can also ask for a scan.
+ * Faces at or under trigger get a task from the rotation-
  * correct reserve pallet, sized to bring the face to max. An empty face
  * is CRITICAL (priority 9 + alert). Completion splits the pallet: a child
  * with the same lot/expiry lands at the face; the parent keeps the rest.
@@ -29,11 +31,20 @@ public class ReplenService {
         return jdbc.queryForList("SELECT * FROM v_replen_pressure WHERE site_id = ? AND on_hand + in_flight <= replen_trigger_qty ORDER BY (on_hand + in_flight) / NULLIF(replen_trigger_qty, 0), location_code", siteId);
     }
 
-    /** Create one REPLENISHMENT assignment per face under pressure. */
+    /** On-demand scan (API). The scheduled scan does the same thing unattended. */
     @Transactional
     public Map<String, Object> run(UUID siteId) {
         access.require(siteId, Capabilities.REPLEN_EXECUTE);
-        UUID corp = access.requireTenant();
+        return cut(siteId, access.requireTenant());
+    }
+
+    /**
+     * Create one REPLENISHMENT assignment per face under pressure. Idempotent:
+     * work already in flight counts toward the face, so a second pass cuts
+     * nothing new and repeats no alert.
+     */
+    @Transactional
+    public Map<String, Object> cut(UUID siteId, UUID corp) {
         int created = 0, noSource = 0;
         List<String> tasks = new ArrayList<>();
         for (Map<String, Object> face : pressure(siteId)) {
@@ -43,7 +54,7 @@ public class ReplenService {
             boolean critical = onHand.signum() == 0 && inFlight.signum() == 0;
             if (src.isEmpty()) {
                 noSource++;
-                alerts.raise(siteId, (UUID) face.get("area_id"), "REPLEN_NO_SOURCE", critical ? "CRITICAL" : "WARNING",
+                alerts.raiseOnce(siteId, (UUID) face.get("area_id"), "REPLEN_NO_SOURCE", critical ? "CRITICAL" : "WARNING",
                     "Face " + face.get("location_code") + " (" + face.get("sku") + ") is at " + onHand.stripTrailingZeros().toPlainString() + " with no reserve stock to pull from.", "ITEM", (UUID) face.get("item_id"));
                 continue;
             }
@@ -63,7 +74,7 @@ public class ReplenService {
                 INSERT INTO assignment_task (assignment_id, seq, inventory_id, item_id, from_location, to_location, qty, check_digits, spoken_prompt)
                 SELECT ?, 1, ?, ?, inv.location_id, ?, ?, ?, ? FROM inventory inv WHERE inv.inventory_id = ?""",
                 assignmentId, s.get("inventory_id"), face.get("item_id"), faceId, qty, digits, prompt, s.get("inventory_id"));
-            if (critical) alerts.raise(siteId, (UUID) face.get("area_id"), "REPLEN_CRITICAL", "CRITICAL",
+            if (critical) alerts.raiseOnce(siteId, (UUID) face.get("area_id"), "REPLEN_CRITICAL", "CRITICAL",
                 "Pick face " + face.get("location_code") + " (" + face.get("sku") + ") is empty — replenishment " + jdbc.queryForObject("SELECT assignment_number FROM assignment WHERE assignment_id = ?", String.class, assignmentId) + " cut at priority 9.", "ITEM", (UUID) face.get("item_id"));
             created++;
             tasks.add(prompt);

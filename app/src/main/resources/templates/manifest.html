@@ -1,36 +1,76 @@
 <html xmlns:th="http://www.thymeleaf.org" th:replace="~{layout :: page(~{::title}, ~{::main})}">
 <head><title th:text="|${manifest.manifest_number} — Artemis WMS|"></title></head>
-<body><main>
-  <h1><span th:text="${manifest.manifest_number}">MAN</span><small th:text="|${manifest.carrier ?: ''} · ${site.code}|"></small> <span class="status" th:classappend="${manifest.status}" th:text="${manifest.status}"></span></h1>
-  <div class="subnav">
-    <form th:if="${manifest.status == 'EXPECTED'}" th:action="@{/ui/receiving/{id}/arrive(id=${manifest.manifest_id})}" method="post"><button type="submit">Trailer arrived</button></form>
-    <form th:if="${manifest.status == 'ARRIVED' or manifest.status == 'RECEIVING'}" th:action="@{/ui/receiving/{id}/close(id=${manifest.manifest_id})}" method="post"><button type="submit" class="secondary">Close manifest</button></form>
-    <a th:href="@{/sites/{s}/receiving(s=${site.org_node_id})}">← Receiving</a>
+<body><main th:with="receivable=${manifest.status == 'ARRIVED' or manifest.status == 'RECEIVING' or manifest.status == 'RECEIVED'}, any=${!#lists.isEmpty(manifest.pallets)}">
+  <div class="crumbs"><a th:href="@{/sites/{s}/receiving(s=${site.org_node_id})}">Receiving</a> › <b th:text="${manifest.manifest_number}">MAN</b></div>
+  <h1><span th:text="${manifest.manifest_number}">MAN</span><small th:text="|${manifest.carrier ?: 'carrier not set'} · ${site.code}|"></small> <th:block th:replace="~{x :: st(${manifest.status})}"/></h1>
+
+  <div class="grid c4" style="margin-bottom:1rem">
+    <div class="panel tight stat"><b th:text="${manifest.expected_date ?: '—'}">date</b><span>expected</span></div>
+    <div class="panel tight stat"><b th:text="${manifest.arrived_at != null ? fmt.dt(manifest.arrived_at, 'MM-dd HH:mm') : '—'}">—</b><span>trailer arrived</span></div>
+    <div class="panel tight stat"><b th:text="|${fmt.qty(manifest.received_qty) ?: 0} / ${fmt.qty(manifest.expected_qty) ?: 0}|">0 / 0</b><span th:text="|received · ${#lists.size(manifest.pallets)} pallet${#lists.size(manifest.pallets) == 1 ? '' : 's'}|">received</span></div>
+    <div class="panel tight stat"><b th:text="${manifest.closed_at != null ? fmt.dt(manifest.closed_at, 'MM-dd HH:mm') : '—'}">—</b><span th:text="${manifest.status == 'CANCELLED' ? 'cancelled' : 'receiving completed'}">receiving completed</span></div>
   </div>
-  <div class="grid c2">
-    <div class="panel">
-      <h2>Lines</h2>
-      <table><tr><th>#</th><th>SKU</th><th class="num">Expected</th><th class="num">Received</th><th class="num">Rejected</th></tr>
-        <tr th:each="l : ${manifest.lines}"><td th:text="${l.line_number}"></td><td><span class="loc" th:text="${l.sku}"></span><br><span class="muted small" th:text="${l.description}"></span></td><td class="num" th:text="${l.expected_qty}"></td><td class="num" th:text="${l.received_qty}"></td><td class="num" th:text="${l.rejected_qty}"></td></tr></table>
-      <h2 style="margin-top:1rem">Pallets received</h2>
-      <table><tr><th>LPN</th><th>SKU</th><th>Lot / expiry</th><th class="num">Qty</th><th>At</th><th>Status</th></tr>
-        <tr th:each="p : ${manifest.pallets}"><td><a th:href="@{/lpn(q=${p.lpn})}" class="loc" th:text="${p.lpn}"></a></td><td th:text="${p.sku}"></td><td th:text="|${p.lot_number ?: '—'} / ${p.expiration_date ?: '—'}|"></td><td class="num" th:text="${p.qty}"></td><td class="loc" th:text="${p.location}"></td><td><span class="status" th:classappend="${p.status}" th:text="${p.status}"></span></td></tr></table>
-      <p class="empty" th:if="${#lists.isEmpty(manifest.pallets)}">Nothing received yet.</p>
-    </div>
-    <div class="panel" th:if="${manifest.status == 'ARRIVED' or manifest.status == 'RECEIVING'}">
-      <h2>Receive a pallet</h2>
-      <p class="muted small">One pallet per receipt. Lot, expiry, serials and scale weight are required where the item demands them; short shelf life is rejected at the dock.</p>
-      <form th:action="@{/ui/receiving/{id}/pallet(id=${manifest.manifest_id})}" method="post">
-        <div class="row">
-          <label>Line<select name="lineNumber"><option th:each="l : ${manifest.lines}" th:value="${l.line_number}" th:text="|${l.line_number} · ${l.sku} (${l.received_qty}/${l.expected_qty})|"></option></select></label>
-          <label>LPN<input name="lpn" class="mono" required></label><label>Qty<input name="qty" type="number" step="any" required></label>
-        </div>
-        <div class="row">
-          <label>Lot<input name="lot"></label><label>Expiration<input name="expirationDate" type="date"></label><label>Scale kg<input name="actualWeightKg" type="number" step="0.001"></label><label>Dock<input name="dock" class="mono" placeholder="default"></label>
-        </div>
-        <label>Serials (comma-separated)<input name="serials"></label>
-        <button type="submit" style="margin-top:.6rem">Receive &amp; direct putaway</button>
-      </form>
-    </div>
+
+  <!-- What to do next, in the order it happens. Closing is never the way to receive. -->
+  <div class="subnav">
+    <form th:if="${manifest.status == 'EXPECTED'}" th:action="@{/ui/receiving/{id}/arrive(id=${manifest.manifest_id})}" method="post"><button type="submit">Trailer arrived — start receiving</button></form>
+    <form th:if="${receivable and any}" th:action="@{/ui/receiving/{id}/close(id=${manifest.manifest_id})}" method="post">
+      <button type="submit" th:classappend="${manifest.status != 'RECEIVED'} ? 'secondary'" th:text="${manifest.status == 'RECEIVED' ? 'Close manifest — everything is in' : 'Close short — the rest is not coming'}">Close</button></form>
+    <form th:if="${(manifest.status == 'EXPECTED' or receivable) and !any}" th:action="@{/ui/receiving/{id}/cancel(id=${manifest.manifest_id})}" method="post"><button type="submit" class="secondary">Cancel manifest — freight never came</button></form>
+  </div>
+
+  <div class="panel" style="margin-bottom:1rem">
+    <h2 th:text="${receivable ? 'Receive by line' : 'Lines'}">Lines</h2>
+    <p class="hint" th:if="${receivable}" style="margin:0 0 .6rem">One row is one pallet. Receiving a pallet assigns its LPN, lands it on the dock, and directs it to a slot — you'll see all three in the table below. Leave LPN blank unless you're scanning the supplier's label.</p>
+    <table class="receive">
+      <tr><th>#</th><th>Item</th><th class="num">Expected</th><th class="num">Received</th><th class="num">Left</th>
+        <th:block th:if="${receivable}"><th>Qty</th><th>Lot</th><th>Expires</th><th>Scale kg</th><th>Land at</th><th>LPN</th><th></th></th:block>
+        <th th:if="${!receivable}" style="width:10rem"></th></tr>
+      <tr th:each="l : ${manifest.lines}" th:classappend="${l.remaining_qty == 0} ? 'done'" th:with="fid=|rcv${l.line_number}|">
+        <td th:text="${l.line_number}">1</td>
+        <td><th:block th:replace="~{x :: item(${l.sku})}"/> <th:block th:replace="~{x :: zone(${l.temp_zone})}"/><div class="small muted" th:text="${l.description}"></div>
+          <div class="small late" th:if="${l.rejected_qty > 0}" th:text="|${fmt.qty(l.rejected_qty)} rejected${l.rejection_reason != null ? ' — ' + l.rejection_reason : ''}|"></div></td>
+        <td class="num" th:text="${fmt.qty(l.expected_qty)}"></td><td class="num" th:text="${fmt.qty(l.received_qty)}"></td><td class="num" th:text="${fmt.qty(l.remaining_qty)}"></td>
+        <th:block th:if="${receivable}">
+          <td><form th:id="${fid}" th:action="@{/ui/receiving/{id}/pallet(id=${manifest.manifest_id})}" method="post"><input type="hidden" name="lineNumber" th:value="${l.line_number}"></form>
+            <input th:form="${fid}" name="qty" type="number" step="any" min="0" class="q" required
+                   th:value="${fmt.qty(l.pallet_qty != null and l.remaining_qty > l.pallet_qty ? l.pallet_qty : (l.remaining_qty > 0 ? l.remaining_qty : ''))}" aria-label="Quantity on this pallet"></td>
+          <td><input th:form="${fid}" name="lot" th:if="${l.lot_tracked}" required placeholder="required" aria-label="Lot"><span th:if="${!l.lot_tracked}" class="muted small">not tracked</span></td>
+          <td><input th:form="${fid}" name="expirationDate" type="date" th:if="${l.expiry_tracked}" required aria-label="Expiration date"><span th:if="${!l.expiry_tracked}" class="muted small">—</span></td>
+          <td><input th:form="${fid}" name="actualWeightKg" type="number" step="0.001" th:if="${l.catch_weight}" required placeholder="required" aria-label="Scale weight in kg"><span th:if="${!l.catch_weight}" class="muted small">—</span></td>
+          <td><select th:form="${fid}" name="dock" aria-label="Dock"><option th:each="d : ${docks}" th:if="${d.loc_type == 'RECEIVING_DOCK' or d.loc_type == 'CROSS_DOCK'}" th:value="${d.code}" th:text="${d.loc_type == 'CROSS_DOCK' ? d.code + ' (cross-dock)' : d.code}">RCV-01</option></select></td>
+          <td><input th:form="${fid}" name="lpn" class="mono" placeholder="auto" aria-label="LPN, blank to assign one">
+            <input th:form="${fid}" name="serials" th:if="${l.serial_tracked}" placeholder="serials, comma-separated" required aria-label="Serial numbers" style="margin-top:.25rem"></td>
+          <td><button th:form="${fid}" type="submit" th:classappend="${l.remaining_qty == 0} ? 'secondary'">Receive pallet</button></td>
+        </th:block>
+        <td th:if="${!receivable}"><span class="bar wide"><i th:style="|width:${l.expected_qty > 0 ? 100 * l.received_qty / l.expected_qty : 0}%|"></i></span></td>
+      </tr></table>
+    <p class="hint" th:if="${manifest.status == 'EXPECTED'}">Mark the trailer arrived to start receiving against these lines.</p>
+  </div>
+
+  <div class="panel">
+    <h2>Pallets received <span class="muted small" style="text-transform:none;letter-spacing:0">— every pallet has an LPN, a location and a putaway task</span></h2>
+    <table th:if="${any}"><tr><th>Pallet (LPN)</th><th>Item</th><th>Lot / expires</th><th class="num">Qty</th><th>Now at</th><th>Directed to</th><th>Putaway</th><th>Operator</th><th>Received</th></tr>
+      <tr th:each="p : ${manifest.pallets}">
+        <td><th:block th:replace="~{x :: pallet(${p.lpn})}"/></td><td><th:block th:replace="~{x :: item(${p.sku})}"/></td>
+        <td><th:block th:replace="~{x :: lot(${p.sku}, ${p.lot_number})}"/> <span class="small muted" th:text="${p.expiration_date ?: ''}"></span><div class="small muted" th:if="${p.actual_weight_kg}" th:text="|${fmt.qty(p.actual_weight_kg)} kg|"></div></td>
+        <td class="num" th:text="${fmt.qty(p.original_qty)}"></td>
+        <td><th:block th:replace="~{x :: place(${p.location}, ${p.loc_type})}"/></td>
+        <!-- still waiting on the dock: where it's been told to go -->
+        <th:block th:if="${p.assignment_number}">
+          <td><th:block th:replace="~{x :: slot(${p.directed_to})}"/></td>
+          <td><th:block th:replace="~{x :: asg(${p.assignment_number})}"/> <th:block th:replace="~{x :: st(${p.assignment_status})}"/></td>
+          <td><th:block th:replace="~{x :: op(${p.assigned_to}, ${p.operator})}"/></td>
+        </th:block>
+        <!-- put away already -->
+        <th:block th:if="${p.assignment_number == null and p.done_assignment_number != null}">
+          <td class="muted">put away</td><td><th:block th:replace="~{x :: asg(${p.done_assignment_number})}"/> <th:block th:replace="~{x :: st('COMPLETE')}"/></td><td class="small muted" th:text="${fmt.dt(p.put_away_at, 'MM-dd HH:mm')}"></td>
+        </th:block>
+        <th:block th:if="${p.assignment_number == null and p.done_assignment_number == null}">
+          <td colspan="3" class="muted small" th:text="${p.loc_type == 'CROSS_DOCK' ? 'cross-dock — stays for the outbound trailer' : 'no putaway task'}"></td>
+        </th:block>
+        <td class="small nowrap"><span th:text="${fmt.dt(p.created_at, 'MM-dd HH:mm')}"></span><div th:if="${p.assignment_number}" class="muted" th:text="|waiting ${fmt.age(p.dwell)}|"></div></td>
+      </tr></table>
+    <p class="empty" th:if="${!any}" th:text="${manifest.status == 'CANCELLED' ? 'Cancelled — nothing was received.' : 'Nothing received yet.'}">Nothing received yet.</p>
   </div>
 </main></body></html>

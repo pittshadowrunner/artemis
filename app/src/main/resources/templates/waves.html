@@ -4,27 +4,46 @@
   <h1><span th:text="${site.name}">Site</span><small>waves</small></h1>
   <div class="grid c2">
     <div class="panel">
-      <table><tr><th>Wave</th><th>Type</th><th>Zone</th><th>Status</th><th class="num">Zone orders</th><th class="num">Assignments</th><th class="num">Tasks</th></tr>
-        <tr th:each="w : ${waves}"><td><a th:href="@{/waves/{id}(id=${w.wave_id})}" class="loc" th:text="${w.wave_number}"></a></td><td th:text="${w.wave_type}"></td>
-          <td><span class="tag" th:classappend="${#strings.toLowerCase(w.temp_zone) == 'frozen'} ? 'frozen' : (${#strings.toLowerCase(w.temp_zone) == 'refrigerated'} ? 'chill')" th:text="${w.temp_zone}"></span></td>
-          <td><span class="status" th:classappend="${w.status}" th:text="${w.status}"></span></td><td class="num" th:text="${w.zone_orders}"></td><td class="num" th:text="${w.assignments}"></td><td class="num" th:text="|${w.tasks_complete}/${w.tasks}|"></td></tr></table>
+      <h2>Waves</h2>
+      <table><tr><th>Wave</th><th>Zone</th><th>Type</th><th>Status</th><th class="num">Zone orders</th><th class="num">Assignments</th><th class="num">Picks</th></tr>
+        <tr th:each="w : ${waves}"><td><th:block th:replace="~{x :: wave(${w.wave_number})}"/></td><td><th:block th:replace="~{x :: zone(${w.temp_zone})}"/></td><td class="small" th:text="${fmt.words(w.wave_type)}"></td>
+          <td><th:block th:replace="~{x :: st(${w.status})}"/></td><td class="num" th:text="${w.zone_orders}"></td><td class="num" th:text="${w.assignments}"></td><td class="num" th:text="|${w.tasks_complete}/${w.tasks}|"></td></tr></table>
       <p class="empty" th:if="${#lists.isEmpty(waves)}">No waves yet.</p>
     </div>
     <div class="panel">
       <h2>Plan a wave</h2>
-      <p class="muted small">A wave is one temp zone. Leave filters blank to take every open zone order of that zone in the type's own order.</p>
+      <p class="hint" style="margin:0 0 .6rem">A wave is one temperature zone. Pick the zone, then either check the zone orders you want or leave them all unchecked and let the wave type choose.</p>
       <form th:action="@{/ui/sites/{s}/waves(s=${site.org_node_id})}" method="post">
         <div class="row">
-          <label>Type<select name="type"><option th:each="t : ${ {'SHIP_URGENCY','RUSH','PROXIMITY','CARRIER_CUTOFF','ROUTE','SINGLE_CUSTOMER','ZONE'} }" th:value="${t}" th:text="${t}"></option></select></label>
-          <label>Temp zone<select name="tempZone"><option>AMBIENT</option><option>REFRIGERATED</option><option>FROZEN</option><option>DEEP_FROZEN</option><option>CONTROLLED_AMBIENT</option><option>HEATED</option></select></label>
-          <label>Batch size<input name="batchSize" type="number" min="1" max="24" value="6"></label><label>Max orders<input name="maxOrders" type="number"></label>
+          <label>Zone<select name="tempZone" id="wz" onchange="wzFilter()"><option value="AMBIENT">DRY · ambient</option><option value="REFRIGERATED">CHL · refrigerated</option><option value="FROZEN">FRZ · frozen</option><option value="DEEP_FROZEN">Deep frozen</option><option value="CONTROLLED_AMBIENT">Controlled ambient</option><option value="HEATED">Heated</option></select></label>
+          <label>Type<select name="type"><option th:each="t : ${ {'SHIP_URGENCY','RUSH','PROXIMITY','CARRIER_CUTOFF','ROUTE','SINGLE_CUSTOMER','ZONE'} }" th:value="${t}" th:text="${fmt.words(t)}"></option></select></label>
+          <label>Orders per assignment<input name="batchSize" type="number" min="1" max="24" value="6"></label><label>Max orders<input name="maxOrders" type="number"></label>
         </div>
-        <div class="row">
-          <label>Route code<input name="routeCode"></label><label>Customer code<input name="customer"></label><label>Carrier cutoff<input name="cutoff" type="datetime-local"></label><label>Area<input name="area"></label>
-        </div>
-        <label>Specific order numbers (comma-separated, optional)<input name="orderNumbers"></label>
-        <button type="submit" style="margin-top:.6rem">Plan</button>
+        <table id="wzt"><tr><th></th><th>Zone order</th><th>Customer</th><th>Ship date</th><th>Route</th><th class="num">Lines</th><th class="num">Qty</th></tr>
+          <tr th:each="z : ${openOrders}" th:attr="data-zone=${z.temp_zone}">
+            <td><input type="checkbox" name="pick" th:value="${z.order_number}" aria-label="Include in this wave"></td>
+            <td><th:block th:replace="~{x :: order(${z.order_number})}"/><span class="mono muted" th:text="|-${go.tag(z.temp_zone)}|"></span> <span class="pri p9" th:if="${z.rush}">RUSH</span></td>
+            <td><th:block th:replace="~{x :: customer(${z.customer}, ${z.customer_name})}"/></td><td th:text="${z.requested_ship_date}"></td>
+            <td class="small" th:text="|${z.route_code ?: ''} ${z.stop_sequence != null ? '#' + z.stop_sequence : ''}|"></td><td class="num" th:text="${z.lines}"></td><td class="num" th:text="${fmt.qty(z.qty)}"></td></tr></table>
+        <p class="empty" id="wze" style="display:none">No unwaved zone orders in this zone.</p>
+        <details style="margin-top:.6rem"><summary class="small muted">More filters</summary>
+          <div class="row" style="margin-top:.5rem"><label>Route code<input name="routeCode"></label><label>Customer code<input name="customer"></label><label>Carrier cutoff<input name="cutoff" type="datetime-local"></label><label>Area<input name="area"></label></div>
+        </details>
+        <button type="submit" style="margin-top:.6rem">Plan wave</button>
       </form>
     </div>
   </div>
+  <script>
+    function wzFilter() {
+      var zone = document.getElementById('wz').value, shown = 0;
+      document.querySelectorAll('#wzt tr[data-zone]').forEach(function (r) {
+        var on = r.getAttribute('data-zone') === zone; r.style.display = on ? '' : 'none';
+        if (on) shown++; else r.querySelector('input').checked = false;
+      });
+      document.getElementById('wze').style.display = shown ? 'none' : '';
+      document.getElementById('wzt').style.display = shown ? '' : 'none';
+    }
+    // open on the first zone that actually has work
+    (function () { var first = document.querySelector('#wzt tr[data-zone]'); if (first) document.getElementById('wz').value = first.getAttribute('data-zone'); wzFilter(); })();
+  </script>
 </main></body></html>

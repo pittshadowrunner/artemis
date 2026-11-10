@@ -52,6 +52,16 @@ public class UserService {
         return id;
     }
 
+    /** Operator allowances: which workflows this person is trained for. Dispatch refuses anything else. */
+    @Transactional
+    public void setWorkflows(UUID userId, List<String> workflows) {
+        UUID corp = access.requireTenant();
+        access.require(corp, Capabilities.USER_MANAGE);
+        for (String w : workflows) if (!WORKFLOWS.contains(w)) throw ApiException.badRequest("Unknown workflow '" + w + "'. Valid: " + WORKFLOWS);
+        int n = jdbc.update("UPDATE app_user SET trained_workflows = ?, updated_at = now() WHERE user_id = ? AND corporation_id = ?", workflows.toArray(String[]::new), userId, corp);
+        if (n == 0) throw ApiException.notFound("Operator not found.");
+    }
+
     /** Grant a role at an org node; idempotent. */
     @Transactional
     public void grant(UUID userId, UUID orgNodeId, String roleCode) {

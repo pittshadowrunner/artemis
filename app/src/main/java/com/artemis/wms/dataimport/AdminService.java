@@ -30,12 +30,19 @@ public class AdminService {
         if (!code.equalsIgnoreCase(confirm)) throw ApiException.badRequest("confirm must equal the corporation code (" + code + ").");
         boolean all = "all".equalsIgnoreCase(scope);
         int alerts = jdbc.update("DELETE FROM system_alert WHERE corporation_id = ?", corp);
+        jdbc.update("DELETE FROM inventory_movement WHERE inventory_id IN (SELECT inventory_id FROM inventory WHERE corporation_id = ?)", corp);   // the journal points at assignments
+        // Outbound first, in dependency order: shipments (packing lists cascade), then the links
+        // from orders to work, then the work, then the orders (lines, zone orders, allocations cascade).
+        jdbc.update("DELETE FROM shipment WHERE corporation_id = ?", corp);
+        jdbc.update("UPDATE zone_order SET assignment_id = NULL, wave_id = NULL WHERE corporation_id = ?", corp);
         int assignments = jdbc.update("DELETE FROM assignment WHERE corporation_id = ?", corp);
+        int orders = jdbc.update("DELETE FROM customer_order WHERE corporation_id = ?", corp);
+        jdbc.update("DELETE FROM wave WHERE corporation_id = ?", corp);
         int pallets = jdbc.update("DELETE FROM inventory WHERE corporation_id = ?", corp);
         int manifests = jdbc.update("DELETE FROM receiving_manifest WHERE corporation_id = ?", corp);
         jdbc.update("DELETE FROM equipment_checkout WHERE equipment_id IN (SELECT equipment_id FROM equipment WHERE corporation_id = ?)", corp);
         Map<String, Object> out = new java.util.LinkedHashMap<>(Map.of("corporation", code, "scope", all ? "all" : "operations",
-            "alerts", alerts, "assignments", assignments, "pallets", pallets, "manifests", manifests));
+            "alerts", alerts, "assignments", assignments, "orders", orders, "pallets", pallets, "manifests", manifests));
         if (all) {
             out.put("locations", jdbc.update("DELETE FROM location WHERE corporation_id = ?", corp));
             out.put("equipment", jdbc.update("DELETE FROM equipment WHERE corporation_id = ?", corp));

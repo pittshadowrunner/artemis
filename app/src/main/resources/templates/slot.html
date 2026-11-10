@@ -1,0 +1,52 @@
+<html xmlns:th="http://www.thymeleaf.org" th:replace="~{layout :: page(~{::title}, ~{::main})}">
+<head><title th:text="|${slot.code} — Artemis WMS|"></title></head>
+<body><main>
+  <div class="crumbs"><a th:href="@{/sites/{s}/racking(s=${slot.site_id})}">Locations</a> › <b th:text="${slot.code}">D-A-1-01-A</b></div>
+  <h1><th:block th:replace="~{x :: place(${slot.code}, ${slot.loc_type})}"/><small th:text="|${fmt.words(slot.loc_type)} · ${slot.site}${slot.area != null ? ' / ' + slot.area : ''}|"></small>
+    <th:block th:replace="~{x :: zone(${slot.temp_zone})}"/> <span class="status" th:if="${slot.face_sku}">PICK FACE</span> <span class="status CANCELLED" th:if="${!slot.active}">INACTIVE</span></h1>
+  <div class="grid c2">
+    <div class="panel"><h2>Slot</h2>
+      <table class="kv">
+        <tr><th>Check digits</th><td class="mono big" th:text="${slot.check_digits}">42</td></tr>
+        <tr th:if="${slot.aisle}"><th>Position</th><td th:text="|zone ${slot.zone} · aisle ${slot.aisle} · level ${slot.level} · column ${slot.col} · slot ${slot.slot}|"></td></tr>
+        <tr th:if="${slot.pick_sequence}"><th>Pick path</th><td>position <span class="mono" th:text="${slot.pick_sequence}"></span> <span class="muted small">— derived from the name: aisle, then column, slot, level</span></td></tr>
+        <tr><th>Temperature zone</th><td th:text="${fmt.words(slot.temp_zone)}"></td></tr>
+        <tr th:if="${slot.rack_type}"><th>Rack</th><td th:text="|${fmt.words(slot.rack_type)}${slot.golden_zone ? ' · golden zone' : ''}${slot.hazmat_approved ? ' · hazmat approved' : ''}|"></td></tr>
+        <tr th:if="${slot.max_weight_kg}"><th>Capacity</th><td th:text="|${fmt.qty(slot.max_weight_kg)} kg|"></td></tr>
+      </table>
+      <th:block th:if="${slot.face_sku}">
+        <h2 style="margin-top:1rem">Pick face</h2>
+        <table class="kv">
+          <tr><th>Item</th><td><th:block th:replace="~{x :: item(${slot.face_sku})}"/> <span class="muted" th:text="${slot.face_description}"></span></td></tr>
+          <tr th:if="${slot.face}"><th>On hand</th><td><span class="big" th:text="${fmt.qty(slot.face.on_hand)}">0</span>
+            <span class="muted" th:text="|min ${fmt.qty(slot.replen_min_qty)} · trigger ${fmt.qty(slot.replen_trigger_qty)} · max ${fmt.qty(slot.replen_max_qty)}|"></span></td></tr>
+          <tr th:if="${slot.face}"><th>On the way</th><td th:text="|${fmt.qty(slot.face.in_flight)} in replenishment · ${slot.face.open_picks} open pick${slot.face.open_picks == 1 ? '' : 's'}|"></td></tr>
+        </table>
+      </th:block>
+    </div>
+    <div class="panel"><h2>Here now</h2>
+      <table th:if="${!#lists.isEmpty(slot.pallets)}"><tr><th>Pallet</th><th>Item</th><th>Lot / expires</th><th class="num">Qty</th><th class="num">Free</th><th>Status</th></tr>
+        <tr th:each="p : ${slot.pallets}"><td><th:block th:replace="~{x :: pallet(${p.lpn})}"/><div class="small muted" th:if="${p.directed_to}">→ <th:block th:replace="~{x :: slot(${p.directed_to})}"/> on <th:block th:replace="~{x :: asg(${p.assignment_number})}"/></div></td>
+          <td><th:block th:replace="~{x :: item(${p.sku})}"/><div class="small muted" th:text="${p.description}"></div></td>
+          <td><th:block th:replace="~{x :: lot(${p.sku}, ${p.lot_number})}"/> <span class="small muted" th:text="${p.expiration_date ?: ''}"></span></td>
+          <td class="num" th:text="${fmt.qty(p.qty)}"></td><td class="num" th:text="${fmt.qty(p.free_qty)}"></td><td><th:block th:replace="~{x :: st(${p.status})}"/></td></tr></table>
+      <p class="empty" th:if="${#lists.isEmpty(slot.pallets)}">Empty.</p>
+    </div>
+    <div class="panel"><h2>Work touching this slot</h2>
+      <table th:if="${!#lists.isEmpty(slot.work)}"><tr><th></th><th>Assignment</th><th>Pallet</th><th>Item</th><th class="num">Qty</th><th>Other end</th><th>Operator</th></tr>
+        <tr th:each="w : ${slot.work}"><td><span class="status" th:classappend="${w.direction == 'IN'} ? 'COMPLETE' : 'IN_PROGRESS'" th:text="${w.direction == 'IN' ? 'COMING IN' : 'GOING OUT'}"></span></td>
+          <td><th:block th:replace="~{x :: asg(${w.assignment_number})}"/> <span class="small muted" th:text="${fmt.words(w.type)}"></span> <th:block th:replace="~{x :: pri(${w.priority})}"/></td>
+          <td><th:block th:replace="~{x :: pallet(${w.lpn})}"/></td><td><th:block th:replace="~{x :: item(${w.sku})}"/></td><td class="num" th:text="${fmt.qty(w.qty)}"></td>
+          <td><th:block th:replace="~{x :: slot(${w.direction == 'IN' ? w.from_code : w.to_code})}"/></td><td><th:block th:replace="~{x :: op(${w.assigned_to}, ${w.operator})}"/></td></tr></table>
+      <p class="empty" th:if="${#lists.isEmpty(slot.work)}">Nothing headed here or leaving.</p>
+    </div>
+    <div class="panel"><h2>Recent movement</h2>
+      <table th:if="${!#lists.isEmpty(slot.moves)}"><tr><th>When</th><th>Move</th><th>Pallet</th><th class="num">Qty</th><th>From → to</th><th>By</th></tr>
+        <tr th:each="mv : ${slot.moves}"><td class="small nowrap" th:text="${fmt.dt(mv.created_at, 'MM-dd HH:mm')}"></td><td><span class="status" th:text="${#strings.replace(mv.movement_type, '_', ' ')}"></span></td>
+          <td><th:block th:replace="~{x :: pallet(${mv.lpn})}"/> <span class="small muted" th:text="${mv.sku}"></span></td><td class="num" th:text="${fmt.qty(mv.qty)}"></td>
+          <td><th:block th:replace="~{x :: slot(${mv.from_code})}"/> → <th:block th:replace="~{x :: slot(${mv.to_code})}"/></td>
+          <td class="small"><th:block th:replace="~{x :: op(${mv.user_id}, ${mv.performed_by ?: '—'})}"/><th:block th:if="${mv.assignment_number}"> · <th:block th:replace="~{x :: asg(${mv.assignment_number})}"/></th:block></td></tr></table>
+      <p class="empty" th:if="${#lists.isEmpty(slot.moves)}">No movement recorded.</p>
+    </div>
+  </div>
+</main></body></html>

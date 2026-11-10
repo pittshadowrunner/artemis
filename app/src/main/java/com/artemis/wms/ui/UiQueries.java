@@ -35,9 +35,9 @@ public class UiQueries {
         List<Map<String, Object>> locs = jdbc.queryForList("""
             SELECT l.code, l.zone, l.aisle, l.level, l.col, l.slot, l.check_digits, l.temp_zone::text AS temp_zone, css_of(l.temp_zone::text) AS css, tag_of(l.temp_zone::text) AS tag,
                    l.replen_item_id IS NOT NULL AS face, i.sku::text AS face_sku, l.replen_trigger_qty, l.replen_max_qty,
-                   (SELECT count(*) FROM inventory v WHERE v.location_id = l.location_id AND v.status IN ('AVAILABLE','ALLOCATED')) AS pallets,
+                   (SELECT count(*) FROM inventory v WHERE v.location_id = l.location_id AND v.qty > 0 AND (v.status IN ('AVAILABLE','ALLOCATED') OR v.picked_from IS NOT NULL)) AS pallets,
                    (SELECT COALESCE(sum(v.qty), 0) FROM inventory v WHERE v.location_id = l.location_id AND v.status IN ('AVAILABLE','ALLOCATED')) AS qty,
-                   (SELECT string_agg(DISTINCT it.sku::text, ', ') FROM inventory v JOIN item it ON it.item_id = v.item_id WHERE v.location_id = l.location_id AND v.status IN ('AVAILABLE','ALLOCATED')) AS skus
+                   (SELECT min(it.sku::text) FROM inventory v JOIN item it ON it.item_id = v.item_id WHERE v.location_id = l.location_id AND v.qty > 0 AND v.status IN ('AVAILABLE','ALLOCATED')) AS sku
             FROM location l LEFT JOIN item i ON i.item_id = l.replen_item_id
             WHERE l.site_id = ? AND l.loc_type = 'STANDARD' AND l.active AND l.aisle IS NOT NULL
             ORDER BY l.zone, l.aisle, fn_rank_token(l.col), l.slot, fn_rank_token(l.level) DESC""", siteId);
@@ -56,7 +56,7 @@ public class UiQueries {
     public List<Map<String, Object>> docks(UUID siteId) {
         return jdbc.queryForList("""
             SELECT l.code, l.loc_type::text AS loc_type, l.check_digits,
-                   (SELECT count(*) FROM inventory v WHERE v.location_id = l.location_id AND v.status IN ('AVAILABLE','ALLOCATED')) AS pallets,
+                   (SELECT count(*) FROM inventory v WHERE v.location_id = l.location_id AND v.qty > 0 AND (v.status IN ('AVAILABLE','ALLOCATED') OR v.picked_from IS NOT NULL)) AS pallets,
                    (SELECT count(*) FROM zone_order z WHERE z.drop_location_id = l.location_id AND z.dropped_at > now() - interval '24 hours') AS drops_24h
             FROM location l WHERE l.site_id = ? AND l.loc_type <> 'STANDARD' AND l.active ORDER BY l.loc_type, l.code""", siteId);
     }
@@ -65,27 +65,86 @@ public class UiQueries {
         Map<String, Object> d = new LinkedHashMap<>();
         d.put("receivingToday", jdbc.queryForList("SELECT * FROM v_receiving_progress WHERE site_id = ? AND (expected_date = CURRENT_DATE OR arrived_at::date = CURRENT_DATE OR status NOT IN ('CLOSED','CANCELLED')) ORDER BY status, manifest_number", siteId));
         d.put("shipping", jdbc.queryForList("SELECT * FROM v_shipping_progress WHERE site_id = ? AND (created_at::date = CURRENT_DATE OR status <> 'SHIPPED') ORDER BY status, shipment_number", siteId));
-        d.put("velocity", jdbc.queryForList("SELECT * FROM v_pick_face_velocity WHERE site_id = ? ORDER BY lines_30d DESC, location_code", siteId));
-        d.put("expiry", jdbc.queryForList("SELECT * FROM v_expiry_risk WHERE site_id = ? AND days_remaining <= 30 ORDER BY days_remaining, sku", siteId));
-        d.put("labor", jdbc.queryForList("SELECT display_name, assignment_type::text AS assignment_type, sum(tasks) AS tasks, sum(cases) AS cases FROM v_labor_productivity WHERE site_id = ? AND day > now() - interval '7 days' GROUP BY display_name, assignment_type ORDER BY tasks DESC", siteId));
-        d.put("dwell", jdbc.queryForList("SELECT * FROM v_dock_dwell WHERE site_id = ? ORDER BY dwell DESC", siteId));
+        d.put("velocity", jdbc.queryForList("SELECT *, sku::text AS sku FROM v_pick_face_velocity WHERE site_id = ? ORDER BY lines_30d DESC, location_code", siteId));
+        d.put("expiry", jdbc.queryForList("SELECT r.*, r.sku::text AS sku FROM v_expiry_risk r WHERE r.site_id = ? AND r.days_remaining <= 30 ORDER BY r.days_remaining, r.sku", siteId));
+        d.put("labor", jdbc.queryForList("SELECT user_id, display_name, assignment_type::text AS assignment_type, sum(tasks) AS tasks, sum(cases) AS cases FROM v_labor_productivity WHERE site_id = ? AND day > now() - interval '7 days' GROUP BY user_id, display_name, assignment_type ORDER BY tasks DESC", siteId));
+        d.put("dwell", jdbc.queryForList("SELECT *, temp_zone::text AS temp_zone, sku::text AS sku FROM v_dock_dwell WHERE site_id = ? ORDER BY dwell DESC", siteId));
         d.put("orders", jdbc.queryForList("SELECT status::text AS status, count(*) AS n FROM customer_order WHERE site_id = ? GROUP BY status ORDER BY 1", siteId));
         return d;
     }
 
-    public List<Map<String, Object>> openAssignments(UUID siteId, String type) {
+    /**
+     * Open work of one type for a board lane, optionally one temp zone.
+     * Putaway and replenishment are one pallet each, so the card carries the
+     * pallet, where it is and where it's going; selection is assignment-level
+     * (many items across a pick path) and carries its wave, unit and orders.
+     */
+    public List<Map<String, Object>> openAssignments(UUID siteId, String type, String zone) {
         return jdbc.queryForList("""
-            SELECT a.assignment_id, a.assignment_number, a.assignment_type::text AS type, a.status::text AS status, a.priority, a.temp_zone::text AS temp_zone, tag_of(a.temp_zone::text) AS tag, css_of(a.temp_zone::text) AS css,
-                   u.display_name AS assigned_to, w.wave_number, m.manifest_number, e.code AS equipment,
+            SELECT a.assignment_id, a.assignment_number, a.assignment_type::text AS type, a.status::text AS status, a.priority, a.temp_zone::text AS temp_zone,
+                   u.display_name AS assigned_to, a.assigned_to AS assigned_user_id, w.wave_number, m.manifest_number, e.code AS equipment,
                    (SELECT count(*) FROM assignment_task t WHERE t.assignment_id = a.assignment_id) AS tasks,
                    (SELECT count(*) FROM assignment_task t WHERE t.assignment_id = a.assignment_id AND t.status = 'COMPLETE') AS done,
-                   (SELECT string_agg(DISTINCT lt.code, ', ') FROM assignment_task t JOIN location lt ON lt.location_id = t.to_location WHERE t.assignment_id = a.assignment_id) AS destinations,
-                   (SELECT string_agg(DISTINCT inv.lpn, ', ') FROM assignment_task t JOIN inventory inv ON inv.inventory_id = t.inventory_id WHERE t.assignment_id = a.assignment_id) AS lpns,
-                   now() - a.created_at AS age
+                   (SELECT count(*) FROM assignment_container ac WHERE ac.assignment_id = a.assignment_id) AS orders,
+                   first.lpn, first.sku, first.qty, first.from_code, first.to_code,
+                   now() - COALESCE(first.landed_at, a.created_at) AS waiting,
+                   EXTRACT(EPOCH FROM now() - COALESCE(first.landed_at, a.created_at)) > 4 * 3600 AS overdue
             FROM assignment a LEFT JOIN app_user u ON u.user_id = a.assigned_to LEFT JOIN wave w ON w.wave_id = a.wave_id
             LEFT JOIN receiving_manifest m ON m.manifest_id = a.manifest_id LEFT JOIN equipment e ON e.equipment_id = a.equipment_id
+            LEFT JOIN LATERAL (
+                SELECT inv.lpn, i.sku::text AS sku, t.qty, lf.code AS from_code, lt.code AS to_code,
+                       CASE WHEN a.assignment_type = 'PUTAWAY' THEN inv.created_at END AS landed_at
+                FROM assignment_task t LEFT JOIN inventory inv ON inv.inventory_id = t.inventory_id LEFT JOIN item i ON i.item_id = t.item_id
+                LEFT JOIN location lf ON lf.location_id = t.from_location LEFT JOIN location lt ON lt.location_id = t.to_location
+                WHERE t.assignment_id = a.assignment_id ORDER BY t.seq LIMIT 1) first ON true
             WHERE a.site_id = ? AND a.assignment_type::text = ? AND a.status IN ('OPEN','ASSIGNED','IN_PROGRESS')
-            ORDER BY a.priority DESC, a.created_at""", siteId, type);
+              AND (?::text IS NULL OR a.temp_zone::text = ?)
+            ORDER BY a.priority DESC, a.created_at""", siteId, type, zone, zone);
+    }
+
+    /** The order master list: filter by status, customer (code or name), and ship-date window. */
+    public List<Map<String, Object>> orders(UUID siteId, String status, String customer, java.time.LocalDate from, java.time.LocalDate to) {
+        return jdbc.queryForList("""
+            SELECT p.*, p.status::text AS status FROM v_order_progress p
+            WHERE p.site_id = ? AND (?::text IS NULL OR p.status::text = ?)
+              AND (?::text IS NULL OR p.customer_code ILIKE '%' || ? || '%' OR p.customer_name ILIKE '%' || ? || '%' OR p.order_number ILIKE '%' || ? || '%')
+              AND (?::date IS NULL OR COALESCE(p.requested_ship_date, p.created_at::date) >= ?::date)
+              AND (?::date IS NULL OR COALESCE(p.requested_ship_date, p.created_at::date) <= ?::date)
+            ORDER BY p.rush DESC, p.priority DESC, p.requested_ship_date NULLS LAST, p.order_number LIMIT 500""",
+            siteId, status, status, customer, customer, customer, customer, from, from, to, to);
+    }
+
+    /** Zone orders nobody has waved yet — what the wave planner picks from. */
+    public List<Map<String, Object>> unwavedZoneOrders(UUID siteId) {
+        return jdbc.queryForList("""
+            SELECT z.temp_zone::text AS temp_zone, o.order_number, c.code AS customer, c.name AS customer_name, o.requested_ship_date, o.rush, o.priority,
+                   o.route_code, o.stop_sequence,
+                   (SELECT count(*) FROM customer_order_line ol JOIN item i ON i.item_id = ol.item_id WHERE ol.order_id = o.order_id AND i.temp_zone = z.temp_zone) AS lines,
+                   (SELECT COALESCE(sum(ol.ordered_qty), 0) FROM customer_order_line ol JOIN item i ON i.item_id = ol.item_id WHERE ol.order_id = o.order_id AND i.temp_zone = z.temp_zone) AS qty
+            FROM zone_order z JOIN customer_order o ON o.order_id = z.order_id JOIN customer c ON c.customer_id = o.customer_id
+            WHERE o.site_id = ? AND z.wave_id IS NULL AND o.status NOT IN ('SHIPPED','CANCELLED')
+            ORDER BY z.temp_zone, o.rush DESC, o.requested_ship_date NULLS LAST, o.order_number""", siteId);
+    }
+
+    /** Shipping lane: orders down at the dock and not yet on a truck, then open shipments. */
+    public List<Map<String, Object>> readyToShip(UUID siteId) {
+        return jdbc.queryForList("""
+            SELECT p.order_number, p.customer_code, p.customer_name, p.requested_ship_date, p.route_code, p.stop_sequence, p.rush, p.zones,
+                   (SELECT string_agg(DISTINCT l.code, ', ') FROM zone_order z JOIN location l ON l.location_id = z.drop_location_id WHERE z.order_id = p.order_id) AS dropped_at,
+                   s.shipment_number, s.status::text AS shipment_status
+            FROM v_order_progress p LEFT JOIN shipment_order so ON so.order_id = p.order_id LEFT JOIN shipment s ON s.shipment_id = so.shipment_id
+            WHERE p.site_id = ? AND p.status = 'DROPPED' ORDER BY p.rush DESC, p.requested_ship_date NULLS LAST, p.order_number""", siteId);
+    }
+
+    /** What's physically sitting on each open manifest's dock, for the receiving lane. */
+    public List<Map<String, Object>> openManifests(UUID siteId) {
+        return jdbc.queryForList("""
+            SELECT p.manifest_id, p.manifest_number, p.carrier, p.status::text AS status, p.expected_date, p.arrived_at, p.expected_qty, p.received_qty, p.pct_complete,
+                   (SELECT count(*) FROM inventory v JOIN location l ON l.location_id = v.location_id
+                     WHERE v.manifest_id = p.manifest_id AND l.loc_type IN ('RECEIVING_DOCK','CROSS_DOCK') AND v.status = 'AVAILABLE') AS on_dock,
+                   (SELECT count(*) FROM inventory v WHERE v.manifest_id = p.manifest_id AND v.parent_inventory_id IS NULL) AS pallets
+            FROM v_receiving_progress p WHERE p.site_id = ? AND p.status NOT IN ('CLOSED','CANCELLED')
+            ORDER BY (p.status = 'EXPECTED'), p.arrived_at NULLS LAST, p.manifest_number""", siteId);
     }
 
     public List<Map<String, Object>> operators(UUID siteId) {

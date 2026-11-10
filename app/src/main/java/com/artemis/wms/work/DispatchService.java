@@ -79,9 +79,9 @@ public class DispatchService {
         boolean reassign = a.get("assigned_to") != null && !a.get("assigned_to").equals(userId);
         jdbc.update("""
             UPDATE assignment SET assigned_to = ?, previous_assignee = CASE WHEN ? THEN assigned_to ELSE previous_assignee END,
-                reassigned_count = reassigned_count + CASE WHEN ? THEN 1 ELSE 0 END, last_assigned_at = CASE WHEN ? IS NULL THEN last_assigned_at ELSE now() END,
-                status = CASE WHEN ? IS NULL AND status = 'ASSIGNED' THEN 'OPEN'::assignment_status
-                              WHEN ? IS NOT NULL AND status = 'OPEN' THEN 'ASSIGNED'::assignment_status ELSE status END,
+                reassigned_count = reassigned_count + CASE WHEN ? THEN 1 ELSE 0 END, last_assigned_at = CASE WHEN ?::uuid IS NULL THEN last_assigned_at ELSE now() END,
+                status = CASE WHEN ?::uuid IS NULL AND status = 'ASSIGNED' THEN 'OPEN'::assignment_status
+                              WHEN ?::uuid IS NOT NULL AND status = 'OPEN' THEN 'ASSIGNED'::assignment_status ELSE status END,
                 priority = COALESCE(?, priority), updated_at = now()
             WHERE assignment_id = ?""", userId, reassign, reassign, userId, userId, userId, priority, assignmentId);
         return Map.of("assignmentId", assignmentId, "assignmentNumber", a.get("assignment_number"), "assignedTo", userId == null ? "" : userId, "reassigned", reassign);

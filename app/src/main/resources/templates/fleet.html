@@ -1,0 +1,17 @@
+<html xmlns:th="http://www.thymeleaf.org" th:replace="~{layout :: page(~{::title}, ~{::main})}">
+<head><title th:text="|${site.code} equipment — Artemis WMS|"></title></head>
+<body><main th:with="here=|/sites/${site.org_node_id}/equipment|">
+  <h1><span th:text="${site.name}">Site</span><small th:text="|equipment · ${#lists.size(fleet)} units|"></small></h1>
+  <div class="panel"><table><tr><th>Unit</th><th>Type</th><th class="num">Positions</th><th>Capabilities</th><th>With</th><th>Out for</th><th>Open work</th><th></th></tr>
+    <tr th:each="e : ${fleet}"><td><th:block th:replace="~{x :: unit(${e.code})}"/> <span class="status CANCELLED" th:if="${!e.active}">INACTIVE</span></td><td th:text="${fmt.words(e.type)}"></td><td class="num" th:text="${e.container_positions ?: '—'}"></td>
+      <td class="small" th:text="${!#lists.isEmpty(e.capabilities) ? fmt.words(#strings.listJoin(e.capabilities, ', ')) : ''}"></td>
+      <td><th:block th:if="${e.user_id}"><th:block th:replace="~{x :: op(${e.user_id}, ${e.operator})}"/></th:block><span th:if="${e.user_id == null}" class="muted">in the pool</span></td>
+      <td class="small" th:text="${e.user_id != null ? fmt.age(e.held) : ''}"></td>
+      <td class="small"><th:block th:if="${e.open_work}" th:each="n, s : ${#strings.arraySplit(e.open_work, ', ')}"><th:block th:replace="~{x :: asg(${n})}"/><span th:if="${!s.last}">, </span></th:block></td>
+      <td>
+        <form th:if="${e.user_id == null}" th:action="@{/ui/equipment/{id}/checkout(id=${e.equipment_id})}" method="post" class="inline"><input type="hidden" name="back" th:value="${here}">
+          <select name="userId" aria-label="Operator" required><option value="">Operator…</option><option th:each="u : ${people}" th:value="${u.user_id}" th:text="${u.display_name}"></option></select><button type="submit" class="secondary">Check out</button></form>
+        <form th:if="${e.user_id != null}" th:action="@{/ui/equipment/{id}/checkin(id=${e.equipment_id})}" method="post" class="inline"><input type="hidden" name="back" th:value="${here}"><button type="submit" class="secondary">Check in</button></form>
+      </td></tr></table>
+    <p class="empty" th:if="${#lists.isEmpty(fleet)}">No equipment registered.</p></div>
+</main></body></html>

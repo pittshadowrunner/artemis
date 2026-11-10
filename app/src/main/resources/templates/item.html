@@ -1,20 +1,51 @@
 <html xmlns:th="http://www.thymeleaf.org" th:replace="~{layout :: page(~{::title}, ~{::main})}">
 <head><title th:text="|${item.sku} — Artemis WMS|"></title></head>
 <body><main>
-  <h1><span th:text="${item.sku}">SKU</span><small th:text="${item.description}"></small></h1>
-  <div class="subnav"><a th:href="@{/items}">← Items</a></div>
-  <div class="grid c3">
-    <div class="panel"><h2>Handling</h2><table>
-      <tr><th>Temp zone</th><td th:text="${item.temp_zone}"></td></tr><tr><th>UOM</th><td th:text="${item.uom}"></td></tr>
-      <tr><th>Tracking</th><td th:text="|${item.lot_tracked ? 'lot ' : ''}${item.expiry_tracked ? 'expiry ' : ''}${item.serial_tracked ? 'serial ' : ''}${item.catch_weight ? 'catch-weight' : ''}|"></td></tr>
-      <tr><th>Shelf life</th><td th:text="|${item.shelf_life_days ?: '—'} days · label ${item.date_label}|"></td></tr>
+  <div class="crumbs"><a th:href="@{/items}">Items</a> › <b th:text="${item.sku}">SKU</b></div>
+  <h1><span th:text="${item.sku}">SKU</span><small th:text="${item.description}"></small> <th:block th:replace="~{x :: zone(${item.temp_zone})}"/></h1>
+  <div class="grid c3" style="margin-bottom:1rem">
+    <div class="panel"><h2>Handling</h2><table class="kv">
+      <tr><th>Temperature zone</th><td th:text="${fmt.words(item.temp_zone)}"></td></tr>
+      <tr><th>Tracking</th><td th:text="|${item.lot_tracked ? 'lot ' : ''}${item.expiry_tracked ? 'expiry ' : ''}${item.serial_tracked ? 'serial ' : ''}${item.catch_weight ? 'catch-weight' : ''}${!item.lot_tracked and !item.expiry_tracked and !item.serial_tracked and !item.catch_weight ? 'none' : ''}|"></td></tr>
+      <tr><th>Shelf life</th><td th:text="|${item.shelf_life_days ?: '—'} days · label ${fmt.words(item.date_label)}|"></td></tr>
       <tr><th>Min at receipt / ship</th><td th:text="|${item.min_shelf_life_receipt_days ?: '—'} / ${item.min_shelf_life_ship_days ?: '—'} days|"></td></tr>
-      <tr><th>Weight</th><td th:text="|${item.weight_kg ?: '—'} kg ${item.catch_weight ? '(nominal ' + item.nominal_weight_kg + ')' : ''}|"></td></tr>
-      <tr><th>Hazmat</th><td th:text="${item.hazmat_class ?: '—'}"></td></tr><tr><th>Allergens</th><td th:text="${item.allergens != null ? #strings.listJoin(item.allergens, ', ') : '—'}"></td></tr></table></div>
-    <div class="panel"><h2>Packaging</h2><table>
-      <tr><th>Case pack</th><td th:text="${item.case_pack_qty ?: '—'}"></td></tr><tr><th>Ti × Hi</th><td th:text="|${item.pallet_ti ?: '—'} × ${item.pallet_hi ?: '—'}|"></td></tr>
+      <tr><th>Weight</th><td th:text="|${item.weight_kg != null ? fmt.qty(item.weight_kg) : '—'} kg ${item.catch_weight ? '(nominal ' + fmt.qty(item.nominal_weight_kg) + ')' : ''}|"></td></tr>
+      <tr><th>Hazmat</th><td th:text="${item.hazmat_class ?: '—'}"></td></tr><tr><th>Allergens</th><td th:text="${item.allergens != null and !#lists.isEmpty(item.allergens) ? #strings.listJoin(item.allergens, ', ') : '—'}"></td></tr></table></div>
+    <div class="panel"><h2>Units of measure</h2><table class="kv">
+      <tr><th>Base unit</th><td th:text="${item.uom}"></td></tr>
+      <tr th:each="u : ${item.uoms}"><th th:text="|1 ${u.code}|">1 CS</th><td th:text="|= ${fmt.qty(u.qty)} ${u.of_code}|"></td></tr>
+      <tr><th>Pallet pattern</th><td th:text="|${item.pallet_ti ?: '—'} per layer × ${item.pallet_hi ?: '—'} layers|"></td></tr>
       <tr><th>GTIN each / case</th><td class="mono small" th:text="|${item.gtin_each ?: '—'} / ${item.gtin_case ?: '—'}|"></td></tr>
-      <tr><th>Velocity</th><td th:text="${item.velocity_class ?: '—'}"></td></tr><tr><th>Base item</th><td class="mono" th:text="${item.base_item_sku ?: '—'}"></td></tr></table>
-      <h2 style="margin-top:1rem">UOM tiers</h2><table><tr th:each="u : ${item.uoms}"><td class="mono" th:text="${u.code}"></td><td th:text="|= ${u.qty} ${u.of_code}|"></td></tr></table></div>
+      <tr th:if="${item.base_item_sku}"><th>Base item</th><td><th:block th:replace="~{x :: item(${item.base_item_sku})}"/></td></tr></table></div>
+    <div class="panel"><h2>Velocity</h2>
+      <div class="big" th:if="${ctx.velocity != null and ctx.velocity.velocity != null}"><span th:text="${ctx.velocity.velocity}">A</span><small th:text="|${ctx.velocity.lines_30d} lines · ${fmt.qty(ctx.velocity.cases_30d)} picked, last 30 days|"></small></div>
+      <p class="muted" th:if="${ctx.velocity == null or ctx.velocity.velocity == null}">No picks in the last 30 days.</p>
+      <p class="hint">Calculated from picks, not declared: A items are the ones making up the first 80% of lines, B the next 15%, C the rest.</p>
+      <h2 style="margin-top:1rem">Pick faces</h2>
+      <table th:if="${!#lists.isEmpty(ctx.faces)}"><tr><th>Face</th><th class="num">On hand</th><th class="num">Trigger / max</th><th class="num">On the way</th></tr>
+        <tr th:each="f : ${ctx.faces}"><td><th:block th:replace="~{x :: slot(${f.location_code})}"/></td><td class="num" th:classappend="${f.on_hand <= f.replen_trigger_qty} ? 'late'" th:text="${fmt.qty(f.on_hand)}"></td>
+          <td class="num" th:text="|${fmt.qty(f.replen_trigger_qty)} / ${fmt.qty(f.replen_max_qty)}|"></td><td class="num" th:text="${fmt.qty(f.in_flight)}"></td></tr></table>
+      <p class="muted small" th:if="${#lists.isEmpty(ctx.faces)}">No dedicated pick face — picked from reserve.</p></div>
+  </div>
+  <div class="grid c2">
+    <div class="panel"><h2>Stock <span class="muted small" style="text-transform:none;letter-spacing:0" th:text="|— ${#lists.size(ctx.stock)} pallet${#lists.size(ctx.stock) == 1 ? '' : 's'}|"></span></h2>
+      <table th:if="${!#lists.isEmpty(ctx.stock)}"><tr><th>Location</th><th>Pallet</th><th>Lot / expires</th><th class="num">Qty</th><th class="num">Free</th><th>Status</th></tr>
+        <tr th:each="s : ${ctx.stock}"><td><th:block th:replace="~{x :: place(${s.location}, ${s.loc_type})}"/> <span class="status" th:if="${s.at_face}">FACE</span></td><td><th:block th:replace="~{x :: pallet(${s.lpn})}"/></td>
+          <td><th:block th:replace="~{x :: lot(${item.sku}, ${s.lot_number})}"/> <span class="small" th:if="${s.expiration_date}" th:classappend="${s.days_remaining <= 7} ? 'late' : 'muted'" th:text="|${s.expiration_date} · ${s.days_remaining}d|"></span></td>
+          <td class="num" th:text="${fmt.qty(s.qty)}"></td><td class="num" th:text="${fmt.qty(s.free_qty)}"></td><td><th:block th:replace="~{x :: st(${s.status})}"/></td></tr></table>
+      <p class="empty" th:if="${#lists.isEmpty(ctx.stock)}">None on hand.</p></div>
+    <div>
+      <div class="panel" style="margin-bottom:1rem"><h2>Open demand</h2>
+        <table th:if="${!#lists.isEmpty(ctx.demand)}"><tr><th>Order</th><th>Customer</th><th>Ship date</th><th class="num">Ordered</th><th class="num">Allocated</th><th class="num">Picked</th><th>Status</th></tr>
+          <tr th:each="d : ${ctx.demand}"><td><th:block th:replace="~{x :: order(${d.order_number})}"/></td><td><th:block th:replace="~{x :: customer(${d.customer}, ${d.customer_name})}"/></td><td th:text="${d.requested_ship_date}"></td>
+            <td class="num" th:text="${fmt.qty(d.ordered_qty)}"></td><td class="num" th:text="${fmt.qty(d.allocated_qty)}"></td><td class="num" th:text="${fmt.qty(d.picked_qty)}"></td><td><th:block th:replace="~{x :: st(${d.status})}"/></td></tr></table>
+        <p class="empty" th:if="${#lists.isEmpty(ctx.demand)}">No open orders for this item.</p></div>
+      <div class="panel" th:if="${!#lists.isEmpty(ctx.inbound)}" style="margin-bottom:1rem"><h2>Inbound</h2>
+        <table><tr><th>Manifest</th><th>Carrier</th><th>Expected</th><th class="num">Qty</th><th class="num">Received</th><th>Status</th></tr>
+          <tr th:each="m : ${ctx.inbound}"><td><th:block th:replace="~{x :: manifest(${m.manifest_number})}"/></td><td th:text="${m.carrier}"></td><td th:text="${m.expected_date}"></td><td class="num" th:text="${fmt.qty(m.expected_qty)}"></td><td class="num" th:text="${fmt.qty(m.received_qty)}"></td><td><th:block th:replace="~{x :: st(${m.status})}"/></td></tr></table></div>
+      <div class="panel" th:if="${!#lists.isEmpty(ctx.lots)}"><h2>Lots</h2>
+        <table><tr><th>Lot</th><th>Expires</th><th class="num">Days left</th><th class="num">Pallets</th><th class="num">On hand</th></tr>
+          <tr th:each="l : ${ctx.lots}"><td><th:block th:replace="~{x :: lot(${item.sku}, ${l.lot_number})}"/></td><td th:text="${l.expiration_date ?: '—'}"></td><td class="num" th:classappend="${l.days_remaining != null and l.days_remaining <= 7} ? 'late'" th:text="${l.days_remaining ?: ''}"></td><td class="num" th:text="${l.pallets_on_hand}"></td><td class="num" th:text="${fmt.qty(l.qty_on_hand)}"></td></tr></table></div>
+    </div>
   </div>
 </main></body></html>

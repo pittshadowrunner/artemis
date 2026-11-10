@@ -71,6 +71,10 @@ public class ShippingService {
         if ("SHIPPED".equals(s.get("status"))) throw ApiException.conflict("Already shipped.");
         jdbc.update("UPDATE shipment SET status = 'SHIPPED', shipped_at = now() WHERE shipment_id = ?", shipmentId);
         jdbc.update("UPDATE customer_order SET status = 'SHIPPED', updated_at = now() WHERE order_id IN (SELECT order_id FROM shipment_order WHERE shipment_id = ?)", shipmentId);
+        // The picked units leave the building with the truck.
+        String units = "v.picked_from IS NOT NULL AND v.status = 'PICKED' AND v.zone_order_id IN (SELECT z.zone_order_id FROM zone_order z JOIN shipment_order so ON so.order_id = z.order_id WHERE so.shipment_id = ?)";
+        jdbc.update("INSERT INTO inventory_movement (inventory_id, from_location, qty, movement_type, performed_by) SELECT v.inventory_id, v.location_id, v.qty, 'SHIP', ? FROM inventory v WHERE " + units, com.artemis.wms.tenancy.TenantContext.user(), shipmentId);
+        jdbc.update("UPDATE inventory v SET status = 'SHIPPED', location_id = NULL, equipment_id = NULL, cart_position = NULL, updated_at = now() WHERE " + units, shipmentId);
         return get(shipmentId);
     }
 

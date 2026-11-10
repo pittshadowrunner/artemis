@@ -1,0 +1,59 @@
+<html xmlns:th="http://www.thymeleaf.org" th:replace="~{layout :: page(~{::title}, ~{::main})}">
+<head><title th:text="|${pallet.lpn} — Artemis WMS|"></title></head>
+<body><main>
+  <div class="crumbs"><a th:href="@{/sites/{s}/pallets(s=${pallet.site_id})}">Pallets</a> › <b th:text="${pallet.lpn}">PLT-1</b></div>
+  <h1><span class="mono" th:text="${pallet.lpn}">PLT-1</span><small th:text="|pallet · ${pallet.site}|"></small> <th:block th:replace="~{x :: zone(${pallet.temp_zone})}"/> <th:block th:replace="~{x :: st(${pallet.status})}"/></h1>
+  <div class="grid c2">
+    <div class="panel"><h2>Pallet</h2>
+      <table class="kv">
+        <tr><th>Item</th><td><th:block th:replace="~{x :: item(${pallet.sku})}"/> <span class="muted" th:text="${pallet.description}"></span></td></tr>
+        <tr><th>Quantity</th><td><span class="big" th:text="${fmt.qty(pallet.qty)}">48</span><small class="muted" th:text="| ${pallet.uom ?: ''} on the pallet now|"></small>
+          <div class="muted small" th:text="|${fmt.qty(pallet.original_qty)} as received · ${fmt.qty(pallet.free_qty)} free to allocate|">48 as received</div></td></tr>
+        <tr><th>Where it is</th><td><th:block th:if="${pallet.location != null or pallet.picked_from == null}"><th:block th:replace="~{x :: place(${pallet.location}, ${pallet.loc_type})}"/> <span class="muted small" th:if="${pallet.check_digits}" th:text="|check ${pallet.check_digits}|"></span></th:block>
+          <th:block th:if="${pallet.location == null and pallet.equipment != null}">riding on <th:block th:replace="~{x :: unit(${pallet.equipment})}"/> <span th:if="${pallet.cart_position}" th:text="|· position ${pallet.cart_position}|"></span></th:block>
+          <span th:if="${pallet.location == null and pallet.equipment == null and pallet.picked_from != null}" class="muted" th:text="${pallet.status == 'SHIPPED' ? 'left the building' : '—'}"></span></td></tr>
+        <tr th:if="${pallet.picked_from}"><th>Picked from</th><td><th:block th:replace="~{x :: pallet(${pallet.picked_from})}"/></td></tr>
+        <tr th:if="${pallet.for_order}"><th>Picked for</th><td><th:block th:replace="~{x :: order(${pallet.for_order})}"/> <th:block th:replace="~{x :: customer(${pallet.for_customer}, ${pallet.for_customer_name})}"/></td></tr>
+        <tr th:if="${pallet.task}"><th>Where it's going</th><td><th:block th:replace="~{x :: slot(${pallet.task.to_code})}"/> <span class="muted small" th:text="|check ${pallet.task.check_digits} ·|"></span>
+          <span class="small" th:text="${fmt.words(pallet.task.type)}"></span> <th:block th:replace="~{x :: asg(${pallet.task.assignment_number})}"/> <th:block th:replace="~{x :: st(${pallet.task.status})}"/>
+          <span class="small"><th:block th:replace="~{x :: op(${pallet.task.assigned_to}, ${pallet.task.operator})}"/></span></td></tr>
+        <tr><th>Lot</th><td><th:block th:replace="~{x :: lot(${pallet.sku}, ${pallet.lot_number})}"/></td></tr>
+        <tr><th>Expires</th><td th:if="${pallet.expiration_date}"><span th:text="${pallet.expiration_date}"></span> <span class="small" th:classappend="${pallet.days_remaining <= 7} ? 'late' : 'muted'" th:text="|${pallet.days_remaining} days|"></span></td><td th:if="${pallet.expiration_date == null}" class="muted">—</td></tr>
+        <tr><th>Received</th><td><span th:text="${pallet.arrival_date}"></span><th:block th:if="${pallet.manifest_number}"> on <th:block th:replace="~{x :: manifest(${pallet.manifest_number})}"/></th:block></td></tr>
+        <tr th:if="${pallet.actual_weight_kg}"><th>Scale weight</th><td th:text="|${fmt.qty(pallet.actual_weight_kg)} kg|"></td></tr>
+        <tr th:if="${pallet.parent_lpn}"><th>Split from</th><td><th:block th:replace="~{x :: pallet(${pallet.parent_lpn})}"/></td></tr>
+        <tr th:if="${!#lists.isEmpty(pallet.children)}"><th>Split into</th><td><div th:each="c : ${pallet.children}"><th:block th:replace="~{x :: pallet(${c.lpn})}"/> <span class="small muted" th:text="|${fmt.qty(c.qty)} of ${fmt.qty(c.original_qty)} at|"></span> <th:block th:replace="~{x :: slot(${c.location})}"/></div></td></tr>
+        <tr th:if="${!#lists.isEmpty(pallet.serials)}"><th>Serials</th><td class="mono small" th:text="${#strings.listJoin(pallet.serials, ', ')}"></td></tr>
+      </table>
+    </div>
+    <div class="panel"><h2>Where it has been</h2>
+      <table><tr><th>Location</th><th>Arrived</th><th>Left</th><th>Time there</th><th>How</th><th>By</th></tr>
+        <tr th:each="s, i : ${pallet.stops}" th:style="${s.departed == null} ? 'font-weight:600'">
+          <td><th:block th:replace="~{x :: place(${s.location}, ${s.loc_type})}"/></td>
+          <td class="small nowrap" th:text="${fmt.dt(s.arrived, 'MM-dd HH:mm')}"></td>
+          <td class="small nowrap" th:text="${s.departed != null ? fmt.dt(s.departed, 'MM-dd HH:mm') : 'still here'}"></td>
+          <td th:text="${fmt.age(s.dwell)}"></td>
+          <td><span class="status" th:text="${#strings.replace(s.movement_type, '_', ' ')}"></span></td>
+          <td class="small"><th:block th:replace="~{x :: op(${s.user_id}, ${s.performed_by ?: '—'})}"/><th:block th:if="${s.assignment_number}"> · <th:block th:replace="~{x :: asg(${s.assignment_number})}"/></th:block></td></tr></table>
+      <p class="empty" th:if="${#lists.isEmpty(pallet.stops)}">No recorded location.</p>
+    </div>
+    <div class="panel" th:if="${!#lists.isEmpty(pallet.picks)}"><h2>Picked out of it</h2>
+      <table><tr><th>Pick unit</th><th class="num">Qty</th><th>For order</th><th>Now</th><th>Picked</th></tr>
+        <tr th:each="k : ${pallet.picks}"><td><th:block th:replace="~{x :: pallet(${k.lpn})}"/></td><td class="num" th:text="${fmt.qty(k.qty)}"></td><td><th:block th:replace="~{x :: order(${k.order_number})}"/></td>
+          <td class="small"><th:block th:if="${k.equipment}">on <th:block th:replace="~{x :: unit(${k.equipment})}"/><span th:if="${k.cart_position}" th:text="| · pos ${k.cart_position}|"></span></th:block>
+            <th:block th:if="${k.location}"><th:block th:replace="~{x :: slot(${k.location})}"/></th:block><span th:if="${k.equipment == null and k.location == null}" class="muted" th:text="${fmt.words(k.status)}"></span></td>
+          <td class="small muted nowrap" th:text="${fmt.dt(k.created_at, 'MM-dd HH:mm')}"></td></tr></table></div>
+    <div class="panel" th:if="${!#lists.isEmpty(pallet.allocations)}"><h2>Promised to orders</h2>
+      <table><tr><th>Order</th><th>Customer</th><th class="num">Allocated</th><th class="num">Picked</th><th>Order status</th></tr>
+        <tr th:each="a : ${pallet.allocations}"><td><th:block th:replace="~{x :: order(${a.order_number})}"/> <b class="sev WARNING" th:if="${a.bypass}" title="strict rotation was skipped for this customer's shelf-life terms">BYPASS</b></td>
+          <td><th:block th:replace="~{x :: customer(${a.customer}, ${a.customer_name})}"/></td><td class="num" th:text="${fmt.qty(a.qty)}"></td><td class="num" th:text="${fmt.qty(a.picked_qty)}"></td><td><th:block th:replace="~{x :: st(${a.order_status})}"/></td></tr></table>
+    </div>
+    <div class="panel"><h2>Journal</h2>
+      <table><tr><th>When</th><th>Move</th><th>From → to</th><th class="num">Qty</th><th>By</th></tr>
+        <tr th:each="h : ${pallet.history}">
+          <td class="small nowrap" th:text="${fmt.dt(h.created_at, 'MM-dd HH:mm')}"></td><td><span class="status" th:text="${#strings.replace(h.movement_type, '_', ' ')}"></span></td>
+          <td><th:block th:replace="~{x :: slot(${h.from_location})}"/> → <th:block th:replace="~{x :: slot(${h.to_location})}"/></td><td class="num" th:text="${fmt.qty(h.qty)}"></td>
+          <td class="small"><th:block th:replace="~{x :: op(${h.user_id}, ${h.performed_by ?: '—'})}"/><th:block th:if="${h.assignment_number}"> · <th:block th:replace="~{x :: asg(${h.assignment_number})}"/></th:block></td></tr></table>
+    </div>
+  </div>
+</main></body></html>
